@@ -149,8 +149,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             panel?.show()
             model.ask(.deep)
         case .toggleListening:
+            // Start checks the setup itself.
             model.toggleListening()
-            showWindow()
+            panel?.show()
         }
     }
 }
