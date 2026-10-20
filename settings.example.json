@@ -1,0 +1,97 @@
+{
+  "speech": {
+    "provider": "google",
+    "googleProjectID": "your-gcp-project-id",
+    "googleLocation": "eu",
+    "googleEndpoint": "eu-speech.googleapis.com",
+    "model": "chirp_3",
+    "languageCode": "en-GB",
+    "endpointingSensitivity": "short",
+    "googleCredentialsFile": null,
+    "rotateAfterSeconds": 240,
+    "skipSilence": false
+  },
+  "turns": {
+    "silenceMs": 700,
+    "vadThresholdDBFS": -45,
+    "minSpeechMs": 150
+  },
+  "answers": {
+    "quick": {
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "thinking": "off",
+      "maxTokens": 600
+    },
+    "deep": {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "thinking": "adaptive",
+      "maxTokens": 4000
+    },
+    "transcriptBudgetTokens": 8000,
+    "transcriptHardCapTokens": 60000,
+    "context": "I am a Trading Operations Engineer at Pelican, an FCA-regulated copy-trading SaaS platform. On these calls I speak with our brokers and liquidity providers about trade execution: fills, rejections, requotes and slippage, price feed gaps, FIX and API connectivity, symbol mappings, trading hours, margin, leverage and swap settings, and follow-ups to incidents. 'Them' is usually the broker's dealing desk, support or integration team. Suggest short answers I can say out loud. Never invent order IDs, account numbers, amounts or timestamps; if they are missing, suggest asking for them. Timestamps are UTC. For anything that could affect client funds or regulatory reporting, suggest confirming in writing and raising a ticket. Use British English.",
+    "draftAhead": false
+  },
+  "summary": {
+    "enabled": true,
+    "model": {
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "thinking": "adaptive",
+      "maxTokens": 8000
+    }
+  },
+  "capture": {
+    "systemAudioBackend": "tap",
+    "voiceProcessing": false
+  },
+  "storage": {
+    "directory": null,
+    "retentionDays": 30,
+    "saveAudio": false
+  },
+  "hotkeys": {
+    "quickAnswer": "ctrl+option+space",
+    "deepAnswer": "ctrl+option+shift+space",
+    "toggleListening": "ctrl+option+l"
+  },
+  "window": {
+    "alwaysOnTop": true,
+    "opacity": 0.97,
+    "showDockIcon": false
+  },
+  "prices": {
+    "models": {
+      "claude-haiku-5-5": {
+        "input": 0.10,
+        "output": 0.50,
+        "cacheRead": 0.01,
+        "cacheWrite": 0.125,
+        "longPromptThreshold": 100000,
+        "longPromptInput": 0.50,
+        "longPromptOutput": 2.50,
+        "longPromptCacheRead": 0.05,
+        "longPromptCacheWrite": 0.625
+      },
+      "claude-sonnet-5-5": {
+        "input": 2.00,
+        "output": 10.00,
+        "cacheRead": 0.20,
+        "cacheWrite": 2.50
+      },
+      "claude-opus-5-5": {
+        "input": 4.00,
+        "output": 20.00,
+        "cacheRead": 0.20,
+        "cacheWrite": 5.00
+      }
+    },
+    "speechPerMinute": {
+      "google": 0.016,
+      "apple": 0,
+      "fake": 0
+    }
+  }
+}
