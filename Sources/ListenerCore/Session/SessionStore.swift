@@ -266,7 +266,8 @@ extension SessionStore {
     }
 
     /// Deletes session directories under `root` that started more than `retentionDays`
-    /// ago, judged by their names. Never touches anything not named like a session.
+    /// ago, judged by their names. Never touches anything that is not named like a
+    /// session or holds neither a transcript nor a session record.
     /// `retentionDays` of zero or less keeps everything. Returns what was deleted.
     @discardableResult
     public static func deleteExpired(in root: URL, retentionDays: Int, now: Date = Date()) throws -> [URL] {
@@ -296,7 +297,10 @@ extension SessionStore {
                 at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
         return entries.compactMap { url in
             guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
-                let startedAt = startDate(fromDirectoryName: url.lastPathComponent)
+                let startedAt = startDate(fromDirectoryName: url.lastPathComponent),
+                [transcriptFile, recordFile].contains(where: {
+                    FileManager.default.fileExists(atPath: url.appendingPathComponent($0).path)
+                })
             else {
                 return nil
             }

@@ -210,4 +210,18 @@ struct SessionStoreTests {
         #expect(try SessionStore.deleteExpired(in: root, retentionDays: 0, now: now.addingTimeInterval(1e9)).isEmpty)
         #expect(try SessionStore.deleteExpired(in: root.appendingPathComponent("missing"), retentionDays: 1).isEmpty)
     }
+
+    /// `storage.directory` can point anywhere, so a folder that is merely named like a
+    /// session must survive: only folders Listener wrote a session into are deleted.
+    @Test func retentionLeavesFoldersThatHoldNoSession() throws {
+        let root = try temporaryDirectory("retention")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent(SessionStore.directoryName(for: date(2025, 1, 1), calendar: .current))
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("holiday".utf8).write(to: folder.appendingPathComponent("photo.jpg"))
+
+        #expect(try SessionStore.deleteExpired(in: root, retentionDays: 30, now: date(2026, 10, 20)).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("photo.jpg").path))
+        #expect(SessionStore.list(in: root).isEmpty)
+    }
 }
