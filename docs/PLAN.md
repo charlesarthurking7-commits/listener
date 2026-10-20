@@ -158,9 +158,11 @@ make it miss the last words of the question, which is worse.
   about $1.92. Skipping silence on the "Me" channel with the local VAD (keeping a short
   pre-roll so word onsets aren't clipped) roughly halves that channel's cost.
 - **Swift client**: Google's new Swift SDK for Speech v2 is REST only, with no
-  `streamingRecognize`. We generate a gRPC client from Google's protos with
-  grpc-swift-2 (needs macOS 15) and take auth from Google's `swift-google-auth`
-  package (ADC or service account, adds the `x-goog-user-project` quota header).
+  `streamingRecognize`. We generate a gRPC client from a trimmed copy of Google's proto
+  with grpc-swift-2 (needs macOS 15). Auth is our own: Application Default Credentials
+  from `gcloud auth application-default login` are refreshed in-process, and any other
+  credential type falls back to `gcloud auth application-default print-access-token`.
+  The `x-goog-user-project` quota header is sent for user credentials.
 
 Plan: M1 builds the Google provider and a replay benchmark that measures, per model and
 sensitivity, end of speech -> final, end of speech -> first interim, and accuracy on the
