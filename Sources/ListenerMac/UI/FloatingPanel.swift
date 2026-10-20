@@ -8,10 +8,14 @@ import SwiftUI
 /// and how big it was.
 final class FloatingPanel: NSPanel {
     private static let frameName = "ListenerWindow"
+    /// Narrow enough to sit beside a call, tall enough for an answer and the last
+    /// minute of conversation.
+    private static let defaultSize = NSSize(width: 400, height: 720)
+    private static let margin: CGFloat = 24
 
     init(rootView: some View, window: WindowSettings) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 600),
+            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -33,8 +37,12 @@ final class FloatingPanel: NSPanel {
             standardWindowButton(button)?.isHidden = true
         }
 
+        // One material for the whole window, behind everything; nothing inside adds its
+        // own blur. The popover material follows light and dark mode and is dense
+        // enough to read text over any background, and macOS makes it opaque with
+        // Reduce Transparency.
         let background = NSVisualEffectView()
-        background.material = .hudWindow
+        background.material = .popover
         background.blendingMode = .behindWindow
         // Listener is never the active app, and inactive windows lose their vibrancy
         // unless the effect is forced on.
@@ -53,7 +61,7 @@ final class FloatingPanel: NSPanel {
         contentView = background
 
         if !setFrameUsingName(Self.frameName) {
-            placeInTopRightCorner()
+            placeForFirstLaunch()
         }
         setFrameAutosaveName(Self.frameName)
     }
@@ -68,13 +76,19 @@ final class FloatingPanel: NSPanel {
         orderFrontRegardless()
     }
 
-    private func placeInTopRightCorner() {
-        guard let screen = NSScreen.main?.visibleFrame else {
+    /// The window is meant to sit beside the call on a second display, so it starts on
+    /// the right edge of one if there is one, otherwise in the top right corner. After
+    /// that it reopens wherever it was left.
+    private func placeForFirstLaunch() {
+        let screens = NSScreen.screens
+        guard let screen = (screens.count > 1 ? screens.last : screens.first)?.visibleFrame else {
             center()
             return
         }
-        let margin: CGFloat = 20
-        setFrameOrigin(NSPoint(x: screen.maxX - frame.width - margin, y: screen.maxY - frame.height - margin))
+        let height = min(Self.defaultSize.height, screen.height - 2 * Self.margin)
+        let size = NSSize(width: Self.defaultSize.width, height: max(height, minSize.height))
+        let origin = NSPoint(x: screen.maxX - size.width - Self.margin, y: screen.maxY - size.height - Self.margin)
+        setFrame(NSRect(origin: origin, size: size), display: false)
     }
 }
 
