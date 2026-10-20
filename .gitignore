@@ -6,3 +6,4 @@ build/
 .env
 *.wav
 !Fixtures/**/*.wav
+.claude/worktrees/

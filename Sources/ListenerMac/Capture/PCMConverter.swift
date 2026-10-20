@@ -13,7 +13,8 @@ final class PCMConverter: @unchecked Sendable {
 
     /// - Parameter mixAllChannels: average all input channels. When false only the
     ///   first channel is kept, which is what voice processing needs because it puts
-    ///   the cleaned-up signal on channel 0 and reference signals on the others.
+    ///   the cleaned-up signal on channel 0 and reference signals on the others (it
+    ///   can turn a one-channel mic into three or more).
     init(inputFormat: AVAudioFormat, mixAllChannels: Bool = true) throws {
         guard
             let outputFormat = AVAudioFormat(
@@ -27,6 +28,9 @@ final class PCMConverter: @unchecked Sendable {
             throw CaptureError.unsupportedFormat(AudioFormatText.describe(inputFormat))
         }
         converter.downmix = mixAllChannels
+        if !mixAllChannels {
+            converter.channelMap = [0]
+        }
         self.inputFormat = inputFormat
         self.outputFormat = outputFormat
         self.converter = converter
