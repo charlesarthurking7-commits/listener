@@ -16,7 +16,8 @@ public struct Settings: Sendable, Codable, Equatable {
 }
 
 public struct SpeechSettings: Sendable, Codable, Equatable {
-    /// "google", or "fake" to replay a fixture's script without any network.
+    /// "google" (Google Cloud, EU), "apple" (on-device, macOS 26 and later), or "fake"
+    /// to replay a fixture's script without any network.
     public var provider = "google"
     public var googleProjectID: String?
     public var googleLocation = "eu"
