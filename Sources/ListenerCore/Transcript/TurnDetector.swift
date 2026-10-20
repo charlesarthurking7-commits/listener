@@ -13,6 +13,10 @@ import Foundation
 /// `silenceMs` and nobody else speaks in between. It closes, and never changes again,
 /// once its final is in and the speaker's voice activity has seen `silenceMs` of
 /// silence after it, or when the speaker starts a new turn.
+///
+/// Where a final's speech began comes from the voice activity detector when it can:
+/// recognisers often report no start, or the end of the previous final (Chirp 3 has no
+/// word timings when streaming), which would make every pause look like no pause.
 public struct TurnDetector: Sendable {
     public struct Update: Sendable, Equatable {
         /// The snapshot changed: a new or longer turn, or different interim text.
@@ -40,15 +44,24 @@ public struct TurnDetector: Sendable {
     private var channels: [Speaker: Channel] = [:]
     private var nextID = 1
 
+    /// Speech the voice activity detector heard, in channel time.
+    private struct Speech {
+        var start: Double
+        /// Nil while it goes on.
+        var end: Double?
+    }
+
     private struct Channel {
         var clock = CaptureClock()
         var position = 0.0
-        var speaking = false
-        var speechStart: Double?
-        var lastSpeechEnd: Double?
-        /// Recent speech in session time, oldest first.
-        var recentSpeech: [ClosedRange<Double>] = []
+        /// Recent speech, oldest first.
+        var speech: [Speech] = []
+        /// Channel time where the last final's audio ended.
+        var lastFinalEnd = 0.0
         var openTurn: OpenTurn?
+
+        var speaking: Bool { speech.last.map { $0.end == nil } ?? false }
+        var lastSpeechEnd: Double? { speech.last { $0.end != nil }?.end }
 
         mutating func record(_ frame: Range<Double>, capturedAt: Double) {
             if position == 0 {
@@ -57,6 +70,47 @@ public struct TurnDetector: Sendable {
             }
             clock.record(audio: frame.upperBound, session: capturedAt)
             position = max(position, frame.upperBound)
+        }
+
+        mutating func apply(_ activity: VoiceActivity) {
+            switch activity {
+            case .speechStarted(let start):
+                speech.append(Speech(start: start))
+                if speech.count > 64 {
+                    speech.removeFirst()
+                }
+            case .speechEnded(let end):
+                if let last = speech.indices.last, speech[last].end == nil {
+                    speech[last].end = max(end, speech[last].start)
+                }
+            }
+        }
+
+        /// Where the speech behind a final ending at `end` began: the first speech heard
+        /// after the previous final, else the recogniser's start, else the speech that
+        /// was going on, but never before the previous final.
+        func speechStart(before end: Double, reported: Double?) -> Double {
+            // Speech starting a hair before the previous final's end is still new speech:
+            // the recogniser and the detector rarely agree to the frame.
+            if let fresh = speech.first(where: { $0.start >= lastFinalEnd - 0.05 && $0.start < end }) {
+                return fresh.start
+            }
+            if let reported {
+                return min(reported, end)
+            }
+            if let current = speech.last(where: { $0.start < end }) {
+                return min(max(current.start, lastFinalEnd), end)
+            }
+            return end
+        }
+
+        /// Whether this channel's speech overlaps `start...end` of session time.
+        func spoke(between start: Double, and end: Double) -> Bool {
+            speech.contains { segment in
+                let from = clock.sessionTime(at: segment.start)
+                let to = segment.end.map { clock.sessionTime(at: $0) } ?? .infinity
+                return from < end && to > start
+            }
         }
     }
 
@@ -81,27 +135,13 @@ public struct TurnDetector: Sendable {
     }
 
     public mutating func voiceActivity(_ activity: VoiceActivity, speaker: Speaker) -> Update {
-        var channel = channels[speaker, default: Channel()]
-        switch activity {
-        case .speechStarted(let start):
-            channel.speaking = true
-            channel.speechStart = start
-        case .speechEnded(let end):
-            channel.speaking = false
-            channel.lastSpeechEnd = end
-            let start = channel.clock.sessionTime(at: channel.speechStart ?? end)
-            let finish = channel.clock.sessionTime(at: end)
-            channel.recentSpeech.append(min(start, finish)...max(start, finish))
-            if channel.recentSpeech.count > 64 {
-                channel.recentSpeech.removeFirst()
-            }
-        }
-        channels[speaker] = channel
+        channels[speaker, default: Channel()].apply(activity)
         var update = Update()
         closeIfFinished(speaker, &update)
         return update
     }
 
+    /// An empty interim clears the speaker's interim text; an empty final only does that.
     public mutating func speechEvent(_ event: SpeechEvent, speaker: Speaker) -> Update {
         var update = Update()
         let text = event.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -154,10 +194,11 @@ public struct TurnDetector: Sendable {
         _ text: String, audioStart: Double?, audioEnd: Double?, speaker: Speaker, _ update: inout Update
     ) {
         var channel = channels[speaker, default: Channel()]
-        // Without times from the provider, the voice activity says where the speech was.
+        // Without an end from the recogniser, the voice activity says where the speech was.
         let fallbackEnd = channel.speaking ? channel.position : (channel.lastSpeechEnd ?? channel.position)
         let endOnChannel = audioEnd ?? fallbackEnd
-        let startOnChannel = min(audioStart ?? channel.speechStart ?? endOnChannel, endOnChannel)
+        let startOnChannel = channel.speechStart(before: endOnChannel, reported: audioStart)
+        channel.lastFinalEnd = max(channel.lastFinalEnd, endOnChannel)
         let start = channel.clock.sessionTime(at: startOnChannel)
         let end = max(channel.clock.sessionTime(at: endOnChannel), start)
 
@@ -186,19 +227,13 @@ public struct TurnDetector: Sendable {
         guard gapEnd > gapStart else {
             return false
         }
-        let overlaps = { (range: ClosedRange<Double>) in range.lowerBound < gapEnd && range.upperBound > gapStart }
-        for turn in snapshot.turns where turn.speaker != speaker && overlaps(turn.start...turn.end) {
+        let otherTurns = snapshot.turns.lazy.filter { $0.speaker != speaker }
+        if otherTurns.contains(where: { $0.start < gapEnd && $0.end > gapStart }) {
             return true
         }
-        for (other, channel) in channels where other != speaker {
-            if channel.recentSpeech.contains(where: overlaps) {
-                return true
-            }
-            if channel.speaking, let start = channel.speechStart, channel.clock.sessionTime(at: start) < gapEnd {
-                return true
-            }
+        return channels.contains { other, channel in
+            other != speaker && channel.spoke(between: gapStart, and: gapEnd)
         }
-        return false
     }
 
     private mutating func closeIfFinished(_ speaker: Speaker, _ update: inout Update) {

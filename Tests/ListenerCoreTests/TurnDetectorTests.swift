@@ -118,7 +118,7 @@ struct TurnDetectorTests {
         var harness = Harness()
         harness.speech(.them, 0.0...1.0)
         harness.final(.them, "First.", 0.0...1.0)
-        harness.speech(.them, 1.6...2.5)
+        harness.speech(.them, 1.8...2.5)
         harness.play(to: 2.6)
         harness.final(.them, "Second.", 1.8...2.5)
         #expect(harness.turns.map(\.text) == ["First.", "Second."])
@@ -203,6 +203,31 @@ struct TurnDetectorTests {
         harness.final(.me, "No timestamps.", nil)
         #expect(harness.turns.map(\.text) == ["No timestamps."])
         #expect(near(harness.turns.first?.start, 3.0) && near(harness.turns.first?.end, 4.0))
+    }
+
+    @Test func aStartAtThePreviousFinalsEndIsNotTrusted() {
+        // Chirp 3 reports a final's start as the end of the previous final, which would
+        // make the 1.5 s pause below look like none.
+        var harness = Harness()
+        harness.speech(.them, 0.5...1.5)
+        harness.play(.them, to: 1.6)
+        harness.final(.them, "First.", 0.5...1.5)
+        harness.speech(.them, 3.0...4.0)
+        harness.final(.them, "Second.", 1.5...4.0)
+        #expect(harness.turns.map(\.text) == ["First.", "Second."])
+        #expect(near(harness.turns.last?.start, 3.0))
+    }
+
+    @Test func speechTheRecogniserSplitsWithoutAPauseStaysOneTurn() {
+        var harness = Harness()
+        harness.started(.them, at: 0.5)
+        harness.play(.them, to: 2.2)
+        harness.final(.them, "One long", nil)
+        harness.play(.them, to: 4.0)
+        harness.ended(.them, at: 4.0)
+        harness.final(.them, "sentence.", nil)
+        #expect(harness.turns.map(\.text) == ["One long sentence."])
+        #expect(near(harness.turns.first?.start, 0.5) && near(harness.turns.first?.end, 4.0))
     }
 
     @Test func captureGapsShiftLaterAudio() {
