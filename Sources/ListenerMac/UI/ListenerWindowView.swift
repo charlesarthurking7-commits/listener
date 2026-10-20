@@ -33,6 +33,9 @@ struct ListenerWindowView: View {
             .animation(.easeOut(duration: 0.18), value: model.state.answer?.id)
         }
         .frame(minWidth: 320, minHeight: 360)
+        // The title bar is transparent and its buttons hidden, so the header uses
+        // that space instead of sitting below an empty band.
+        .ignoresSafeArea()
     }
 }
 
