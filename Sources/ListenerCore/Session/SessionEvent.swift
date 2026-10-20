@@ -28,6 +28,10 @@ public struct AnswerRecord: Sendable, Codable, Equatable, Identifiable {
     public var usage: TokenUsage?
     public var cost: Double
     public var error: String?
+    /// Shown from an answer drafted ahead when Them finished a turn
+    /// (`AnswerSettings.draftAhead`). Its request went out before the hotkey, so
+    /// `hotkeyToRequestSent` is negative and the other stages measure when text appeared.
+    public var fromDraft: Bool
 
     public init(
         id: Int,
@@ -38,7 +42,8 @@ public struct AnswerRecord: Sendable, Codable, Equatable, Identifiable {
         latency: AnswerLatency = AnswerLatency(),
         usage: TokenUsage? = nil,
         cost: Double = 0,
-        error: String? = nil
+        error: String? = nil,
+        fromDraft: Bool = false
     ) {
         self.id = id
         self.tier = tier
@@ -49,6 +54,7 @@ public struct AnswerRecord: Sendable, Codable, Equatable, Identifiable {
         self.usage = usage
         self.cost = cost
         self.error = error
+        self.fromDraft = fromDraft
     }
 }
 
