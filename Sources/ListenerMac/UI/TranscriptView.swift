@@ -26,6 +26,7 @@ struct TranscriptView: View {
                 }
                 .padding(.horizontal, Theme.gutter)
             }
+            .modifier(SoftTopEdge())
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .alignment)
             // While following, growing text and a card appearing above both keep the
@@ -172,5 +173,22 @@ private struct FloatingCapsule: ViewModifier {
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 0.5))
             .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+    }
+}
+
+/// Lines scrolling under the answer card fade out instead of being cut off. Uses the
+/// system's own scroll edge effect on macOS 26, which costs nothing extra; earlier
+/// systems keep the plain edge rather than pay for a mask on every scroll.
+private struct SoftTopEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                content.scrollEdgeEffectStyle(.soft, for: .top)
+            } else {
+                content
+            }
+        #else
+            content
+        #endif
     }
 }
