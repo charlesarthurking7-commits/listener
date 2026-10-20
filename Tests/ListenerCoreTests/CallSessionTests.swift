@@ -266,6 +266,37 @@ struct CallSessionTests {
         #expect(warnings.first?.hasPrefix("Me has been digital silence for 30 s: check Microphone permission") == true)
     }
 
+    /// System audio is exact zeros whenever nothing plays, as before the other side
+    /// joins, so only a silence while the call plays points at the permission.
+    @Test func aSilentThemChannelOnlyBlamesThePermissionIfTheCallIsPlaying() async throws {
+        let silentThem = ConversationScript(
+            title: "waiting", lines: [.init(speaker: .me, start: 1, end: 3, text: "Are you there?")])
+        let setup = try setUp(script: silentThem, seconds: 31, model: nil)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.run()
+        #expect(
+            setup.recorder.warnings == [
+                "Them has been digital silence for 30 s. If the call's audio is already playing, check System "
+                    + "Audio Recording permission (System Settings > Privacy & Security > Screen & System Audio "
+                    + "Recording)."
+            ])
+    }
+
+    /// The detector only reports speech once it has heard 150 ms of it, so a pause just
+    /// under the silence threshold looks, for that long, like one just over it.
+    @Test func aPauseJustShortOfTheSilenceKeepsOneTurn() async throws {
+        let script = ConversationScript(
+            title: "pause",
+            lines: [
+                .init(speaker: .them, start: 1.0, end: 2.0, text: "Which accounts"),
+                .init(speaker: .them, start: 2.65, end: 3.5, text: "were affected?"),
+            ])
+        let setup = try setUp(script: script, seconds: 5, model: nil)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.run()
+        #expect(await setup.session.transcript.turns.map(\.text) == ["Which accounts were affected?"])
+    }
+
     @Test func speechToTextErrorsDoNotEndTheCall() async throws {
         let setup = try setUp(speech: FlakySpeech(script: tradeScript))
         defer { try? FileManager.default.removeItem(at: setup.root) }

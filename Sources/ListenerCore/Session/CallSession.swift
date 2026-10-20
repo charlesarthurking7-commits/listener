@@ -61,6 +61,8 @@ public actor CallSession {
     public var cost: CostSummary { costTracker.summary }
     /// Session time of the speech answers are measured from right now, for tests.
     var endOfSpeech: Double? { timeline.endOfSpeech()?.end }
+    /// The recent speech the voice activity detector heard, for tests.
+    var speechSegments: [SpeechTimeline.Segment] { timeline.segments }
 
     private enum Phase {
         case idle, starting, running, stopping, stopped
@@ -94,8 +96,15 @@ public actor CallSession {
     private var draft: Generation?
     private var nextAnswerID = 1
     private var nextGenerationKey = 1
-    /// Answers already ended whose speech had no final yet, by speech segment id.
-    private var answersAwaitingFinal: [Int: [Int]] = [:]
+    /// Answers already ended whose speech had not ended or had no final yet.
+    private var answersAwaitingSpeech: [PendingAnswer] = []
+
+    private struct PendingAnswer {
+        /// Index into `answers`.
+        var index: Int
+        var shownAt: Double?
+        var speech: AnswerSpeech
+    }
 
     /// Starts capture and recognition on every source. Throws if a source cannot
     /// start (permission denied, no device); nothing keeps running in that case.
@@ -209,14 +218,16 @@ public actor CallSession {
         let frame = report.frame
         apply(
             detector.audioProgress(
-                speaker, frame: frame.start..<frame.end, capturedAt: sessionTime(frame.chunk.capturedAt)))
+                speaker, frame: frame.start..<frame.end, capturedAt: sessionTime(frame.chunk.capturedAt),
+                activity: report.activity))
         for activity in report.activity {
-            apply(detector.voiceActivity(activity, speaker: speaker))
             switch activity {
             case .speechStarted(let start):
                 timeline.speechStarted(speaker, at: detector.sessionTime(speaker, channelTime: start))
             case .speechEnded(let end):
-                timeline.speechEnded(speaker, at: detector.sessionTime(speaker, channelTime: end))
+                if let speech = timeline.speechEnded(speaker, at: detector.sessionTime(speaker, channelTime: end)) {
+                    speechChanged(speech)
+                }
             }
         }
         if report.speechSeconds > 0 {
@@ -242,7 +253,9 @@ public actor CallSession {
             if event.kind == .final && !event.text.allSatisfy(\.isWhitespace) {
                 let arrived = sessionTime(.now)
                 let end = event.audioEnd.map { detector.sessionTime(speaker, channelTime: $0) }
-                noteFinal(covering: timeline.finalArrived(speaker, audioEnd: end, at: arrived), at: arrived)
+                for id in timeline.finalArrived(speaker, audioEnd: end, at: arrived) {
+                    timeline.segment(id).map(speechChanged)
+                }
             }
             apply(detector.speechEvent(event, speaker: speaker))
         }
@@ -265,17 +278,18 @@ public actor CallSession {
         }
     }
 
+    /// A microphone never delivers exact zeros, but system audio does whenever nothing
+    /// is playing, for example before the other side joins.
     private func silenceWarning(for speaker: Speaker) -> String {
-        let permission: String
+        let silence = "\(speaker.rawValue) has been digital silence for \(Int(ChannelProcessor.silenceAlarmSeconds)) s"
         switch speaker {
         case .me:
-            permission = "Microphone permission (System Settings > Privacy & Security > Microphone)"
+            return "\(silence): check Microphone permission (System Settings > Privacy & Security > Microphone)."
         case .them:
             let name = settings.capture.systemAudioBackend == "sck" ? "Screen Recording" : "System Audio Recording"
-            permission = "\(name) permission (System Settings > Privacy & Security > Screen & System Audio Recording)"
+            return "\(silence). If the call's audio is already playing, check \(name) permission "
+                + "(System Settings > Privacy & Security > Screen & System Audio Recording)."
         }
-        let seconds = Int(ChannelProcessor.silenceAlarmSeconds)
-        return "\(speaker.rawValue) has been digital silence for \(seconds) s: check \(permission)."
     }
 
     /// Asks for a suggested answer from the transcript so far, including interim
@@ -291,7 +305,7 @@ public actor CallSession {
         }
         let hotkey = sessionTime(pressedAt)
         finishVisible(error: Self.cancelledMessage)
-        let speech = timeline.endOfSpeech()
+        let speech = timeline.answerSpeech()
 
         if tier == .quick, let drafted = draft, drafted.error == nil, drafted.revision == detector.revision,
             detector.snapshot.interim.isEmpty
@@ -320,7 +334,7 @@ public actor CallSession {
         var task: Task<Void, Never>?
         var answerID: Int?
         var hotkeyAt: Double?
-        var speech: SpeechTimeline.Segment?
+        var speech: AnswerSpeech?
         var requestSentAt: Double
         var firstTokenAt: Double?
         var doneAt: Double?
@@ -354,7 +368,7 @@ public actor CallSession {
         return generation
     }
 
-    private func show(_ generation: Generation, hotkey: Double, speech: SpeechTimeline.Segment?) {
+    private func show(_ generation: Generation, hotkey: Double, speech: AnswerSpeech?) {
         var generation = generation
         let id = nextAnswerID
         nextAnswerID += 1
@@ -454,8 +468,9 @@ public actor CallSession {
             text: kept ? generation.text : "", latency: latency(of: generation), usage: generation.usage,
             cost: generation.cost, error: generation.error, fromDraft: generation.isDraft)
         answers.append(record)
-        if let speech = generation.speech, speech.finalAt == nil {
-            answersAwaitingFinal[speech.id, default: []].append(answers.count - 1)
+        if let speech = generation.speech, !speech.isComplete(hotkey: record.askedAt) {
+            answersAwaitingSpeech.append(
+                PendingAnswer(index: answers.count - 1, shownAt: shownAt(generation), speech: speech))
         }
         save { try $0.append(record) }
         if let error = generation.error {
@@ -477,30 +492,53 @@ public actor CallSession {
         guard let hotkey = generation.hotkeyAt else {
             return latency
         }
-        // A draft may have produced text before the hotkey; the user saw it at the hotkey.
-        let shownAt = generation.firstTokenAt.map { max($0, hotkey) }
+        let shownAt = shownAt(generation)
         latency.hotkeyToRequestSent = milliseconds(generation.requestSentAt - hotkey)
         latency.hotkeyToFirstToken = shownAt.map { milliseconds($0 - hotkey) }
         latency.hotkeyToDone = generation.doneAt.map { milliseconds(max($0, hotkey) - hotkey) }
-        if let speech = generation.speech, let end = speech.end {
-            latency.endOfSpeechToHotkey = milliseconds(hotkey - end)
-            latency.endOfSpeechToFirstToken = shownAt.map { milliseconds($0 - end) }
-            latency.finalToHotkey = speech.finalAt.map { milliseconds(hotkey - $0) }
+        if let speech = generation.speech {
+            measure(&latency, from: speech, hotkey: hotkey, shownAt: shownAt)
         }
         return latency
     }
 
-    /// A final arrived for speech that answers are measured from: fills in their
-    /// final-to-hotkey time, negative because the hotkey came first.
-    private func noteFinal(covering segments: [Int], at arrived: Double) {
-        for segment in segments {
-            if let speech = visible?.speech, speech.id == segment {
-                visible?.speech?.finalAt = arrived
+    /// When the user saw the first token. A draft may have produced text before the
+    /// hotkey; it was shown at the hotkey.
+    private func shownAt(_ generation: Generation) -> Double? {
+        guard let hotkey = generation.hotkeyAt else {
+            return nil
+        }
+        return generation.firstTokenAt.map { max($0, hotkey) }
+    }
+
+    private func measure(
+        _ latency: inout AnswerLatency, from answerSpeech: AnswerSpeech, hotkey: Double, shownAt: Double?
+    ) {
+        guard let speech = answerSpeech.measured(hotkey: hotkey), let end = speech.end else {
+            return
+        }
+        latency.endOfSpeechToHotkey = milliseconds(hotkey - end)
+        latency.endOfSpeechToFirstToken = shownAt.map { milliseconds($0 - end) }
+        latency.finalToHotkey = speech.finalAt.map { milliseconds(hotkey - $0) }
+    }
+
+    /// Speech ended, or its final arrived, which can be after the hotkey: the answers
+    /// measured from it catch up.
+    private func speechChanged(_ segment: SpeechTimeline.Segment) {
+        visible?.speech?.update(segment)
+        for position in answersAwaitingSpeech.indices {
+            guard answersAwaitingSpeech[position].speech.update(segment) else {
+                continue
             }
-            for index in answersAwaitingFinal.removeValue(forKey: segment) ?? [] {
-                answers[index].latency.finalToHotkey = milliseconds(answers[index].askedAt - arrived)
+            let pending = answersAwaitingSpeech[position]
+            var record = answers[pending.index]
+            measure(&record.latency, from: pending.speech, hotkey: record.askedAt, shownAt: pending.shownAt)
+            if record != answers[pending.index] {
+                answers[pending.index] = record
+                save { try $0.append(record) }
             }
         }
+        answersAwaitingSpeech.removeAll { $0.speech.isComplete(hotkey: answers[$0.index].askedAt) }
     }
 
     /// Drafts a quick answer when Them finishes a turn, so the hotkey can show it at once.

@@ -190,3 +190,54 @@ func tradeModel(
 extension ModelRequest {
     var userText: String { user.map(\.text).joined(separator: "\n") }
 }
+
+/// A capture source the test drives by hand. The first `play(until:)` stamps its audio
+/// as if it had been captured in real time up to now; later audio continues that clock.
+final class PushSource: AudioCaptureSource, Sendable {
+    private struct State {
+        var onChunk: (@Sendable (AudioChunk) -> Void)?
+        var origin: ContinuousClock.Instant?
+        var delivered = 0
+    }
+
+    let speaker: Speaker
+    let samples: [Int16]
+    private let state = Mutex(State())
+
+    init(speaker: Speaker, samples: [Int16]) {
+        self.speaker = speaker
+        self.samples = samples
+    }
+
+    func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
+        state.withLock { $0.onChunk = onChunk }
+        return ChannelInfo(speaker: speaker, backend: "push", device: "test", nativeFormat: "16 kHz")
+    }
+
+    func stop() {
+        state.withLock { $0.onChunk = nil }
+    }
+
+    /// When the sample at `seconds` was captured, once playing has begun.
+    func capturedAt(_ seconds: Double) -> ContinuousClock.Instant? {
+        state.withLock { $0.origin }.map { $0 + .seconds(seconds) }
+    }
+
+    /// Delivers the audio up to `seconds` in 100 ms chunks.
+    func play(until seconds: Double) {
+        let rate = Double(AudioChunk.sampleRate)
+        let end = min(Int((seconds * rate).rounded()), samples.count)
+        state.withLock { state in
+            let origin = state.origin ?? .now - .seconds(Double(end) / rate)
+            state.origin = origin
+            while state.delivered < end {
+                let next = min(state.delivered + AudioChunk.sampleRate / 10, end)
+                let chunk = AudioChunk(
+                    speaker: speaker, samples: Array(samples[state.delivered..<next]),
+                    capturedAt: origin + .seconds(Double(next) / rate))
+                state.onChunk?(chunk)
+                state.delivered = next
+            }
+        }
+    }
+}

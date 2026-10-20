@@ -68,6 +68,21 @@ struct WAVFileTests {
         }
     }
 
+    /// The writer patches the sizes into the header when it finishes, so a recording
+    /// the app was killed in the middle of still says it holds nothing.
+    @Test func aRecordingThatWasNeverFinishedReadsToTheEnd() throws {
+        let url = temporaryFile("crashed.wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try WAVWriter(url: url, sampleRate: 16_000)
+        try writer.append([1, -2, 3])
+        try writer.append([4])
+
+        let crashed = try WAVReader.read(url: url)
+        #expect(crashed.samples == [1, -2, 3, 4] && crashed.sampleRate == 16_000)
+        try writer.finish()
+        #expect(try WAVReader.read(url: url).samples == [1, -2, 3, 4])
+    }
+
     @Test func readerReportsTruncatedData() {
         var data = WAVHeader.make(sampleRate: 16_000, channelCount: 1, dataByteCount: 100)
         data.append(contentsOf: [0, 0])

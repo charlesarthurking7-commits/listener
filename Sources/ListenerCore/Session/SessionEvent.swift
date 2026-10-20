@@ -3,7 +3,10 @@ import Foundation
 /// Milliseconds between the stages of one answer. A stage is nil when it did not
 /// happen, for example no speech before the hotkey or a request that failed.
 public struct AnswerLatency: Sendable, Codable, Equatable {
-    /// The speaker's last speech (local VAD) to the hotkey press: your reaction time.
+    /// The end of the speech being answered (local VAD) to the hotkey press: your
+    /// reaction time. That is the latest speech, Them's if they have spoken, unless the
+    /// speaker was still talking, or had started again, at the hotkey; then it is the
+    /// speech before. Filled in after the answer ends when the speech's end comes later.
     public var endOfSpeechToHotkey: Double?
     /// The speech-to-text final for that speech to the hotkey. Negative when the final
     /// arrived after the hotkey, i.e. the answer was built from interim text.
@@ -89,7 +92,7 @@ public enum SessionEvent: Sendable, Equatable {
     case answerFailed(id: Int, message: String)
     case cost(CostSummary)
     /// Something the user should know about but that does not stop the call, e.g.
-    /// "Them has been digital silence for 30 s: check System Audio Recording permission".
+    /// "Me has been digital silence for 30 s: check Microphone permission".
     case warning(String)
     case summaryStarted
     case summaryFinished(markdownFile: String?)

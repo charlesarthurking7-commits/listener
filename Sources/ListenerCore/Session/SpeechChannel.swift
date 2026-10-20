@@ -234,7 +234,7 @@ private struct Loop {
         retryDelay = retry.initialDelay
         var converted = event
         converted.audioStart = event.audioStart.map { clock.map($0) }
-        converted.audioEnd = event.audioEnd.map { clock.map($0) }
+        converted.audioEnd = event.audioEnd.map { clock.mapEnd($0) }
         if event.kind == .final {
             if let end = converted.audioEnd {
                 unfinalised.removeAll { $0.end <= end + 0.001 }

@@ -33,22 +33,34 @@ public struct TimeMap: Sendable, Equatable {
     /// The target-clock time of `value`. Before the first anchor the first offset
     /// applies; an empty map is the identity.
     public func map(_ value: Double) -> Double {
-        guard let first = anchors.first else {
-            return value
+        value + offset(at: value, endingThere: false)
+    }
+
+    /// The target-clock time of `value` as the end of a stretch of time. At a jump the
+    /// end of what came before and the start of what follows are the same source time;
+    /// an end belongs to what came before.
+    public func mapEnd(_ value: Double) -> Double {
+        value + offset(at: value, endingThere: true)
+    }
+
+    /// The offset of the last anchor at or before `value`. Within `tolerance` of an
+    /// anchor counts as at it, so sums of frame lengths that land a hair either side of
+    /// a jump are still at the jump: a start there takes the anchor, an end does not.
+    private func offset(at value: Double, endingThere: Bool) -> Double {
+        guard !anchors.isEmpty else {
+            return 0
         }
-        if value < first.from {
-            return value + first.offset
-        }
+        let edge = endingThere ? value - tolerance : value + tolerance
         var low = 0
         var high = anchors.count - 1
         while low < high {
             let middle = (low + high + 1) / 2
-            if anchors[middle].from <= value {
+            if anchors[middle].from < edge {
                 low = middle
             } else {
                 high = middle - 1
             }
         }
-        return value + anchors[low].offset
+        return anchors[low].offset
     }
 }

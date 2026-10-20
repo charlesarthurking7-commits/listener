@@ -26,7 +26,8 @@ public struct SavedSession: Sendable, Equatable {
 ///
 /// - `transcript.jsonl`: one line per turn, appended as each turn closes, so a crash
 ///   loses at most the turn in progress,
-/// - `answers.jsonl`: one line per answer, appended as each one ends,
+/// - `answers.jsonl`: one line per answer, appended as each one ends, and again if its
+///   timing is completed later,
 /// - `session.json`: the SessionRecord, written at start and rewritten at the end,
 /// - `summary.md`: the post-call summary,
 /// - `me.wav`, `them.wav`: the 16 kHz audio, only when `StorageSettings.saveAudio` is on.
@@ -221,8 +222,12 @@ extension SessionStore {
         try readLines(Turn.self, from: directory.appendingPathComponent(transcriptFile)).sorted { $0.start < $1.start }
     }
 
+    /// The answers in a session's answers.jsonl, by id. An answer whose timing was
+    /// completed after it ended is saved again; its last line counts.
     public static func readAnswers(in directory: URL) throws -> [AnswerRecord] {
-        try readLines(AnswerRecord.self, from: directory.appendingPathComponent(answersFile))
+        let saved = try readLines(AnswerRecord.self, from: directory.appendingPathComponent(answersFile))
+        let latest = Dictionary(saved.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        return latest.values.sorted { $0.id < $1.id }
     }
 
     public static func readRecord(in directory: URL) throws -> SessionRecord {
@@ -261,7 +266,8 @@ extension SessionStore {
     }
 
     /// Deletes session directories under `root` that started more than `retentionDays`
-    /// ago, judged by their names. Never touches anything not named like a session.
+    /// ago, judged by their names. Never touches anything that is not named like a
+    /// session or holds neither a transcript nor a session record.
     /// `retentionDays` of zero or less keeps everything. Returns what was deleted.
     @discardableResult
     public static func deleteExpired(in root: URL, retentionDays: Int, now: Date = Date()) throws -> [URL] {
@@ -291,7 +297,10 @@ extension SessionStore {
                 at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
         return entries.compactMap { url in
             guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
-                let startedAt = startDate(fromDirectoryName: url.lastPathComponent)
+                let startedAt = startDate(fromDirectoryName: url.lastPathComponent),
+                [transcriptFile, recordFile].contains(where: {
+                    FileManager.default.fileExists(atPath: url.appendingPathComponent($0).path)
+                })
             else {
                 return nil
             }

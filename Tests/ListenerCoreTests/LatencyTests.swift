@@ -34,9 +34,11 @@ struct SpeechTimelineTests {
         timeline.speechEnded(.me, at: 2)
         #expect(timeline.endOfSpeech()?.end == 2)
         timeline.speechStarted(.them, at: 3)
-        // Them is still talking: the last finished speech is still Me's.
-        #expect(timeline.endOfSpeech()?.speaker == .me)
-        timeline.speechEnded(.them, at: 4)
+        // Them may still be talking, or have just stopped and not been confirmed yet.
+        #expect(timeline.endOfSpeech()?.speaker == .them)
+        #expect(timeline.endOfSpeech()?.end == nil)
+        #expect(timeline.speechEnded(.them, at: 4)?.end == 4)
+        #expect(timeline.speechEnded(.them, at: 4.5) == nil)
         timeline.speechStarted(.me, at: 5)
         timeline.speechEnded(.me, at: 6)
         #expect(timeline.endOfSpeech()?.speaker == .them)
@@ -62,6 +64,34 @@ struct SpeechTimelineTests {
         #expect(second.count == 1)
         #expect(timeline.endOfSpeech()?.finalAt == 4.3)
         #expect(timeline.segments.last?.finalAt == nil)
+    }
+
+    @Test func anAnswerIsMeasuredFromTheSpeechThatHadEndedByTheHotkey() throws {
+        var timeline = SpeechTimeline()
+        timeline.speechStarted(.them, at: 1)
+        timeline.speechEnded(.them, at: 2)
+        _ = timeline.finalArrived(.them, audioEnd: 2, at: 2.4)
+        // Finished before the hotkey: it counts whatever the clocks say.
+        let finished = try #require(timeline.answerSpeech())
+        #expect(finished.measured(hotkey: 1.5)?.end == 2)
+        #expect(finished.isComplete(hotkey: 1.5))
+
+        // Still going at the hotkey: whether it counts depends on when it ends.
+        timeline.speechStarted(.them, at: 3)
+        var going = try #require(timeline.answerSpeech())
+        #expect(going.measured(hotkey: 3.6) == nil && !going.isComplete(hotkey: 3.6))
+        let endedNow = timeline.speechEnded(.them, at: 3.5)
+        let ended = try #require(endedNow)
+        var stoppedFirst = going
+        stoppedFirst.update(ended)
+        #expect(stoppedFirst.measured(hotkey: 3.6)?.start == 3)
+        #expect(!stoppedFirst.isComplete(hotkey: 3.6))
+        let updated = going.update(ended)
+        #expect(updated)
+        #expect(going.measured(hotkey: 3.4)?.start == 1)
+        #expect(going.isComplete(hotkey: 3.4))
+        let unrelated = going.update(SpeechTimeline.Segment(id: 9, speaker: .me, start: 0))
+        #expect(!unrelated)
     }
 
     @Test func keepsARecentWindow() {
