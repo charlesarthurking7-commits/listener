@@ -1,6 +1,8 @@
-# Listener: plan and architecture (M0)
+# Listener: plan and architecture
 
-This is the M0 proposal. Nothing past M0 gets built until you approve it.
+Started as the M0 proposal. You then asked for the whole app to be built in one go with
+as many agents as needed, so the milestones below are delivered together rather than
+one approval at a time.
 
 ## 1. What changed from the original spec
 
@@ -13,10 +15,10 @@ Following your instructions:
   invent call-specific details (amounts, account numbers, dates, names) that are not in
   the transcript, and to say so when it doesn't know. It costs nothing and stops you
   repeating a made-up figure to a broker. Say if you want it removed.
-- **The no-stealth rule is gone.** M2 gets an optional "hide from screen sharing"
-  setting, off by default. See section 3.8 for how reliable that is on current macOS.
-  Capture still starts only when you press Start, and the listening indicator stays,
-  because both protect you, not the other side.
+- **The no-stealth rule is gone**, but I have not built a "hide from screen sharing"
+  option because macOS no longer supports one reliably (section 3.8). Capture still
+  starts only when you press Start, and the listening indicator stays, because both
+  protect you, not the other side.
 - **Code style section dropped.** Language chosen on merit (section 2).
 
 ## 2. Language: Swift
@@ -55,7 +57,31 @@ capture code stay thin.
 Section 2.
 
 ### 3.2 System audio: Core Audio process tap instead of ScreenCaptureKit
-<!-- TAP_EVIDENCE -->
+Recommendation: a Core Audio process tap (macOS 14.2+) on all system audio except our own
+process, with ScreenCaptureKit kept as a fallback (`capture.systemAudioBackend = "sck"`,
+`--system sck` in the spike).
+
+| | Core Audio tap | ScreenCaptureKit |
+| --- | --- | --- |
+| Permission | "System Audio Recording Only" | full Screen Recording (the app could see your screen) |
+| Recurring prompt | none found | "...is requesting to bypass the system private window picker..." every 30 days, still on macOS 26 and 27 |
+| What runs | audio only | a video stream must run alongside the audio |
+| Apple's advice | DTS recommends taps for audio-only capture | |
+| Missing permission | silent buffers, no error | silent buffers, no error |
+
+Known tap pitfalls, all handled in the capture layer:
+- No API reports whether permission was granted; the app detects a channel that is pure
+  digital silence and tells you which permission to check.
+- Reports of taps going silent mid-session on macOS 26.x: a watchdog rebuilds the tap
+  after sustained digital silence.
+- The aggregate device has to be rebuilt when the output device changes (headset plugged
+  in, Bluetooth connects).
+- If the output device also has inputs (a headset), their buffers arrive in front of the
+  tap's. Reading them as tap audio would put your voice on the "Them" channel, so only
+  the tap's trailing buffers are read.
+
+The spike measures both backends on your Mac (continuity, gaps, CPU, separation). Those
+numbers are the evidence that settles it.
 
 ### 3.3 Global hotkeys do not need Accessibility
 The spec asks to document the Accessibility permission. Carbon's `RegisterEventHotKey`,
@@ -143,8 +169,15 @@ recommend adding Deepgram Nova-3 on its EU endpoint (`api.eu.deepgram.com`) as a
 provider. That needs a Deepgram account, so per your rules I'm asking rather than doing
 it: **may I add Deepgram as an option if Google measures slow?**
 
-### 3.8 "Hide from screen sharing"
-<!-- SHARING_EVIDENCE -->
+### 3.8 "Hide from screen sharing" does not work reliably any more
+Apple's current documentation calls `NSWindow.SharingType.none` "a legacy constant that
+macOS no longer uses" and says not to rely on it to keep content out of captures. Apple
+DTS: "there are no public APIs for preventing screen capture". ScreenCaptureKit ignores
+the setting, and Chrome (so Google Meet) shares screens through ScreenCaptureKit on
+macOS 14.4 and later. Chromium hides its own windows with a private API instead. A toggle
+would seem to work in some apps and silently fail in Meet, which is worse than no
+toggle, so I have not built it. What works: keep the window on your second monitor and
+share a window or a tab rather than the whole screen.
 
 ### 3.9 Your hardware setup matters more than any code
 - **Clamshell mode**: the built-in mics are off with the lid closed. You need an external
@@ -158,7 +191,16 @@ it: **may I add Deepgram as an option if Google measures slow?**
   layer rebuilds the tap when the default output device or its format changes (M1).
 
 ### 3.10 macOS 15 as the minimum
-Core Audio taps need 14.2, grpc-swift 2 needs 15. Tell me if you are on 14.
+Core Audio taps need 14.2, grpc-swift 2 needs 15. macOS 26 and 27 are supported; the
+optional on-device speech provider needs 26.
+
+### 3.12 On-device speech recognition as an option
+macOS 26 added `SpeechAnalyzer`/`SpeechTranscriber`: on-device, long-form, streaming
+recognition with interim ("volatile") results. Against Google it costs nothing, has no
+network round trip, and keeps call audio on your Mac, which matters for client calls at
+a regulated firm. Accuracy on British English and trading jargon is unknown until
+measured. It is built as `speech.provider = "apple"` alongside Google; the replay
+benchmark compares the two on the fixture calls.
 
 ### 3.11 Pushing and CI
 The spec says not to push or create remotes. This repository already has a GitHub remote
