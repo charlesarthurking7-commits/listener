@@ -37,8 +37,9 @@ public struct WAVAudio: Equatable, Sendable {
     }
 }
 
-/// Streams 16-bit mono PCM to disk. The header sizes are patched in `finish()`,
-/// so a file is only valid once that has been called.
+/// Streams 16-bit mono PCM to disk. The header sizes are patched in `finish()`; until
+/// then the header says there is no audio, and WAVReader reads such a file to its end,
+/// so a recording survives the app being killed.
 public final class WAVWriter {
     private let handle: FileHandle
     private let sampleRate: Int
@@ -94,8 +95,13 @@ public enum WAVReader {
         var offset = 12
         while offset + 8 <= bytes.count {
             let chunkID = ascii(bytes, offset, 4)
-            let chunkSize = Int(readUInt32(bytes, offset + 4))
+            var chunkSize = Int(readUInt32(bytes, offset + 4))
             let body = offset + 8
+            if chunkID == "data" && chunkSize == 0 {
+                // WAVWriter only fills in the size when it finishes. A recording the app
+                // was killed in the middle of still holds everything up to the crash.
+                chunkSize = bytes.count - body
+            }
             guard body + chunkSize <= bytes.count else {
                 throw WAVError.truncated
             }
