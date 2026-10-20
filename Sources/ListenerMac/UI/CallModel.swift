@@ -29,6 +29,9 @@ public final class CallModel {
     @ObservationIgnored private var probes: ReadinessInput?
     @ObservationIgnored private var preparedLanguage: String?
     @ObservationIgnored private var eventLog = SessionEventLog()
+    /// Held for the length of a call. With the window hidden Listener has nothing on
+    /// screen, and App Nap would otherwise slow its timers and network work mid-call.
+    @ObservationIgnored private var callActivity: (any NSObjectProtocol)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -126,6 +129,8 @@ public final class CallModel {
             state.addNotice(.info, "Answers and the summary are off: no Anthropic API key.")
         }
         observe(session)
+        callActivity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiated, reason: "Listening to a call")
 
         Task {
             do {
@@ -137,6 +142,7 @@ public final class CallModel {
                 eventsTask?.cancel()
                 eventsTask = nil
                 self.session = nil
+                endCallActivity()
                 startFailed(ErrorText.describe(error))
                 refreshReadiness()
             }
@@ -311,6 +317,13 @@ public final class CallModel {
         updateReadiness()
     }
 
+    private func endCallActivity() {
+        if let callActivity {
+            ProcessInfo.processInfo.endActivity(callActivity)
+        }
+        callActivity = nil
+    }
+
     private func startFailed(_ message: String) {
         Log.session.error("Could not start the call: \(message, privacy: .public)")
         state.startFailed(message)
@@ -356,6 +369,7 @@ public final class CallModel {
         }
         self.session = nil
         eventsTask = nil
+        endCallActivity()
         state.eventsEnded()
         onListeningChange?(false)
     }
