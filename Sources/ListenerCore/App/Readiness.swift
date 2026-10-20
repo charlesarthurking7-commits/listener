@@ -1,5 +1,15 @@
 import Foundation
 
+/// Getting Apple's on-device speech model ready, as the app reports it.
+public enum OnDeviceSpeechStatus: Sendable, Equatable {
+    case checking
+    case downloading(fractionCompleted: Double)
+    /// The language actually in use, which can be a near match of the one asked for.
+    case ready(locale: String)
+    /// Not available on this Mac or in this build, or the model could not be loaded.
+    case failed(String)
+}
+
 /// What the app found out about the Mac and the configuration before a call. The
 /// macOS layer fills this in; `Readiness.check` decides what to tell the user.
 public struct ReadinessInput: Sendable, Equatable {
@@ -15,17 +25,22 @@ public struct ReadinessInput: Sendable, Equatable {
     /// whose permission macOS does not let apps query.
     public var screenRecording: Permission?
     public var speechProvider: String
+    /// The Google Cloud project that will be billed: speech.googleProjectID, or the
+    /// quota project in the credentials file.
     public var googleProjectID: String?
     /// Why Google credentials could not be loaded, or nil if they were found.
     public var googleCredentialsProblem: String?
+    /// For the "apple" provider; nil until the model has been checked.
+    public var onDeviceSpeech: OnDeviceSpeechStatus?
     public var hasAnthropicKey: Bool
 
     public init(
         microphone: Permission,
         screenRecording: Permission? = nil,
         speechProvider: String,
-        googleProjectID: String?,
-        googleCredentialsProblem: String?,
+        googleProjectID: String? = nil,
+        googleCredentialsProblem: String? = nil,
+        onDeviceSpeech: OnDeviceSpeechStatus? = nil,
         hasAnthropicKey: Bool
     ) {
         self.microphone = microphone
@@ -33,6 +48,7 @@ public struct ReadinessInput: Sendable, Equatable {
         self.speechProvider = speechProvider
         self.googleProjectID = googleProjectID
         self.googleCredentialsProblem = googleCredentialsProblem
+        self.onDeviceSpeech = onDeviceSpeech
         self.hasAnthropicKey = hasAnthropicKey
     }
 }
@@ -58,6 +74,8 @@ public struct ReadinessItem: Sendable, Equatable, Identifiable {
         case ready
         /// Fine for now: macOS will ask when the call starts.
         case willAsk
+        /// Being set up in the background, e.g. a model download.
+        case preparing
         /// Works, but something is off, e.g. answers are disabled.
         case limited
         /// Listening cannot start until this is fixed.
@@ -123,26 +141,52 @@ public enum Readiness {
     }
 
     private static func speech(_ input: ReadinessInput) -> ReadinessItem {
-        if input.speechProvider == "fake" {
-            return ReadinessItem(
-                id: "speech", title: "Speech to text",
-                detail: "speech.provider is \"fake\", which only works with listener replay --script.",
-                status: .blocking, fix: .editSettings)
+        switch input.speechProvider {
+        case "apple":
+            onDeviceSpeech(input.onDeviceSpeech)
+        case "fake":
+            item(
+                .blocking, "speech.provider is \"fake\", which only works with listener replay --script.",
+                fix: .editSettings)
+        default:
+            googleSpeech(input)
+        }
+    }
+
+    private static func googleSpeech(_ input: ReadinessInput) -> ReadinessItem {
+        if let problem = input.googleCredentialsProblem {
+            return item(
+                .blocking, "Google credentials: \(problem)",
+                fix: .runInTerminal("gcloud auth application-default login"))
         }
         guard let project = input.googleProjectID, !project.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return ReadinessItem(
-                id: "speech", title: "Speech to text",
-                detail: "Set speech.googleProjectID in settings.json to your Google Cloud project.",
-                status: .blocking, fix: .editSettings)
+            return item(
+                .blocking, "Set speech.googleProjectID in settings.json to your Google Cloud project.",
+                fix: .editSettings)
         }
-        if let problem = input.googleCredentialsProblem {
-            return ReadinessItem(
-                id: "speech", title: "Speech to text", detail: "Google credentials: \(problem)",
-                status: .blocking, fix: .runInTerminal("gcloud auth application-default login"))
+        return item(.ready, "Google Cloud, project \(project).")
+    }
+
+    private static func onDeviceSpeech(_ status: OnDeviceSpeechStatus?) -> ReadinessItem {
+        switch status {
+        case nil, .checking:
+            item(.preparing, "Checking Apple's on-device speech model.")
+        case .downloading(let fraction):
+            item(
+                .preparing,
+                "macOS is downloading the on-device speech model (\(Int((fraction * 100).rounded()))%). "
+                    + "Wait for it to finish before starting a call.")
+        case .ready(let locale):
+            item(.ready, "On this Mac (\(locale)). Call audio is not sent anywhere for transcription.")
+        case .failed(let message):
+            item(.blocking, message, fix: .editSettings)
         }
-        return ReadinessItem(
-            id: "speech", title: "Speech to text", detail: "Google Cloud project \(project).",
-            status: .ready, fix: nil)
+    }
+
+    private static func item(_ status: ReadinessItem.Status, _ detail: String, fix: ReadinessFix? = nil)
+        -> ReadinessItem
+    {
+        ReadinessItem(id: "speech", title: "Speech to text", detail: detail, status: status, fix: fix)
     }
 
     private static func answers(_ input: ReadinessInput) -> ReadinessItem {

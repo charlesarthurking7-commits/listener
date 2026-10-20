@@ -66,6 +66,12 @@ struct TerminalRendererTests {
         #expect(plain.inputEchoed() == "")
     }
 
+    @Test func notesGoAboveTheLiveLine() {
+        var renderer = TerminalRenderer(style: TerminalStyle(color: false, liveLine: true))
+        _ = renderer.render(.transcript(TranscriptSnapshot(interim: [.me: "so"])))
+        #expect(renderer.note("Them: capture restarted.") == clear + "Them: capture restarted.\n... Me: so")
+    }
+
     @Test func liveLineOffMeansNoInterimText() {
         var renderer = TerminalRenderer(style: .plain)
         #expect(renderer.render(.transcript(TranscriptSnapshot(interim: [.them: "hello"]))) == "")

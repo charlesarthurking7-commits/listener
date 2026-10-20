@@ -106,6 +106,35 @@ struct ReadinessTests {
         #expect(Readiness.check(input)[2].status == .blocking)
     }
 
+    @Test func credentialsAreCheckedBeforeTheProject() {
+        var input = ready
+        input.googleProjectID = nil
+        input.googleCredentialsProblem = "No Google credentials"
+        #expect(Readiness.check(input)[2].fix == .runInTerminal("gcloud auth application-default login"))
+    }
+
+    @Test func onDeviceSpeechReportsTheModel() {
+        var input = ready
+        input.speechProvider = "apple"
+        input.googleCredentialsProblem = "not used for on-device speech"
+        #expect(Readiness.check(input)[2].status == .preparing)
+
+        input.onDeviceSpeech = .downloading(fractionCompleted: 0.416)
+        let downloading = Readiness.check(input)[2]
+        #expect(downloading.status == .preparing)
+        #expect(downloading.detail.contains("(42%)"))
+        #expect(!Readiness.blocksStart(Readiness.check(input)))
+
+        input.onDeviceSpeech = .ready(locale: "en-GB")
+        #expect(Readiness.check(input)[2].status == .ready)
+
+        input.onDeviceSpeech = .failed("On-device speech recognition needs macOS 26 or later.")
+        let failed = Readiness.check(input)[2]
+        #expect(failed.status == .blocking)
+        #expect(failed.detail == "On-device speech recognition needs macOS 26 or later.")
+        #expect(failed.fix == .editSettings)
+    }
+
     @Test func missingAnthropicKeyOnlyLimits() {
         var input = ready
         input.hasAnthropicKey = false

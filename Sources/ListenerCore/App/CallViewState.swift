@@ -177,6 +177,17 @@ public struct CallViewState: Sendable, Equatable {
         noticeList.add(kind, message, action: action)
     }
 
+    /// A capture source recovered on its own. Restarts are worth knowing about;
+    /// anything that leaves a channel silent is a warning.
+    public mutating func apply(_ event: CaptureEvent) {
+        switch event {
+        case .restarted:
+            addNotice(.info, event.description)
+        case .restartFailed, .voiceProcessingUnavailable, .stoppedByUser:
+            addNotice(.warning, event.description)
+        }
+    }
+
     public mutating func apply(_ event: SessionEvent, now: Date) {
         switch event {
         case .started(let channels):

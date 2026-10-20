@@ -100,6 +100,13 @@ public struct TerminalRenderer: Sendable {
         }
     }
 
+    /// A line from outside the session's events, such as a capture restart. Printed
+    /// dimmed above the live line; during an answer it waits on a line of its own.
+    public mutating func note(_ message: String) -> String {
+        let lead = streamingAnswer != nil ? "\n" : clearLiveLine()
+        return lead + paint(message, .dim) + "\n" + (streamingAnswer == nil ? showLiveLine() : "")
+    }
+
     /// The terminal echoed a line the user typed (and its newline) right after the live
     /// line. Moves back up, clears that line and draws the live line again.
     public mutating func inputEchoed() -> String {

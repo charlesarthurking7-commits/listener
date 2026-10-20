@@ -150,7 +150,7 @@ struct SettingsLoaderTests {
         let error = try #require(throws: SettingsError.self) { try loader.load() }
         #expect(
             error.problems == [
-                "speech.provider is \"deepgram\", but must be one of \"google\", \"fake\" (set by LISTENER_SPEECH_PROVIDER)"
+                "speech.provider is \"deepgram\", but must be one of \"google\", \"apple\", \"fake\" (set by LISTENER_SPEECH_PROVIDER)"
             ])
     }
 

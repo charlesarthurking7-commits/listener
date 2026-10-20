@@ -188,6 +188,14 @@ struct CallViewStateTests {
         #expect(state.notices.last?.kind == .error)
     }
 
+    @Test func captureEventsBecomeBanners() {
+        var state = listening()
+        state.apply(.restarted(.them, reason: .outputDeviceChanged))
+        state.apply(.stoppedByUser(.them))
+        #expect(state.notices.map(\.kind) == [.info, .warning])
+        #expect(state.notices[0].message == "Them: capture restarted (output device changed).")
+    }
+
     @Test func eventsEndingWithoutAStopFinishTheCall() {
         var state = listening()
         state.eventsEnded()
