@@ -61,6 +61,7 @@ private struct HeaderBar: View {
         .padding(.horizontal, Theme.padding)
         .padding(.top, 12)
         .padding(.bottom, 10)
+        .background(WindowDragArea())
     }
 }
 
@@ -235,6 +236,7 @@ private struct FooterBar: View {
         .lineLimit(1)
         .padding(.horizontal, Theme.padding)
         .padding(.vertical, 8)
+        .background(WindowDragArea())
     }
 
     private var costDetail: String {

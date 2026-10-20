@@ -80,8 +80,8 @@ macOS asks for permission on behalf of your terminal app, not Listener.
 
 The window floats above other windows, appears on every Space and over full-screen
 Meet or Teams, and never takes keyboard focus from them: clicking its buttons leaves
-your call app active. Drag it anywhere by its background and resize it from any edge;
-it reopens where you left it.
+your call app active. Drag it by the empty part of its top or bottom bar and resize it
+from any edge; it reopens where you left it, on the same display if it is still there.
 
 From top to bottom:
 

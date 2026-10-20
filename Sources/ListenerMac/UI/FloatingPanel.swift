@@ -84,3 +84,26 @@ private final class FirstClickHostingView: NSHostingView<AnyView> {
         true
     }
 }
+
+/// A background that moves the window when dragged. SwiftUI content does not reliably
+/// count as window background for `isMovableByWindowBackground`, and the title bar it
+/// would otherwise be dragged by is hidden under the header.
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        DragView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class DragView: NSView {
+        override var mouseDownCanMoveWindow: Bool { true }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.performDrag(with: event)
+        }
+    }
+}
