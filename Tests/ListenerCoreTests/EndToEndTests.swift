@@ -55,6 +55,21 @@ struct EndToEndTests {
             #expect(abs(turn.end - line.end / Self.speed - lag) < 0.02, "end of \(line.text)")
         }
 
+        // The window hears each channel start and stop talking, in that order.
+        for speaker in Speaker.allCases {
+            var activity: [Bool] = []
+            for event in recorder.all {
+                if case .channelActivity(speaker, let isSpeaking) = event {
+                    activity.append(isSpeaking)
+                }
+            }
+            #expect(activity.first == true, "\(speaker.rawValue) never started speaking")
+            #expect(activity.last == false, "\(speaker.rawValue) never stopped speaking")
+            for (index, isSpeaking) in activity.enumerated() {
+                #expect(isSpeaking == index.isMultiple(of: 2), "\(speaker.rawValue) activity must alternate")
+            }
+        }
+
         // The answer streamed the scripted reply, built from the transcript so far.
         let request = try #require(model.requests.first)
         let askedWith = try #require(await asked.snapshot)

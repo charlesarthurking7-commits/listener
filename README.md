@@ -5,13 +5,14 @@ A macOS app that sits beside your calls. It transcribes both sides live, your mi
 Meet or Teams. Press a hotkey and it streams a suggested answer from Claude. When the
 call ends it writes a summary with action items.
 
-- **Quick answer** (Control-Option-Space): Claude Haiku 5.5, short and speakable, first
+- **Quick answer** (Control-Option-A): Claude Haiku 5.5, short and speakable, first
   words in well under a second.
-- **Deep answer** (Control-Option-Shift-Space): Claude Sonnet 5.5 for harder questions.
+- **Deep answer** (Control-Option-Shift-A): Claude Sonnet 5.5 for harder questions.
 - **Grounded**: answers may use general knowledge but never invent call-specific facts
   (amounts, account or ticket numbers, dates, names); they say what to check instead.
-- **Speech-to-text**: Apple's on-device recognition (macOS 26 and later, free) or Google
-  Cloud Speech-to-Text v2 in the EU (about $1.92 per call-hour for both channels).
+- **Speech-to-text**: Apple's on-device recognition by default where the Mac supports it
+  (macOS 26 and later, free, nothing leaves the Mac), otherwise Google Cloud
+  Speech-to-Text v2 in the EU (about $1.92 per call-hour for both channels).
 - **Visible**: a pulsing red indicator in the window and a red menu bar icon while
   listening. Nothing is recorded until you press Start.
 - **Measured**: every answer logs end-of-speech, hotkey, first-token and done times; the
@@ -19,9 +20,10 @@ call ends it writes a summary with action items.
 - **Local**: calls are saved under `~/Library/Application Support/Listener/sessions`
   with 30-day retention. Raw audio is not kept unless you turn it on.
 
-**Status:** all features are built and the macOS code type-checks against the macOS 15.5
-and 26.5 SDKs, but it was developed without a Mac, so the first build and run on yours
-is the first real test. Start with the audio spike below.
+**Status:** all features are built and tested. The whole package, dependencies included,
+compiles for macOS against the macOS 26.5 SDK, but it was developed without a Mac, so it
+has never been linked or run: the first build and run on yours is the first real test.
+Start with the audio spike below.
 
 ## Requirements
 
@@ -42,13 +44,9 @@ scripts/run.sh                            # 2. build and open the app
 build/Listener.app/Contents/MacOS/listener secrets set anthropic   # 3. store your API key
 ```
 
-Then choose **Open Settings File** from the menu bar icon and set the speech provider:
-
-```json
-{ "speech": { "provider": "apple" } }
-```
-
-or, for Google, `{ "speech": { "provider": "google", "googleProjectID": "your-project" } }`.
+On macOS 26 and later that is all: speech recognition runs on the Mac by default. On
+older systems, or to use Google instead, choose **Open Settings File** from the menu bar
+icon and set `{ "speech": { "provider": "google", "googleProjectID": "your-project" } }`.
 Add a line about yourself to `answers.context` so answers fit your role
 (see [`settings.example.json`](settings.example.json)). Press **Start** in the window.
 
@@ -119,7 +117,7 @@ Tests/                 swift-testing suites, including end-to-end runs on the fi
 Fixtures/              three mock broker calls (two channels plus script) for replay;
                        see Fixtures/README.md to regenerate them
 Protos/                trimmed Speech-to-Text v2 proto the gRPC client is generated from
-App/Info.plist         bundle metadata and permission prompts
+App/                   Info.plist (bundle metadata, permission prompts) and the app icon
 ```
 
 ### CI

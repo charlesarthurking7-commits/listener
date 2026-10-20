@@ -253,6 +253,8 @@ public struct CallViewState: Sendable, Equatable {
             self.channels = channels
         case .transcript(let snapshot):
             updateRows(snapshot)
+        case .channelActivity(let speaker, let isSpeaking):
+            channelActivity(speaker, isSpeaking: isSpeaking)
         case .answerStarted(let id, let tier, let model):
             answer = AnswerCard(id: id, tier: tier, model: model, askedAt: now)
         case .answerText(let id, let delta):

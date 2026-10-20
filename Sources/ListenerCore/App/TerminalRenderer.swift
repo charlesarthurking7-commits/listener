@@ -83,6 +83,8 @@ public struct TerminalRenderer: Sendable {
         case .cost(let summary):
             cost = summary
             return ""
+        case .channelActivity:
+            return ""
         case .warning(let message):
             let lead = streamingAnswer != nil ? "\n" : clearLiveLine()
             return lead + paint("! \(message)", .yellow) + "\n" + (streamingAnswer == nil ? showLiveLine() : "")

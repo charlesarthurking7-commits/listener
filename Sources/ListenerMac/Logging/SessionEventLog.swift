@@ -37,6 +37,8 @@ public struct SessionEventLog: Sendable {
             }
         case .cost(let summary):
             cost = summary
+        case .channelActivity:
+            break
         case .warning(let message):
             Log.session.notice("\(message, privacy: .public)")
         case .summaryStarted:

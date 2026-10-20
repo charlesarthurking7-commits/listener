@@ -224,7 +224,9 @@ public actor CallSession {
             switch activity {
             case .speechStarted(let start):
                 timeline.speechStarted(speaker, at: detector.sessionTime(speaker, channelTime: start))
+                emit(.channelActivity(speaker, isSpeaking: true))
             case .speechEnded(let end):
+                emit(.channelActivity(speaker, isSpeaking: false))
                 if let speech = timeline.speechEnded(speaker, at: detector.sessionTime(speaker, channelTime: end)) {
                     speechChanged(speech)
                 }

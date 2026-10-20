@@ -230,6 +230,14 @@ struct CallViewStateTests {
         #expect(state.hearing == nil)
     }
 
+    @Test func channelActivityEventsReachTheHearingChips() {
+        var state = listening()
+        state.apply(.channelActivity(.them, isSpeaking: true), now: start)
+        #expect(state.hearing == [.them])
+        state.apply(.channelActivity(.them, isSpeaking: false), now: start)
+        #expect(state.hearing == [])
+    }
+
     @Test func captureEventsBecomeBanners() {
         var state = listening()
         state.apply(.restarted(.them, reason: .outputDeviceChanged))

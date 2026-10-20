@@ -127,7 +127,8 @@ built to keep its prefix stable:
   also shortens time to first token.
 - A cache breakpoint sits at the end of the transcript in each request.
 
-Budget: default 8k transcript tokens (about 10 minutes of conversation), hard cap 60k,
+Budget: default 8k transcript tokens (about 20 minutes of non-stop conversation, more
+with real pauses), hard cap 60k,
 well under the 100k point where Haiku 5.5 pricing goes from $0.10/$0.50 to $0.50/$2.50
 per million tokens. Each hotkey request is a fresh single-turn request, not a growing
 conversation, which keeps requests small and avoids any thinking-block bookkeeping.
@@ -211,8 +212,9 @@ macOS 26 added `SpeechAnalyzer`/`SpeechTranscriber`: on-device, long-form, strea
 recognition with interim ("volatile") results. Against Google it costs nothing, has no
 network round trip, and keeps call audio on your Mac, which matters for client calls at
 a regulated firm. Accuracy on British English and trading jargon is unknown until
-measured. It is built as `speech.provider = "apple"` alongside Google; the replay
-benchmark compares the two on the fixture calls.
+measured. It is the default: `speech.provider = "auto"` picks it on Macs that support it
+and Google elsewhere; `"apple"` or `"google"` pins one. The comparison that matters is on
+recordings of your own calls (`storage.saveAudio`).
 
 ## 4. Architecture
 
@@ -399,11 +401,12 @@ SDKs but has not been linked or run, because this was built without a Mac.
 
 1. Which macOS version are you on? On-device speech needs 26 or later.
 2. Headphones on calls, or speakers? Which mic do you use with the lid closed?
-3. Speech-to-text: on-device (free) to start with? If its accuracy on your real calls
-   falls short, AssemblyAI or Soniox stream for roughly 25 to 30 cents per call-hour,
-   much less than Google; either needs an account, so I'm asking before adding one.
-4. Default hotkeys: Control-Option-Space (quick), Control-Option-Shift-Space (deep),
-   Control-Option-L (start/stop). Any clashes with your setup?
+3. Speech-to-text: on-device is the default. If its accuracy on your real calls falls
+   short, AssemblyAI or Soniox stream for roughly 25 to 30 cents per call-hour, much less
+   than Google; either needs an account, so I'm asking before adding one.
+4. Default hotkeys: Control-Option-A (quick), Control-Option-Shift-A (deep),
+   Control-Option-L (start/stop). Control-Option-Space was dropped because macOS uses it
+   to switch input sources. Any clashes with your setup (Rectangle, for example)?
 
 ## 7. First run on your Mac
 

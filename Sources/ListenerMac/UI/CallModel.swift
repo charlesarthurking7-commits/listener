@@ -197,8 +197,11 @@ public final class CallModel {
             publish()
             return
         }
+        // Taken before the hop to the session actor, so that wait counts towards the
+        // answer's latency and two quick presses keep their order.
+        let pressedAt = ContinuousClock.now
         Task {
-            await session.requestAnswer(tier)
+            await session.requestAnswer(tier, pressedAt: pressedAt)
         }
     }
 

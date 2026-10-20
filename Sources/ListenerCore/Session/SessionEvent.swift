@@ -86,6 +86,9 @@ public struct CostSummary: Sendable, Codable, Equatable {
 public enum SessionEvent: Sendable, Equatable {
     case started(channels: [ChannelInfo])
     case transcript(TranscriptSnapshot)
+    /// The voice activity detector started or stopped hearing speech on a channel, so the
+    /// window can show who it hears before any words arrive.
+    case channelActivity(Speaker, isSpeaking: Bool)
     case answerStarted(id: Int, tier: AnswerTier, model: String)
     case answerText(id: Int, delta: String)
     case answerFinished(AnswerRecord)

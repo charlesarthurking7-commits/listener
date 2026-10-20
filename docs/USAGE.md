@@ -19,8 +19,15 @@ summary when you stop.
    See the README for keeping permissions across rebuilds with a stable signing identity;
    once a certificate named `Listener Dev` is in your keychain, the build uses it.
 
-2. **Speech-to-text.** Google Cloud is the default. Sign in once with Application Default
-   Credentials and tell Listener your project:
+2. **Speech-to-text.** By default (`speech.provider` is `"auto"`) Listener transcribes on
+   the Mac with Apple's on-device recognition when your Mac supports it (macOS 26 and
+   later): free, no account, and call audio is not sent anywhere for transcription
+   (answers still go to Claude). Listener checks Apple's speech model for your language
+   when it starts and macOS downloads it if needed; the checklist shows the progress.
+
+   On older systems, or if you set `speech.provider` to `"google"`, it uses Google Cloud
+   Speech-to-Text in the EU. Sign in once with Application Default Credentials and tell
+   Listener your project:
 
    ```sh
    gcloud auth application-default login
@@ -36,11 +43,7 @@ summary when you stop.
    credentials file names a quota project, that project is used when `googleProjectID`
    is not set.
 
-   On macOS 26 you can transcribe on the Mac instead: set `speech.provider` to `"apple"`.
-   No Google account is needed and call audio is not sent anywhere for transcription
-   (answers still go to Claude). Listener checks Apple's speech model for your language
-   as soon as the setting is in place and macOS downloads it if needed; the checklist
-   shows the progress.
+   Set `speech.provider` to `"apple"` or `"google"` to pin one regardless of the Mac.
 
 3. **Answers (Anthropic).** Store your API key in the Keychain. The `listener` command
    is the binary inside the app, so from the repository folder run:
@@ -130,8 +133,8 @@ Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without 
 
 | Action | Default |
 | --- | --- |
-| Quick answer (Haiku 5.5) | Control-Option-Space (`ctrl+option+space`) |
-| Deep answer (Sonnet 5.5) | Control-Option-Shift-Space (`ctrl+option+shift+space`) |
+| Quick answer (Haiku 5.5) | Control-Option-A (`ctrl+option+a`) |
+| Deep answer (Sonnet 5.5) | Control-Option-Shift-A (`ctrl+option+shift+a`) |
 | Start or stop listening | Control-Option-L (`ctrl+option+l`) |
 
 Change them in `settings.json` under `hotkeys`, then restart Listener. A hotkey is
@@ -233,7 +236,7 @@ want to change: anything left out keeps its default, at every level.
 
 | Section | What it controls |
 | --- | --- |
-| `speech` | Provider (`google`, `apple` for on-device on macOS 26, or `fake` for scripted replays), Google project, location, endpoint, model (`chirp_3`), language (`en-GB`), endpointing sensitivity, credentials file, stream rotation, silence skipping |
+| `speech` | Provider (`auto` by default: on-device where supported, else Google; or `google`, `apple`, or `fake` for scripted replays), Google project, location, endpoint, model (`chirp_3`), language (`en-GB`), endpointing sensitivity, credentials file, stream rotation, silence skipping |
 | `turns` | When a pause ends a turn: `silenceMs`, the voice activity threshold, minimum speech length |
 | `answers` | The `quick` and `deep` models (model, effort, thinking, max tokens), transcript budget, and `context`: who you are and what your calls are about |
 | `summary` | Whether to write a summary, and its model |
@@ -311,9 +314,9 @@ Keychain item. Choose Always Allow, or sign with a stable identity (README).
   plug in a headset or USB mic.
 - **A hotkey does nothing.** The window lists hotkeys that could not be registered.
   Pick another combination in `hotkeys`. macOS's own shortcuts win without telling
-  Listener: Control-Option-Space is also "Select next source in Input menu" under System
-  Settings > Keyboard > Keyboard Shortcuts > Input Sources. Turn that off, or choose
-  another hotkey.
+  Listener, so avoid the ones listed under System Settings > Keyboard > Keyboard
+  Shortcuts; Control-Option-Space, for example, switches input sources. Window managers
+  such as Rectangle also use Control-Option combinations.
 - **Answers are off.** `listener secrets status` shows whether the key is found.
 - **Anything else.** Listener logs what it does (calls starting and stopping, each
   answer's latency, tokens and cost, capture restarts, warnings and errors, never what
