@@ -64,10 +64,15 @@ struct EndToEndTests {
         for turn in askedWith.turns {
             #expect(request.userText.contains("\(turn.speaker.rawValue): \(turn.text)"))
         }
-        #expect(!request.userText.contains("Great, thanks."))
         #expect(recorder.all.contains(.answerStarted(id: 1, tier: .quick, model: "claude-haiku-5-5")))
         #expect(recorder.answerText(id: 1) == tradeAnswer)
         let answer = try #require(recorder.finishedAnswers.first)
+        // Nothing said after the hotkey is in the prompt. The hotkey reacts to an event,
+        // so on a busy machine it can come after the next line has begun.
+        let nextLine = tradeScript.lines[4]
+        if answer.askedAt < nextLine.start / Self.speed + (lags[.them] ?? 0) {
+            #expect(!request.userText.contains("Them: Great"))
+        }
         #expect(answer.text == tradeAnswer)
         #expect(answer.error == nil)
         #expect(!answer.fromDraft)

@@ -96,14 +96,14 @@ public actor CallSession {
     private var draft: Generation?
     private var nextAnswerID = 1
     private var nextGenerationKey = 1
-    /// Answers already ended whose speech had not ended or had no final yet, by speech
-    /// segment id.
-    private var answersAwaitingSpeech: [Int: [PendingAnswer]] = [:]
+    /// Answers already ended whose speech had not ended or had no final yet.
+    private var answersAwaitingSpeech: [PendingAnswer] = []
 
     private struct PendingAnswer {
         /// Index into `answers`.
         var index: Int
         var shownAt: Double?
+        var speech: AnswerSpeech
     }
 
     /// Starts capture and recognition on every source. Throws if a source cannot
@@ -305,7 +305,7 @@ public actor CallSession {
         }
         let hotkey = sessionTime(pressedAt)
         finishVisible(error: Self.cancelledMessage)
-        let speech = timeline.endOfSpeech()
+        let speech = timeline.answerSpeech()
 
         if tier == .quick, let drafted = draft, drafted.error == nil, drafted.revision == detector.revision,
             detector.snapshot.interim.isEmpty
@@ -334,7 +334,7 @@ public actor CallSession {
         var task: Task<Void, Never>?
         var answerID: Int?
         var hotkeyAt: Double?
-        var speech: SpeechTimeline.Segment?
+        var speech: AnswerSpeech?
         var requestSentAt: Double
         var firstTokenAt: Double?
         var doneAt: Double?
@@ -368,7 +368,7 @@ public actor CallSession {
         return generation
     }
 
-    private func show(_ generation: Generation, hotkey: Double, speech: SpeechTimeline.Segment?) {
+    private func show(_ generation: Generation, hotkey: Double, speech: AnswerSpeech?) {
         var generation = generation
         let id = nextAnswerID
         nextAnswerID += 1
@@ -468,9 +468,9 @@ public actor CallSession {
             text: kept ? generation.text : "", latency: latency(of: generation), usage: generation.usage,
             cost: generation.cost, error: generation.error, fromDraft: generation.isDraft)
         answers.append(record)
-        if let speech = generation.speech, speech.end == nil || speech.finalAt == nil {
-            answersAwaitingSpeech[speech.id, default: []].append(
-                PendingAnswer(index: answers.count - 1, shownAt: shownAt(generation)))
+        if let speech = generation.speech, !speech.isComplete(hotkey: record.askedAt) {
+            answersAwaitingSpeech.append(
+                PendingAnswer(index: answers.count - 1, shownAt: shownAt(generation), speech: speech))
         }
         save { try $0.append(record) }
         if let error = generation.error {
@@ -512,9 +512,9 @@ public actor CallSession {
     }
 
     private func measure(
-        _ latency: inout AnswerLatency, from speech: SpeechTimeline.Segment, hotkey: Double, shownAt: Double?
+        _ latency: inout AnswerLatency, from answerSpeech: AnswerSpeech, hotkey: Double, shownAt: Double?
     ) {
-        guard let end = speech.end else {
+        guard let speech = answerSpeech.measured(hotkey: hotkey), let end = speech.end else {
             return
         }
         latency.endOfSpeechToHotkey = milliseconds(hotkey - end)
@@ -522,26 +522,23 @@ public actor CallSession {
         latency.finalToHotkey = speech.finalAt.map { milliseconds(hotkey - $0) }
     }
 
-    /// The speech answers are measured from ended, or its final arrived, which can be
-    /// after the hotkey: the answers measured from it catch up.
-    private func speechChanged(_ speech: SpeechTimeline.Segment) {
-        if visible?.speech?.id == speech.id {
-            visible?.speech = speech
-        }
-        guard let pending = answersAwaitingSpeech[speech.id] else {
-            return
-        }
-        for answer in pending {
-            var record = answers[answer.index]
-            measure(&record.latency, from: speech, hotkey: record.askedAt, shownAt: answer.shownAt)
-            if record != answers[answer.index] {
-                answers[answer.index] = record
+    /// Speech ended, or its final arrived, which can be after the hotkey: the answers
+    /// measured from it catch up.
+    private func speechChanged(_ segment: SpeechTimeline.Segment) {
+        visible?.speech?.update(segment)
+        for position in answersAwaitingSpeech.indices {
+            guard answersAwaitingSpeech[position].speech.update(segment) else {
+                continue
+            }
+            let pending = answersAwaitingSpeech[position]
+            var record = answers[pending.index]
+            measure(&record.latency, from: pending.speech, hotkey: record.askedAt, shownAt: pending.shownAt)
+            if record != answers[pending.index] {
+                answers[pending.index] = record
                 save { try $0.append(record) }
             }
         }
-        if speech.finalAt != nil {
-            answersAwaitingSpeech[speech.id] = nil
-        }
+        answersAwaitingSpeech.removeAll { $0.speech.isComplete(hotkey: answers[$0.index].askedAt) }
     }
 
     /// Drafts a quick answer when Them finishes a turn, so the hotkey can show it at once.

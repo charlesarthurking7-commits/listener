@@ -60,10 +60,67 @@ struct SpeechTimeline {
         return covered
     }
 
-    /// The speech an answer asked for now is measured from. It may not have ended yet:
-    /// the detector confirms an end only after a stretch of quiet, and a quick hotkey
-    /// comes before that.
+    /// The latest speech, on Them or else on Me. It may not have ended yet: the detector
+    /// confirms an end only after a stretch of quiet.
     func endOfSpeech() -> Segment? {
         segments.last { $0.speaker == .them } ?? segments.last { $0.speaker == .me }
+    }
+
+    /// What an answer asked for now is measured from.
+    func answerSpeech() -> AnswerSpeech? {
+        guard let latest = endOfSpeech() else {
+            return nil
+        }
+        guard latest.end == nil else {
+            return AnswerSpeech(latest: latest, wasGoingOn: false)
+        }
+        return AnswerSpeech(latest: latest, wasGoingOn: true, earlier: lastFinished(.them) ?? lastFinished(.me))
+    }
+
+    private func lastFinished(_ speaker: Speaker) -> Segment? {
+        segments.last { $0.speaker == speaker && $0.end != nil }
+    }
+}
+
+/// The speech an answer is measured from: the speech the user was answering when the
+/// hotkey went down.
+///
+/// That is the latest speech, even when it still seemed to be going on, since the
+/// detector confirms the end of speech a fifth of a second late and a quick hotkey
+/// comes before that. If it turns out to have gone on past the hotkey, the speaker had
+/// started again (or was still talking), and the speech before it counts instead.
+struct AnswerSpeech: Sendable, Equatable {
+    var latest: SpeechTimeline.Segment
+    /// `latest` had not been heard to end at the hotkey.
+    var wasGoingOn: Bool
+    /// The last speech that had ended at the hotkey, for when `latest` goes on past it.
+    var earlier: SpeechTimeline.Segment?
+
+    /// The speech that had ended by `hotkey`; nil until that is known, or if none had.
+    func measured(hotkey: Double) -> SpeechTimeline.Segment? {
+        guard let end = latest.end else {
+            return nil
+        }
+        return !wasGoingOn || end <= hotkey ? latest : earlier
+    }
+
+    /// Nothing more about it can change: it is known which speech counts, and that
+    /// speech has its final.
+    func isComplete(hotkey: Double) -> Bool {
+        latest.end != nil && measured(hotkey: hotkey).map { $0.finalAt != nil } ?? true
+    }
+
+    /// Takes the newer state of a segment. Returns whether it was one of this answer's.
+    @discardableResult
+    mutating func update(_ segment: SpeechTimeline.Segment) -> Bool {
+        if latest.id == segment.id {
+            latest = segment
+            return true
+        }
+        if earlier?.id == segment.id {
+            earlier = segment
+            return true
+        }
+        return false
     }
 }

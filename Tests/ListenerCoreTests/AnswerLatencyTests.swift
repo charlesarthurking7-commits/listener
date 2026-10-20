@@ -63,4 +63,33 @@ struct AnswerLatencyTests {
         let saved = try SessionStore.readRecord(in: try #require(await session.directory))
         #expect(saved.answers.map(\.latency) == [latency])
     }
+
+    /// When the speaker has already started again at the hotkey, the user is answering
+    /// what came before, so that is what the answer is measured from.
+    @Test func aHotkeyAfterTheSpeakerStartedAgainIsMeasuredFromTheSpeechBefore() async throws {
+        let script = ConversationScript(
+            title: "and another thing",
+            lines: [
+                .init(speaker: .them, start: 0.5, end: 1.5, text: "Can you check the fills?"),
+                .init(speaker: .them, start: 2.5, end: 4.0, text: "And the margins too."),
+            ])
+        let call = try call(script, seconds: 5)
+        defer { try? FileManager.default.removeItem(at: call.root) }
+        let session = call.session
+        try await session.start()
+
+        call.them.play(until: 2.9)
+        #expect(await eventually { await session.speechSegments.count == 2 })
+        await session.requestAnswer(.quick, pressedAt: try #require(call.them.capturedAt(2.9)))
+        call.them.play(until: 5)
+        #expect(await eventually { await session.answers.count == 1 })
+        await session.stop()
+
+        let answer = try #require(await session.answers.first)
+        #expect(abs(try #require(answer.latency.endOfSpeechToHotkey) - 1_400) < 1)
+        // From the final of the question, not of what followed it.
+        let question = try #require(await session.speechSegments.first)
+        let finalAt = try #require(question.finalAt)
+        #expect(abs(try #require(answer.latency.finalToHotkey) - (answer.askedAt - finalAt) * 1_000) < 0.1)
+    }
 }
