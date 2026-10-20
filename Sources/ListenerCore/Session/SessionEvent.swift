@@ -90,7 +90,7 @@ public enum SessionEvent: Sendable, Equatable {
     case answerFailed(id: Int, message: String)
     case cost(CostSummary)
     /// Something the user should know about but that does not stop the call, e.g.
-    /// "Them has been digital silence for 30 s: check System Audio Recording permission".
+    /// "Me has been digital silence for 30 s: check Microphone permission".
     case warning(String)
     case summaryStarted
     case summaryFinished(markdownFile: String?)

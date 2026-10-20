@@ -266,6 +266,22 @@ struct CallSessionTests {
         #expect(warnings.first?.hasPrefix("Me has been digital silence for 30 s: check Microphone permission") == true)
     }
 
+    /// System audio is exact zeros whenever nothing plays, as before the other side
+    /// joins, so only a silence while the call plays points at the permission.
+    @Test func aSilentThemChannelOnlyBlamesThePermissionIfTheCallIsPlaying() async throws {
+        let silentThem = ConversationScript(
+            title: "waiting", lines: [.init(speaker: .me, start: 1, end: 3, text: "Are you there?")])
+        let setup = try setUp(script: silentThem, seconds: 31, model: nil)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.run()
+        #expect(
+            setup.recorder.warnings == [
+                "Them has been digital silence for 30 s. If the call's audio is already playing, check System "
+                    + "Audio Recording permission (System Settings > Privacy & Security > Screen & System Audio "
+                    + "Recording)."
+            ])
+    }
+
     @Test func speechToTextErrorsDoNotEndTheCall() async throws {
         let setup = try setUp(speech: FlakySpeech(script: tradeScript))
         defer { try? FileManager.default.removeItem(at: setup.root) }

@@ -278,17 +278,18 @@ public actor CallSession {
         }
     }
 
+    /// A microphone never delivers exact zeros, but system audio does whenever nothing
+    /// is playing, for example before the other side joins.
     private func silenceWarning(for speaker: Speaker) -> String {
-        let permission: String
+        let silence = "\(speaker.rawValue) has been digital silence for \(Int(ChannelProcessor.silenceAlarmSeconds)) s"
         switch speaker {
         case .me:
-            permission = "Microphone permission (System Settings > Privacy & Security > Microphone)"
+            return "\(silence): check Microphone permission (System Settings > Privacy & Security > Microphone)."
         case .them:
             let name = settings.capture.systemAudioBackend == "sck" ? "Screen Recording" : "System Audio Recording"
-            permission = "\(name) permission (System Settings > Privacy & Security > Screen & System Audio Recording)"
+            return "\(silence). If the call's audio is already playing, check \(name) permission "
+                + "(System Settings > Privacy & Security > Screen & System Audio Recording)."
         }
-        let seconds = Int(ChannelProcessor.silenceAlarmSeconds)
-        return "\(speaker.rawValue) has been digital silence for \(seconds) s: check \(permission)."
     }
 
     /// Asks for a suggested answer from the transcript so far, including interim
