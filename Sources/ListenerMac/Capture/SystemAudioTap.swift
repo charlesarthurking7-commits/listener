@@ -75,10 +75,12 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         if feed != nil {
             throw CaptureError.alreadyRunning
         }
-        let feed = ContinuousAudioFeed(speaker: .them) { [weak self] chunk in
+        let deliverAndWatch: @Sendable (AudioChunk) -> Void = { [weak self] chunk in
             onChunk(chunk)
             self?.watch(chunk)
         }
+        let feed = ContinuousAudioFeed(
+            speaker: .them, threshold: CaptureSupport.deviceGapThreshold, onChunk: deliverAndWatch)
         feed.start()
         let info: ChannelInfo
         do {

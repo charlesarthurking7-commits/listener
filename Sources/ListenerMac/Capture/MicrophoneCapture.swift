@@ -57,7 +57,8 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         if feed != nil {
             throw CaptureError.alreadyRunning
         }
-        let feed = ContinuousAudioFeed(speaker: .me, onChunk: onChunk)
+        let feed = ContinuousAudioFeed(
+            speaker: .me, threshold: CaptureSupport.deviceGapThreshold, onChunk: onChunk)
         feed.start()
         let info: ChannelInfo
         do {

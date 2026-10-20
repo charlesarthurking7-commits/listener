@@ -52,7 +52,7 @@ struct CaptureEventTests {
                 + "Retrying in 1.5 s, sending silence meanwhile.")
         #expect(
             CaptureEvent.restarted(.them, reason: .digitalSilence(seconds: 10)).description
-                == "Them: capture restarted (10 s of digital silence while audio was playing).")
+                == "Them: capture restarted (10 s of digital silence while another app was playing audio).")
         #expect(CaptureEvent.stoppedByUser(.them).description == "Them: capture was stopped from outside Listener.")
     }
 

@@ -39,7 +39,7 @@ public enum CaptureRestartReason: Sendable, Equatable, CustomStringConvertible {
     case sampleRateChanged
     /// AVAudioEngine stopped itself because the hardware format changed.
     case audioConfigurationChanged
-    /// Exact digital silence for this long while other apps were playing audio.
+    /// Exact digital silence for this long while another app had audio output running.
     case digitalSilence(seconds: Int)
     /// The capture stream ended with an error.
     case streamStopped
@@ -50,7 +50,7 @@ public enum CaptureRestartReason: Sendable, Equatable, CustomStringConvertible {
         case .inputDeviceChanged: "input device changed"
         case .sampleRateChanged: "sample rate changed"
         case .audioConfigurationChanged: "audio configuration changed"
-        case .digitalSilence(let seconds): "\(seconds) s of digital silence while audio was playing"
+        case .digitalSilence(let seconds): "\(seconds) s of digital silence while another app was playing audio"
         case .streamStopped: "stream stopped"
         }
     }
