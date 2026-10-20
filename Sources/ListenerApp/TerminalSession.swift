@@ -1,6 +1,7 @@
 import Foundation
 import ListenerCore
 import ListenerMac
+import os
 
 enum TerminalInput: Sendable {
     case event(SessionEvent)
@@ -27,8 +28,10 @@ extension SessionCallbacks {
                 case .downloading:
                     continuation.yield(.notice("Downloading the on-device speech model for this language..."))
                 case .ready(let locale):
+                    Log.speech.info("On-device speech ready for \(locale, privacy: .public)")
                     continuation.yield(.notice("On-device speech is ready (\(locale))."))
                 case .failed(let message):
+                    Log.speech.error("On-device speech unavailable: \(message, privacy: .public)")
                     continuation.yield(.notice(message))
                 }
             }
@@ -85,6 +88,7 @@ struct TerminalSession {
 
         var renderer = TerminalRenderer(style: style)
         var answers = AnswerLog()
+        var eventLog = SessionEventLog()
         var stopping = false
         var lastNotice: String?
         let started = ContinuousClock.now
@@ -101,6 +105,7 @@ struct TerminalSession {
         loop: for await input in inputs {
             switch input {
             case .event(let event):
+                eventLog.record(event)
                 answers.apply(event, now: seconds(since: started))
                 Console.write(renderer.render(event))
             case .eventsEnded:

@@ -1,6 +1,7 @@
 import AppKit
 import ListenerCore
 import Observation
+import os
 
 /// The window's model: owns the running CallSession and reduces its events into
 /// `state`. All the reduction logic lives in CallViewState (ListenerCore), this class
@@ -27,11 +28,13 @@ public final class CallModel {
     /// What the last refresh found, so progress updates don't probe the Keychain again.
     @ObservationIgnored private var probes: ReadinessInput?
     @ObservationIgnored private var preparedLanguage: String?
+    @ObservationIgnored private var eventLog = SessionEventLog()
 
     public init(environment: AppEnvironment) {
         self.environment = environment
         settings = environment.launchSettings.settings
         for warning in environment.launchSettings.warnings {
+            Log.ui.notice("\(warning, privacy: .public)")
             appNotices.add(.warning, warning)
         }
         refreshReadiness()
@@ -60,6 +63,7 @@ public final class CallModel {
     public func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
         activeHotkeys = hotkeys
         for failure in failures {
+            Log.ui.error("\(failure.message, privacy: .public)")
             activeHotkeys[failure.action] = nil
             appNotices.add(.warning, failure.message)
         }
@@ -85,13 +89,15 @@ public final class CallModel {
         do {
             loaded = try environment.loadSettings()
         } catch {
-            state.startFailed(ErrorText.describe(error))
+            startFailed(ErrorText.describe(error))
             return
         }
         settings = loaded.settings
         prepareOnDeviceSpeechIfNeeded()
         refreshReadiness()
         if Readiness.blocksStart(readiness) {
+            let blockers = readiness.filter { $0.status == .blocking }.map(\.detail).joined(separator: " ")
+            Log.session.notice("Start blocked by the setup checklist: \(blockers, privacy: .public)")
             state.startFailed("Listener can't start yet. Fix the items marked in red below.")
             return
         }
@@ -100,16 +106,23 @@ public final class CallModel {
         do {
             components = try environment.makeComponents(settings, sessionCallbacks())
         } catch {
-            state.startFailed(ErrorText.describe(error))
+            startFailed(ErrorText.describe(error))
             return
         }
 
         let session = CallSession(settings: settings, components: components)
         self.session = session
+        eventLog = SessionEventLog()
+        let provider = settings.speech.provider
+        let backend = settings.capture.systemAudioBackend
+        Log.session.info(
+            "Starting a call: speech \(provider, privacy: .public), system audio \(backend, privacy: .public)")
         for warning in loaded.warnings {
+            Log.session.notice("\(warning, privacy: .public)")
             state.addNotice(.warning, warning)
         }
         if components.languageModel == nil {
+            Log.answers.notice("No Anthropic API key: answers and the summary are off")
             state.addNotice(.info, "Answers and the summary are off: no Anthropic API key.")
         }
         observe(session)
@@ -124,7 +137,7 @@ public final class CallModel {
                 eventsTask?.cancel()
                 eventsTask = nil
                 self.session = nil
-                state.startFailed(ErrorText.describe(error))
+                startFailed(ErrorText.describe(error))
                 refreshReadiness()
             }
         }
@@ -267,8 +280,28 @@ public final class CallModel {
     }
 
     private func onDeviceSpeechChanged(_ status: OnDeviceSpeechStatus) {
+        switch status {
+        case .checking:
+            break
+        case .downloading:
+            if case .downloading = onDeviceSpeech {
+                break
+            }
+            Log.speech.info("Downloading the on-device speech model")
+        case .ready(let locale):
+            if onDeviceSpeech != status {
+                Log.speech.info("On-device speech ready for \(locale, privacy: .public)")
+            }
+        case .failed(let message):
+            Log.speech.error("On-device speech unavailable: \(message, privacy: .public)")
+        }
         onDeviceSpeech = status
         updateReadiness()
+    }
+
+    private func startFailed(_ message: String) {
+        Log.session.error("Could not start the call: \(message, privacy: .public)")
+        state.startFailed(message)
     }
 
     /// Forwards what capture and speech report on their own to the window.
@@ -297,6 +330,7 @@ public final class CallModel {
     }
 
     private func receive(_ event: SessionEvent) {
+        eventLog.record(event)
         let wasListening = state.isListening
         state.apply(event, now: Date())
         if state.isListening != wasListening {

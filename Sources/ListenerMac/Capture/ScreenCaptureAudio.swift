@@ -160,7 +160,7 @@ public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOut
             CaptureSupport.report(.stoppedByUser(.them), to: onEvent)
             return
         }
-        CaptureSupport.logger.error(
+        Log.capture.error(
             "ScreenCaptureKit stream stopped: \(String(describing: error), privacy: .public)")
         scheduleRestart()
     }

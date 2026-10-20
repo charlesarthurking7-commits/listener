@@ -77,7 +77,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
                 self?.requestRestart(.inputDeviceChanged)
             }
         } catch {
-            CaptureSupport.logger.error(
+            Log.capture.error(
                 "Cannot follow input device changes: \(String(describing: error), privacy: .public)")
         }
         return info
@@ -217,8 +217,8 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
             let info = try startEngine(feeding: feed)
             lastFailure = nil
             CaptureSupport.report(.restarted(.me, reason: reason), to: onEvent)
-            CaptureSupport.logger.notice(
-                "Me now on \(info.device, privacy: .public), \(info.nativeFormat, privacy: .public)")
+            Log.capture.notice(
+                "Me now on \(info.device, privacy: .private), \(info.nativeFormat, privacy: .public)")
         } catch {
             // Retries repeat the same failure every few seconds, for example while no
             // microphone is plugged in; say it once.

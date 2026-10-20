@@ -286,5 +286,20 @@ Keychain item. Choose Always Allow, or sign with a stable identity (README).
 - **No microphone with the lid closed.** The built-in mics are off in clamshell mode;
   plug in a headset or USB mic.
 - **A hotkey does nothing.** The window lists hotkeys that could not be registered.
-  Pick another combination in `hotkeys`.
+  Pick another combination in `hotkeys`. macOS's own shortcuts win without telling
+  Listener: Control-Option-Space is also "Select next source in Input menu" under System
+  Settings > Keyboard > Keyboard Shortcuts > Input Sources. Turn that off, or choose
+  another hotkey.
 - **Answers are off.** `listener secrets status` shows whether the key is found.
+- **Anything else.** Listener logs what it does (calls starting and stopping, each
+  answer's latency, tokens and cost, capture restarts, warnings and errors, never what
+  was said) to the macOS log. Watch it live while you reproduce the problem:
+
+  ```sh
+  log stream --predicate 'subsystem == "local.listener"' --level info
+  ```
+
+  Afterwards, `log show --last 1h --predicate 'subsystem == "local.listener"'` still
+  has the starts, stops, warnings and errors; macOS keeps the per-answer lines only
+  while streaming, but they are also in each call's `session.json`. Device names and
+  file paths show as `<private>`.
