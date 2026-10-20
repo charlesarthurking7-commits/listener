@@ -152,6 +152,28 @@ struct LatencyReportTests {
         #expect(LatencyReport.median([4, 1, 3, 2]) == 2.5)
     }
 
+    @Test func textTableKeepsNumbersAligned() {
+        let table = TextTable.render(headers: ["#", "Name"], rows: [["9", "a"], ["10", "bb"]], leftAligned: [1])
+        #expect(table == " #  Name\n 9  a\n10  bb\n")
+    }
+
+    @Test func answerLogKeepsFailedAnswers() {
+        var log = AnswerLog()
+        log.apply(.answerStarted(id: 1, tier: .quick, model: "haiku"), now: 10)
+        log.apply(.answerStarted(id: 2, tier: .deep, model: "sonnet"), now: 20)
+        log.apply(.answerFailed(id: 1, message: "Cancelled"), now: 21)
+        var finished = AnswerRecord(id: 2, tier: .deep, model: "sonnet", askedAt: 19.8, text: "Yes.")
+        finished.latency.hotkeyToFirstToken = 700
+        log.apply(.answerFinished(finished), now: 23)
+        log.apply(.answerFailed(id: 9, message: "unknown"), now: 24)
+
+        #expect(log.records.map(\.id) == [1, 2])
+        #expect(log.records[0].error == "Cancelled")
+        #expect(log.records[0].askedAt == 10)
+        #expect(log.records[0].tier == .quick)
+        #expect(log.records[1] == finished)
+    }
+
     @Test func askSchedule() throws {
         #expect(try AskSchedule.parse("30, 12.5,1:05") == [12.5, 30, 65])
         #expect(throws: AskSchedule.ParseError(text: "soon")) { try AskSchedule.parse("10,soon") }

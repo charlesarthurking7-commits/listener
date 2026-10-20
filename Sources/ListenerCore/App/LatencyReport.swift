@@ -21,7 +21,7 @@ public enum LatencyReport {
                 DisplayFormat.preciseCost(record.cost),
             ]
         }
-        var output = table(headers: headers, rows: rows, leftAligned: [1])
+        var output = TextTable.render(headers: headers, rows: rows, leftAligned: [1])
 
         let failures = records.filter { $0.error != nil }
         for record in failures {
@@ -55,20 +55,28 @@ public enum LatencyReport {
             "\(title): median \(DisplayFormat.latency(milliseconds: median)), "
             + "worst \(DisplayFormat.latency(milliseconds: worst)) (\(values.count) answers)\n"
     }
+}
 
-    /// Columns padded to their widest cell; numbers right-aligned, `leftAligned` columns not.
-    static func table(headers: [String], rows: [[String]], leftAligned: Set<Int>) -> String {
+/// Plain-text tables for the terminal.
+public enum TextTable {
+    /// Columns padded to their widest cell and separated by two spaces. Columns in
+    /// `leftAligned` are padded on the right, the others (numbers) on the left.
+    public static func render(headers: [String], rows: [[String]], leftAligned: Set<Int> = []) -> String {
         var widths = headers.map(\.count)
         for row in rows {
-            for (index, cell) in row.enumerated() {
+            for (index, cell) in row.enumerated() where index < widths.count {
                 widths[index] = max(widths[index], cell.count)
             }
         }
         func line(_ cells: [String]) -> String {
-            cells.enumerated().map { index, cell in
-                let padding = String(repeating: " ", count: widths[index] - cell.count)
+            var text = cells.enumerated().map { index, cell in
+                let padding = String(repeating: " ", count: max(widths[index] - cell.count, 0))
                 return leftAligned.contains(index) ? cell + padding : padding + cell
-            }.joined(separator: "  ").trimmingCharacters(in: .whitespaces) + "\n"
+            }.joined(separator: "  ")
+            while text.last == " " {
+                text.removeLast()
+            }
+            return text + "\n"
         }
         return ([headers] + rows).map(line).joined()
     }
@@ -107,6 +115,43 @@ public enum AskSchedule {
             return Double(minutes) * 60 + seconds
         default:
             return nil
+        }
+    }
+}
+
+/// Every answer of a session, collected from its events. Failed and cancelled
+/// answers are kept too, with their error, so the latency table shows them.
+public struct AnswerLog: Sendable {
+    public private(set) var records: [AnswerRecord] = []
+    private var pending: [Int: AnswerRecord] = [:]
+
+    public init() {}
+
+    /// `now` is session seconds, used as the asking time of answers that fail
+    /// before the session reports one.
+    public mutating func apply(_ event: SessionEvent, now: Double) {
+        switch event {
+        case .answerStarted(let id, let tier, let model):
+            pending[id] = AnswerRecord(id: id, tier: tier, model: model, askedAt: now)
+        case .answerFinished(let record):
+            pending[record.id] = nil
+            store(record)
+        case .answerFailed(let id, let message):
+            guard var record = pending.removeValue(forKey: id) else {
+                return
+            }
+            record.error = message
+            store(record)
+        default:
+            break
+        }
+    }
+
+    private mutating func store(_ record: AnswerRecord) {
+        if let index = records.firstIndex(where: { $0.id == record.id }) {
+            records[index] = record
+        } else {
+            records.append(record)
         }
     }
 }

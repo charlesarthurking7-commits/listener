@@ -100,6 +100,16 @@ public struct TerminalRenderer: Sendable {
         }
     }
 
+    /// The terminal echoed a line the user typed (and its newline) right after the live
+    /// line. Moves back up, clears that line and draws the live line again.
+    public mutating func inputEchoed() -> String {
+        guard style.liveLine, streamingAnswer == nil else {
+            return ""
+        }
+        liveShown = false
+        return "\u{1B}[1A\r\u{1B}[2K" + showLiveLine()
+    }
+
     /// Removes the live line, e.g. before printing something unrelated or exiting.
     public mutating func clearLiveLine() -> String {
         guard liveShown else {

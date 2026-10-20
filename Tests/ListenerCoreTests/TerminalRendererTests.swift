@@ -55,6 +55,17 @@ struct TerminalRendererTests {
         #expect(output.count == 29)
     }
 
+    @Test func typedInputIsClearedAndTheLiveLineRedrawn() {
+        var renderer = TerminalRenderer(style: TerminalStyle(color: false, liveLine: true))
+        _ = renderer.render(.transcript(TranscriptSnapshot(interim: [.them: "and the"])))
+        #expect(renderer.inputEchoed() == "\u{1B}[1A" + clear + "... Them: and the")
+
+        _ = renderer.render(.answerStarted(id: 1, tier: .quick, model: "haiku"))
+        #expect(renderer.inputEchoed() == "")
+        var plain = TerminalRenderer(style: .plain)
+        #expect(plain.inputEchoed() == "")
+    }
+
     @Test func liveLineOffMeansNoInterimText() {
         var renderer = TerminalRenderer(style: .plain)
         #expect(renderer.render(.transcript(TranscriptSnapshot(interim: [.them: "hello"]))) == "")

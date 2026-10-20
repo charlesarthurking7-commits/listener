@@ -71,6 +71,32 @@ public struct Notice: Sendable, Equatable, Identifiable {
     public let action: NoticeAction?
 }
 
+/// Banners, newest last. Adding one that is already showing does nothing, and
+/// beyond `maximum` the oldest is pushed out.
+public struct NoticeList: Sendable, Equatable {
+    public static let maximum = 3
+
+    public private(set) var items: [Notice] = []
+    private var nextID = 1
+
+    public init() {}
+
+    public mutating func add(_ kind: Notice.Kind, _ message: String, action: NoticeAction? = nil) {
+        if items.contains(where: { $0.kind == kind && $0.message == message }) {
+            return
+        }
+        items.append(Notice(id: nextID, kind: kind, message: message, action: action))
+        nextID += 1
+        if items.count > Self.maximum {
+            items.removeFirst(items.count - Self.maximum)
+        }
+    }
+
+    public mutating func dismiss(id: Int) {
+        items.removeAll { $0.id == id }
+    }
+}
+
 /// Everything the window shows, rebuilt from the session's events. The window's
 /// model owns one of these and forwards every SessionEvent to `apply(_:now:)`.
 public struct CallViewState: Sendable, Equatable {
@@ -86,9 +112,6 @@ public struct CallViewState: Sendable, Equatable {
         case finished
     }
 
-    /// Banners beyond this many push the oldest out.
-    public static let maximumNotices = 3
-
     public private(set) var phase = Phase.idle
     public private(set) var listeningSince: Date?
     public private(set) var channels: [ChannelInfo] = []
@@ -97,15 +120,15 @@ public struct CallViewState: Sendable, Equatable {
     public private(set) var cost = CostSummary()
     /// Hotkey to first token of the last finished answer, in milliseconds.
     public private(set) var lastLatencyMs: Double?
-    public private(set) var notices: [Notice] = []
+    private var noticeList = NoticeList()
     public private(set) var sessionDirectory: String?
     public private(set) var summaryFile: String?
 
     private var interimOrder: [Speaker] = []
-    private var nextNoticeID = 1
 
     public init() {}
 
+    public var notices: [Notice] { noticeList.items }
     public var isListening: Bool { phase == .listening }
     public var isBusy: Bool { phase == .starting || phase == .stopping || phase == .summarizing }
     public var canStart: Bool { phase == .idle || phase == .finished }
@@ -131,6 +154,13 @@ public struct CallViewState: Sendable, Equatable {
         }
     }
 
+    /// The event stream ended without `.stopped`, so the call was not saved.
+    public mutating func eventsEnded() {
+        if phase == .listening || phase == .stopping || phase == .summarizing {
+            finish(directory: nil)
+        }
+    }
+
     /// Hides the answer card. Returns the answer's ID if it was still streaming, so
     /// the caller can cancel the request.
     @discardableResult
@@ -140,19 +170,11 @@ public struct CallViewState: Sendable, Equatable {
     }
 
     public mutating func dismissNotice(id: Int) {
-        notices.removeAll { $0.id == id }
+        noticeList.dismiss(id: id)
     }
 
-    /// Adds a banner unless the same one is already showing.
     public mutating func addNotice(_ kind: Notice.Kind, _ message: String, action: NoticeAction? = nil) {
-        if notices.contains(where: { $0.kind == kind && $0.message == message }) {
-            return
-        }
-        notices.append(Notice(id: nextNoticeID, kind: kind, message: message, action: action))
-        nextNoticeID += 1
-        if notices.count > Self.maximumNotices {
-            notices.removeFirst(notices.count - Self.maximumNotices)
-        }
+        noticeList.add(kind, message, action: action)
     }
 
     public mutating func apply(_ event: SessionEvent, now: Date) {

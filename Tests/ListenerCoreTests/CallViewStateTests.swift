@@ -188,6 +188,18 @@ struct CallViewStateTests {
         #expect(state.notices.last?.kind == .error)
     }
 
+    @Test func eventsEndingWithoutAStopFinishTheCall() {
+        var state = listening()
+        state.eventsEnded()
+        #expect(state.phase == .finished)
+        #expect(state.notices.last?.message == "The call could not be saved.")
+
+        var idle = CallViewState()
+        idle.eventsEnded()
+        #expect(idle.phase == .idle)
+        #expect(idle.notices.isEmpty)
+    }
+
     @Test func startingAgainClearsThePreviousCall() {
         var state = listening()
         state.apply(

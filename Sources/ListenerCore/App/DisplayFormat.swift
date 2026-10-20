@@ -58,9 +58,14 @@ public enum ErrorText {
         if let localized = error as? any LocalizedError, let description = localized.errorDescription {
             return description
         }
-        if !(type(of: error) is NSError.Type), let printable = error as? any CustomStringConvertible {
-            return printable.description
+        // On macOS every error bridges to NSError, so a cast to CustomStringConvertible
+        // always succeeds. Swift error types bridge with a "Module.Type" domain and
+        // describe themselves best; Foundation's domains have no dot and come with a
+        // readable localizedDescription.
+        let bridged = error as NSError
+        if bridged.domain.contains(".") {
+            return String(describing: error)
         }
-        return error.localizedDescription
+        return bridged.localizedDescription
     }
 }
