@@ -1,0 +1,101 @@
+{
+  "title": "Kestrelmoor Markets: delayed copy-trade executions at the US open",
+  "lines": [
+    {
+      "speaker": "Them",
+      "start": 0.8,
+      "end": 6.43,
+      "text": "Hi, it's Hannah at Kestrelmoor Markets. We've had a flood of complaints since the US open."
+    },
+    {
+      "speaker": "Me",
+      "start": 7.306,
+      "end": 8.386,
+      "text": "Hi Hannah, go ahead."
+    },
+    {
+      "speaker": "Them",
+      "start": 9.007,
+      "end": 14.987,
+      "text": "From half two, copy trades were reaching our followers late, some by thirty seconds. What happened?"
+    },
+    {
+      "speaker": "Me",
+      "start": 15.887,
+      "end": 20.937,
+      "text": "We saw it too. Volume at the open hit six times normal. That backed up our follower order queue."
+    },
+    {
+      "speaker": "Them",
+      "start": 19.097,
+      "end": 19.647,
+      "text": "Right."
+    },
+    {
+      "speaker": "Them",
+      "start": 21.348,
+      "end": 22.538,
+      "text": "Is it fixed now?"
+    },
+    {
+      "speaker": "Me",
+      "start": 23.305,
+      "end": 27.675,
+      "text": "Yes, we scaled out the workers at two forty. Delays have been under a second since."
+    },
+    {
+      "speaker": "Them",
+      "start": 28.104,
+      "end": 29.824,
+      "text": "Will it happen again tomorrow?"
+    },
+    {
+      "speaker": "Me",
+      "start": 30.395,
+      "end": 33.195,
+      "text": "We're adding extra workers before the open, so it shouldn't."
+    },
+    {
+      "speaker": "Them",
+      "start": 33.778,
+      "end": 38.698,
+      "text": "Which of our accounts were affected, and by how much? Compliance want numbers today."
+    },
+    {
+      "speaker": "Me",
+      "start": 39.798,
+      "end": 43.818,
+      "text": "Um, I don't have the account list to hand. I'll pull it and send it over this afternoon."
+    },
+    {
+      "speaker": "Them",
+      "start": 44.317,
+      "end": 48.017,
+      "text": "And, er, will Pelican cover the slippage on the late fills?"
+    },
+    {
+      "speaker": "Me",
+      "start": 49.017,
+      "end": 55.097,
+      "text": "That's not my call, I'm afraid. I'll check with client services. You'll get an incident report within five working days."
+    },
+    {
+      "speaker": "Them",
+      "start": 55.748,
+      "end": 58.408,
+      "text": "Fine, what's the incident reference?"
+    },
+    {
+      "speaker": "Me",
+      "start": 58.983,
+      "end": 62.233,
+      "text": "It's INC-4471. I'll email it over now."
+    },
+    {
+      "speaker": "Them",
+      "start": 61.983,
+      "end": 63.063,
+      "text": "Great, thanks."
+    }
+  ]
+}

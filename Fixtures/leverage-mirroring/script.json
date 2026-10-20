@@ -1,0 +1,89 @@
+{
+  "title": "Fernhall Securities: follower stopped mirroring after a leverage change",
+  "lines": [
+    {
+      "speaker": "Them",
+      "start": 0.8,
+      "end": 7.61,
+      "text": "Morning, it's Isla at Fernhall Securities. One of our follower accounts has stopped copying, and I can't see why."
+    },
+    {
+      "speaker": "Me",
+      "start": 8.306,
+      "end": 10.166,
+      "text": "Morning Isla. Which account?"
+    },
+    {
+      "speaker": "Them",
+      "start": 10.603,
+      "end": 19.853,
+      "text": "It's FR-720418. The client dropped their leverage from 30:1 to 10:1 yesterday, and nothing's mirrored since."
+    },
+    {
+      "speaker": "Me",
+      "start": 20.853,
+      "end": 28.033,
+      "text": "Right, with lower leverage, every trade we copy needs more margin. If there isn't enough free margin, we skip the trade rather than open a smaller one."
+    },
+    {
+      "speaker": "Them",
+      "start": 24.003,
+      "end": 24.413,
+      "text": "Yeah."
+    },
+    {
+      "speaker": "Them",
+      "start": 28.699,
+      "end": 32.239,
+      "text": "But they've got plenty in the account. Shouldn't it just scale down?"
+    },
+    {
+      "speaker": "Me",
+      "start": 32.942,
+      "end": 37.452,
+      "text": "It depends on the copy mode. In proportional mode it scales down, in fixed lot mode it doesn't."
+    },
+    {
+      "speaker": "Them",
+      "start": 37.814,
+      "end": 40.194,
+      "text": "So is this account on fixed lot or proportional?"
+    },
+    {
+      "speaker": "Me",
+      "start": 41.394,
+      "end": 44.434,
+      "text": "I can't see that from here, I'd have to check the account settings."
+    },
+    {
+      "speaker": "Them",
+      "start": 45.004,
+      "end": 47.194,
+      "text": "And the trades it missed, will they still open?"
+    },
+    {
+      "speaker": "Me",
+      "start": 47.794,
+      "end": 53.014,
+      "text": "Er, no, I'm afraid not. Once the margin check passes, it'll only copy new trades from the leader."
+    },
+    {
+      "speaker": "Them",
+      "start": 53.525,
+      "end": 57.115,
+      "text": "Okay, can you check the settings and get back to me this afternoon?"
+    },
+    {
+      "speaker": "Me",
+      "start": 57.727,
+      "end": 59.157,
+      "text": "Yep, I'll email you by three."
+    },
+    {
+      "speaker": "Them",
+      "start": 59.54,
+      "end": 60.13,
+      "text": "Cheers."
+    }
+  ]
+}
