@@ -1,23 +1,53 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 import PackageDescription
 
-// ListenerCore is plain Foundation so it builds and tests on Linux too.
-// Everything that touches Apple frameworks lives in ListenerMac and the app target.
+// ListenerCore, GoogleSpeech and ClaudeAPI use no Apple-only frameworks, so they
+// build and test on Linux too. Everything that touches AppKit, AVFoundation or
+// Core Audio lives in ListenerMac and the app target.
 var products: [Product] = []
 var targets: [Target] = [
     .target(name: "ListenerCore"),
-    .testTarget(name: "ListenerCoreTests", dependencies: ["ListenerCore"]),
+    .target(
+        name: "GoogleSpeech",
+        dependencies: [
+            "ListenerCore",
+            .product(name: "GRPCCore", package: "grpc-swift-2"),
+            .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+        ]
+    ),
+    .target(name: "ClaudeAPI", dependencies: ["ListenerCore"]),
+    .testTarget(name: "ListenerCoreTests", dependencies: ["ListenerCore"], resources: [.copy("Fixtures")]),
+    .testTarget(
+        name: "GoogleSpeechTests",
+        dependencies: [
+            "GoogleSpeech",
+            .product(name: "GRPCCore", package: "grpc-swift-2"),
+            .product(name: "GRPCInProcessTransport", package: "grpc-swift-2"),
+        ]
+    ),
+    .testTarget(name: "ClaudeAPITests", dependencies: ["ClaudeAPI"]),
 ]
 
 #if os(macOS)
     products.append(.executable(name: "listener", targets: ["ListenerApp"]))
     targets += [
-        .target(name: "ListenerMac", dependencies: ["ListenerCore"]),
+        .target(
+            name: "ListenerMac",
+            dependencies: [
+                "ListenerCore",
+                "GoogleSpeech",
+                "ClaudeAPI",
+            ]
+        ),
         .executableTarget(
             name: "ListenerApp",
             dependencies: [
                 "ListenerCore",
                 "ListenerMac",
+                "GoogleSpeech",
+                "ClaudeAPI",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
@@ -29,7 +59,11 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: products,
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0")
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.4.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.11.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.5.0"),
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.39.0"),
     ],
     targets: targets
 )
