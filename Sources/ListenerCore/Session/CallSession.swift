@@ -374,18 +374,15 @@ public actor CallSession {
     private func modelEvent(_ event: ModelEvent, key: Int) {
         switch event {
         case .text(let delta):
-            let now = sessionTime(.now)
-            guard !delta.isEmpty,
-                let generation = update(
-                    key,
-                    {
-                        $0.firstTokenAt = $0.firstTokenAt ?? now
-                        $0.text += delta
-                    })
-            else {
+            guard !delta.isEmpty else {
                 return
             }
-            if let id = generation.answerID {
+            let now = sessionTime(.now)
+            let generation = update(key) {
+                $0.firstTokenAt = $0.firstTokenAt ?? now
+                $0.text += delta
+            }
+            if let id = generation?.answerID {
                 emit(.answerText(id: id, delta: delta))
             }
         case .finished(let usage, let stopReason):
@@ -680,7 +677,10 @@ func finishes(within timeout: Duration, _ operation: @escaping @Sendable () asyn
     await withCheckedContinuation { continuation in
         let outcome = FirstOutcome(continuation)
         let timer = Task {
-            try? await Task.sleep(for: timeout)
+            // Cancelled means the operation won; resolving here could beat its result.
+            guard (try? await Task.sleep(for: timeout)) != nil else {
+                return
+            }
             await outcome.resolve(false)
         }
         Task {

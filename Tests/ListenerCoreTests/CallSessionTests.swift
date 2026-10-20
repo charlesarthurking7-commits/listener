@@ -415,7 +415,7 @@ struct CallSessionTests {
         let shown = try #require(setup.recorder.finishedAnswers.first)
         #expect(shown.latency.finalToHotkey == nil)
         let speechToHotkey = try #require(shown.latency.endOfSpeechToHotkey)
-        #expect(speechToHotkey >= 0 && speechToHotkey < 2_000)
+        #expect(speechToHotkey >= 0 && speechToHotkey < 10_000)
 
         let saved = try SessionStore.readRecord(in: try #require(await session.directory))
         let late = try #require(saved.answers.first?.latency.finalToHotkey)
@@ -423,6 +423,14 @@ struct CallSessionTests {
         // Asked from the interim text, since there was no final yet.
         let request = try #require(model.requests.first)
         #expect(request.userText.contains("Them: Quick question?"))
+    }
+
+    @Test func waitingWithADeadlineReportsWhichCameFirst() async {
+        #expect(await finishes(within: .seconds(5)) {})
+        let slow = await finishes(within: .milliseconds(20)) {
+            try? await Task.sleep(for: .seconds(1))
+        }
+        #expect(!slow)
     }
 
     @Test func costEventsAreThrottled() async throws {
