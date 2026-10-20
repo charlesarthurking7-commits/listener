@@ -57,6 +57,7 @@ summary when you stop.
    | Microphone | "Me" | System Settings > Privacy & Security > Microphone |
    | System Audio Recording | "Them" (default tap backend) | Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" |
    | Screen Recording | "Them", only with `capture.systemAudioBackend` set to `sck` | Same pane, "Screen & System Audio Recording" |
+   | Speech Recognition | Only with `speech.provider` set to `apple`, and only if macOS asks | Privacy & Security > Speech Recognition |
 
    Accessibility is not needed: the hotkeys use `RegisterEventHotKey`, which macOS
    allows without it. If "Them" stays silent, the window warns you; it almost always
