@@ -70,14 +70,13 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
             throw CaptureError.unsupportedFormat("tap format with \(streamDescription.mChannelsPerFrame) channels")
         }
         let converter = try PCMConverter(inputFormat: format)
+        let tapBuffers = TapBufferSelector(format: format)
 
         // With a dispatch queue, Core Audio calls the block on that queue instead of
         // the real-time IO thread, so converting here cannot cause audio glitches.
         let status = AudioDeviceCreateIOProcIDWithBlock(&ioProcID, aggregateID, queue) { _, inputData, _, _, _ in
             let capturedAt = ContinuousClock.now
-            let buffer = AVAudioPCMBuffer(
-                pcmFormat: converter.inputFormat, bufferListNoCopy: inputData, deallocator: nil)
-            guard let buffer,
+            guard let buffer = tapBuffers.buffer(from: inputData),
                 let samples = try? converter.convert(buffer),
                 !samples.isEmpty
             else {
@@ -111,5 +110,41 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         ioProcID = nil
         aggregateID = unknownAudioObject
         tapID = unknownAudioObject
+    }
+}
+
+/// Picks the tap's audio out of the aggregate device's input.
+///
+/// The aggregate also contains the output device, and if that device has inputs of
+/// its own (a headset mic, say) their buffers come first in the list, followed by the
+/// tap's. Reading the whole list as tap audio would put your own voice on the "Them"
+/// channel, so we take only the trailing buffers that belong to the tap.
+///
+/// Only used from the tap's serial queue, hence @unchecked Sendable.
+private final class TapBufferSelector: @unchecked Sendable {
+    private let format: AVAudioFormat
+    private let tapBufferCount: Int
+    private let list: UnsafeMutableAudioBufferListPointer
+
+    init(format: AVAudioFormat) {
+        self.format = format
+        tapBufferCount = format.isInterleaved ? 1 : Int(format.channelCount)
+        list = AudioBufferList.allocate(maximumBuffers: tapBufferCount)
+    }
+
+    deinit {
+        free(list.unsafeMutablePointer)
+    }
+
+    func buffer(from inputData: UnsafePointer<AudioBufferList>) -> AVAudioPCMBuffer? {
+        let input = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inputData))
+        if input.count < tapBufferCount {
+            return nil
+        }
+        let firstTapBuffer = input.count - tapBufferCount
+        for index in 0..<tapBufferCount {
+            list[index] = input[firstTapBuffer + index]
+        }
+        return AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: list.unsafePointer, deallocator: nil)
     }
 }

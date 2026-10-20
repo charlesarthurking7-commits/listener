@@ -22,6 +22,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Listener transcribes your side of the call from the microphone.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Listener can capture system audio through screen recording when the Core Audio tap is unavailable.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Listener transcribes the other side of the call from system audio.</string>
 </dict>

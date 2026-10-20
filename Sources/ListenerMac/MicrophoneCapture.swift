@@ -22,6 +22,10 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         let input = engine.inputNode
         if voiceProcessing {
             try input.setVoiceProcessingEnabled(true)
+            // Voice processing ducks all other audio by default, which would turn the
+            // call down. Minimum is the lowest setting macOS offers; there is no "off".
+            input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+                enableAdvancedDucking: false, duckingLevel: .min)
         }
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
