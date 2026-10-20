@@ -115,11 +115,13 @@ struct TerminalSession {
                 switch line.trimmingCharacters(in: .whitespaces).lowercased() {
                 case "":
                     if !stopping {
-                        Task { await session.requestAnswer(.quick) }
+                        let pressedAt = ContinuousClock.now
+                        Task { await session.requestAnswer(.quick, pressedAt: pressedAt) }
                     }
                 case "d", "deep":
                     if !stopping {
-                        Task { await session.requestAnswer(.deep) }
+                        let pressedAt = ContinuousClock.now
+                        Task { await session.requestAnswer(.deep, pressedAt: pressedAt) }
                     }
                 case "q", "quit", "stop":
                     stopOnce()
@@ -128,7 +130,8 @@ struct TerminalSession {
                 }
             case .ask(let tier):
                 if !stopping {
-                    Task { await session.requestAnswer(tier) }
+                    let pressedAt = ContinuousClock.now
+                    Task { await session.requestAnswer(tier, pressedAt: pressedAt) }
                 }
             case .interrupt:
                 if stopping {

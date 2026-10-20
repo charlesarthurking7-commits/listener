@@ -1,6 +1,6 @@
 {
   "speech": {
-    "provider": "google",
+    "provider": "auto",
     "googleProjectID": "your-gcp-project-id",
     "googleLocation": "eu",
     "googleEndpoint": "eu-speech.googleapis.com",
@@ -53,8 +53,8 @@
     "saveAudio": false
   },
   "hotkeys": {
-    "quickAnswer": "ctrl+option+space",
-    "deepAnswer": "ctrl+option+shift+space",
+    "quickAnswer": "ctrl+option+a",
+    "deepAnswer": "ctrl+option+shift+a",
     "toggleListening": "ctrl+option+l"
   },
   "window": {

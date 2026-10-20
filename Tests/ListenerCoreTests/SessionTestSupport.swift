@@ -7,6 +7,9 @@ import Synchronization
 func sessionSettings(directory: URL) -> Settings {
     var settings = Settings()
     settings.storage.directory = directory.path
+    // Priced as a Google session, so cost checks see a speech cost. The app resolves
+    // "auto" to a real provider before a session starts.
+    settings.speech.provider = "google"
     return settings
 }
 

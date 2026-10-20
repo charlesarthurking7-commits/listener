@@ -56,6 +56,8 @@ struct ReplayCommand: AsyncParsableCommand {
         let conversation = try script.map { try ConversationScript.load(from: URL(fileURLWithPath: expand($0))) }
         if conversation != nil {
             settings.speech.provider = "fake"
+            // The scripted recogniser keeps time by counting the samples it is sent.
+            settings.speech.skipSilence = false
         }
         let (notices, noticeContinuation) = AsyncStream.makeStream(of: TerminalInput.self)
         let replay = try SessionFactory.replay(

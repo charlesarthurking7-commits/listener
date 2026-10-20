@@ -16,9 +16,10 @@ public struct Settings: Sendable, Codable, Equatable {
 }
 
 public struct SpeechSettings: Sendable, Codable, Equatable {
-    /// "google" (Google Cloud, EU), "apple" (on-device, macOS 26 and later), or "fake"
-    /// to replay a fixture's script without any network.
-    public var provider = "google"
+    /// "auto" (on-device where the Mac supports it, otherwise Google), "apple" (on-device,
+    /// macOS 26 and later, free), "google" (Google Cloud, EU), or "fake" to replay a
+    /// fixture's script without any network.
+    public var provider = SpeechProviderChoice.automatic
     public var googleProjectID: String?
     public var googleLocation = "eu"
     public var googleEndpoint = "eu-speech.googleapis.com"
@@ -54,7 +55,8 @@ public struct TurnSettings: Sendable, Codable, Equatable {
 public struct AnswerSettings: Sendable, Codable, Equatable {
     public var quick = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 600)
     public var deep = ModelSettings(model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 4000)
-    /// Transcript tokens sent with each answer. About ten minutes of conversation.
+    /// Transcript tokens sent with each answer: about 20 minutes of non-stop conversation,
+    /// longer for a real call with pauses.
     public var transcriptBudgetTokens = 8_000
     /// Never send more than this, whatever the budget says. Haiku 5.5 prices rise
     /// fivefold above 100k prompt tokens.
@@ -104,9 +106,10 @@ public struct StorageSettings: Sendable, Codable, Equatable {
 
 public struct HotkeySettings: Sendable, Codable, Equatable {
     /// Modifier names: ctrl, option, shift, cmd. Key names: letters, digits, space,
-    /// return, f1 to f12. Avoid option-only combinations, macOS 15 blocks them.
-    public var quickAnswer = "ctrl+option+space"
-    public var deepAnswer = "ctrl+option+shift+space"
+    /// return, f1 to f12. Avoid option-only combinations, macOS 15 blocks them, and
+    /// ctrl+option+space, which macOS uses to switch input sources.
+    public var quickAnswer = "ctrl+option+a"
+    public var deepAnswer = "ctrl+option+shift+a"
     public var toggleListening = "ctrl+option+l"
 
     public init() {}

@@ -33,7 +33,8 @@ struct ListenerCommand: AsyncParsableCommand {
         let explicitPath = options.settings
         let launchSettings: LoadedSettings
         do {
-            launchSettings = try loader.load(explicitPath: explicitPath)
+            launchSettings = try loader.load(explicitPath: explicitPath).resolvingSpeechProvider(
+                onDeviceAvailable: AppleSpeech.isSupported)
         } catch {
             let message = "Using default settings for now. \(ErrorText.describe(error))"
             Console.error(message)
@@ -57,7 +58,10 @@ struct ListenerCommand: AsyncParsableCommand {
         let environment = AppEnvironment(
             paths: paths,
             launchSettings: launchSettings,
-            loadSettings: { try loader.load(explicitPath: explicitPath) },
+            loadSettings: {
+                try loader.load(explicitPath: explicitPath).resolvingSpeechProvider(
+                    onDeviceAvailable: AppleSpeech.isSupported)
+            },
             makeComponents: { try SessionFactory.live(settings: $0, secrets: secrets, callbacks: $1) },
             googleSetup: { SessionFactory.googleSetup($0) },
             prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
@@ -74,7 +78,8 @@ struct GlobalOptions: ParsableArguments {
 
     /// Loads settings and prints any warnings, such as misspelt keys, to stderr.
     func loadSettings() throws -> LoadedSettings {
-        let loaded = try SettingsLoader().load(explicitPath: settings)
+        let loaded = try SettingsLoader().load(explicitPath: settings).resolvingSpeechProvider(
+            onDeviceAvailable: AppleSpeech.isSupported)
         for warning in loaded.warnings {
             Console.error(warning)
         }

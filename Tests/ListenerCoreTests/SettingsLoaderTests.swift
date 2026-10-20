@@ -150,7 +150,7 @@ struct SettingsLoaderTests {
         let error = try #require(throws: SettingsError.self) { try loader.load() }
         #expect(
             error.problems == [
-                "speech.provider is \"deepgram\", but must be one of \"google\", \"apple\", \"fake\" (set by LISTENER_SPEECH_PROVIDER)"
+                "speech.provider is \"deepgram\", but must be one of \"auto\", \"google\", \"apple\", \"fake\" (set by LISTENER_SPEECH_PROVIDER)"
             ])
     }
 
@@ -161,7 +161,7 @@ struct SettingsLoaderTests {
         settings.storage.retentionDays = -1
         settings.answers.transcriptBudgetTokens = 100_000
         settings.hotkeys.deepAnswer = "option+d"
-        settings.hotkeys.toggleListening = "ctrl+option+space"
+        settings.hotkeys.toggleListening = "ctrl+option+a"
         let messages = SettingsLoader.problems(in: settings).map(\.message)
         #expect(
             messages == [
@@ -170,7 +170,7 @@ struct SettingsLoaderTests {
                 "storage.retentionDays must be 0 (keep forever) or more",
                 "window.opacity must be between 0.2 and 1",
                 "hotkeys.deepAnswer \"option+d\" uses only option or option+shift, which macOS 15 does not allow for global hotkeys; add ctrl or cmd",
-                "hotkeys.toggleListening \"ctrl+option+space\" is the same as hotkeys.quickAnswer",
+                "hotkeys.toggleListening \"ctrl+option+a\" is the same as hotkeys.quickAnswer",
             ])
         #expect(SettingsLoader.problems(in: Settings()).isEmpty)
     }

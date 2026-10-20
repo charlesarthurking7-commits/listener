@@ -158,6 +158,7 @@ public struct SettingsLoader: Sendable {
         let defaults = Settings()
         let starter: JSONValue = .object([
             "speech": .object([
+                "provider": .string(defaults.speech.provider),
                 "googleProjectID": .null,
                 "languageCode": .string(defaults.speech.languageCode),
             ]),
@@ -249,7 +250,7 @@ public struct SettingsLoader: Sendable {
             require(allowed.contains(value), key, "is \"\(value)\", but must be one of \(list)")
         }
 
-        requireOneOf(settings.speech.provider, ["google", "apple", "fake"], "speech.provider")
+        requireOneOf(settings.speech.provider, ["auto", "google", "apple", "fake"], "speech.provider")
         requireOneOf(
             settings.speech.endpointingSensitivity, ["standard", "short", "supershort"],
             "speech.endpointingSensitivity")
