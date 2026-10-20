@@ -209,9 +209,21 @@ public final class CallModel {
             openSettingsFile()
         case .runInTerminal(let command):
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(command, forType: .string)
+            NSPasteboard.general.setString(Self.runnable(command), forType: .string)
             appNotices.add(.info, "Copied \"\(command)\". Paste it into Terminal, then press Check Again.")
         }
+    }
+
+    /// `listener` is not on the PATH, so a command for it is copied with the full path
+    /// of this binary. That also makes the Keychain item the command stores readable by
+    /// the app without a prompt, because the same binary wrote it.
+    private static func runnable(_ command: String) -> String {
+        let prefix = "listener "
+        guard command.hasPrefix(prefix), let executable = Bundle.main.executablePath else {
+            return command
+        }
+        let quoted = "'" + executable.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        return quoted + " " + command.dropFirst(prefix.count)
     }
 
     public func openSettingsFile() {
