@@ -142,6 +142,27 @@ struct SpeechChannelTests {
         #expect(log.warnings.isEmpty)
     }
 
+    /// Where skipped silence was cut out, the end of the speech before the cut and the
+    /// start of the speech after it are the same point of the stream's audio.
+    @Test func timesAtASkippedGapMapToTheSpeechTheyBelongTo() async throws {
+        let before = SpeechEvent(kind: .final, text: "before", audioStart: 0, audioEnd: 0.3)
+        let after = SpeechEvent(kind: .final, text: "after", audioStart: 0.3, audioEnd: 0.5)
+        let provider = PlannedSpeech([PlannedSpeech.Plan(respond: { [3: [before], 5: [after]][$0] ?? [] })])
+        let log = OutputLog()
+        let speech = channel(provider, log: log)
+        for (mark, start) in zip(Int16(0)..., [0, 0.1, 0.2, 5.0, 5.1]) {
+            speech.send(frame(mark, at: start))
+        }
+        speech.finish()
+        await speech.waitUntilDone()
+
+        let times = log.events.map { [$0.audioStart ?? -1, $0.audioEnd ?? -1] }
+        #expect(times.count == 2)
+        for (time, expected) in zip(times.joined(), [0, 0.3, 5.0, 5.2]) {
+            #expect(abs(time - expected) < 1e-9)
+        }
+    }
+
     @Test func aFailedSendReconnectsAndResendsAudioSinceTheLastFinal() async throws {
         let firstFinal = SpeechEvent(kind: .final, text: "one", audioStart: 0, audioEnd: 0.2)
         let secondFinal = SpeechEvent(kind: .final, text: "two", audioStart: 0, audioEnd: 0.4)

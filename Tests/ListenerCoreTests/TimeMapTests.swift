@@ -19,6 +19,18 @@ struct TimeMapTests {
         #expect(map.map(-1) == 1)
     }
 
+    @Test func anEndAtAJumpBelongsToTheStretchBeforeIt() {
+        var map = TimeMap(tolerance: 0.001)
+        map.record(from: 0, to: 0)
+        map.record(from: 0.3, to: 5)
+        #expect(map.map(0.3) == 5)
+        #expect(map.mapEnd(0.3) == 0.3)
+        #expect(map.mapEnd(0.4) == map.map(0.4))
+        #expect(map.mapEnd(0.2) == 0.2)
+        #expect(map.mapEnd(-1) == -1)
+        #expect(TimeMap(tolerance: 0.001).mapEnd(3) == 3)
+    }
+
     @Test func jitterWithinToleranceAddsNoAnchor() {
         var jittery = TimeMap(tolerance: 0.05)
         var single = TimeMap(tolerance: 0.05)
