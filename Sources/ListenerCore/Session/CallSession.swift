@@ -61,6 +61,8 @@ public actor CallSession {
     public var cost: CostSummary { costTracker.summary }
     /// Session time of the speech answers are measured from right now, for tests.
     var endOfSpeech: Double? { timeline.endOfSpeech()?.end }
+    /// The recent speech the voice activity detector heard, for tests.
+    var speechSegments: [SpeechTimeline.Segment] { timeline.segments }
 
     private enum Phase {
         case idle, starting, running, stopping, stopped
