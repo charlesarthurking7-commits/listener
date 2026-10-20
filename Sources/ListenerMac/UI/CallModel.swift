@@ -34,11 +34,6 @@ public final class CallModel {
 
     public var hasSession: Bool { session != nil }
 
-    /// Shown in the empty window before the first call, and whenever something blocks a start.
-    public var showsSetup: Bool {
-        state.phase == .idle && state.rows.isEmpty
-    }
-
     public func refreshReadiness() {
         let input = ReadinessInput(
             microphone: SystemPermissions.microphone(),
@@ -69,10 +64,12 @@ public final class CallModel {
 
     /// Starts a call. Nothing is captured until the user presses Start (or the
     /// toggle hotkey), and nothing starts while the setup checklist shows a blocker.
+    /// A failed start leaves the window on the checklist with the reason on top.
     public func start() {
         guard state.canStart else {
             return
         }
+        state.beginStarting()
         let loaded: LoadedSettings
         do {
             loaded = try environment.loadSettings()
@@ -97,7 +94,6 @@ public final class CallModel {
 
         let session = CallSession(settings: settings, components: components)
         self.session = session
-        state.beginStarting()
         for warning in loaded.warnings {
             state.addNotice(.warning, warning)
         }
