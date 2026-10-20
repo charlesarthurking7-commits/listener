@@ -13,7 +13,7 @@ public struct TranscriptRow: Sendable, Equatable, Identifiable {
     /// Still being recognised; shown dimmer and replaced as words settle.
     public let isInterim: Bool
     /// False when the row above is the same speaker, so a run of rows shows the
-    /// speaker chip once.
+    /// speaker's name once.
     public let showsSpeaker: Bool
     /// Session seconds the turn started at. Nil for interim text.
     public let start: Double?
@@ -54,6 +54,36 @@ public enum NoticeAction: Sendable, Equatable {
         case .openFile: "Open"
         case .openURL(_, let title): title
         }
+    }
+}
+
+/// How the last call ended, for the card that replaces the answer card after Stop.
+public struct CallOutcome: Sendable, Equatable {
+    /// Where the call was saved, or nil if saving failed.
+    public var directory: String?
+    public var summaryFile: String?
+    /// Seconds from the first audio to Stop.
+    public var duration: Double?
+    public var turnCount: Int
+    public var cost: Double
+
+    public init(directory: String?, summaryFile: String?, duration: Double?, turnCount: Int, cost: Double) {
+        self.directory = directory
+        self.summaryFile = summaryFile
+        self.duration = duration
+        self.turnCount = turnCount
+        self.cost = cost
+    }
+
+    /// "12:05 · 48 turns · $0.12".
+    public var details: String {
+        var parts: [String] = []
+        if let duration {
+            parts.append(DisplayFormat.clock(duration))
+        }
+        parts.append(turnCount == 1 ? "1 turn" : "\(turnCount) turns")
+        parts.append(DisplayFormat.cost(cost))
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -115,7 +145,12 @@ public struct CallViewState: Sendable, Equatable {
     public private(set) var phase = Phase.idle
     public private(set) var listeningSince: Date?
     public private(set) var channels: [ChannelInfo] = []
-    public private(set) var rows: [TranscriptRow] = []
+    /// Turns that have settled. Only changes when a turn is added or its final text
+    /// grows, so the window redraws the long part of the transcript rarely.
+    public private(set) var settledRows: [TranscriptRow] = []
+    /// What people are saying right now, after the settled rows. Changes many times a
+    /// second while someone speaks.
+    public private(set) var liveRows: [TranscriptRow] = []
     public private(set) var answer: AnswerCard?
     public private(set) var cost = CostSummary()
     /// Hotkey to first token of the last finished answer, in milliseconds.
@@ -123,11 +158,18 @@ public struct CallViewState: Sendable, Equatable {
     private var noticeList = NoticeList()
     public private(set) var sessionDirectory: String?
     public private(set) var summaryFile: String?
+    /// Set when a call ends, until it is dismissed or the next call starts.
+    public private(set) var outcome: CallOutcome?
+    /// Which channels hear speech right now. Nil until the session reports channel
+    /// activity, so the window can tell "silent" from "not known".
+    public private(set) var hearing: Set<Speaker>?
 
     private var interimOrder: [Speaker] = []
+    private var settledTurns: [Turn] = []
 
     public init() {}
 
+    public var rows: [TranscriptRow] { settledRows + liveRows }
     public var notices: [Notice] { noticeList.items }
     public var isListening: Bool { phase == .listening }
     public var isBusy: Bool { phase == .starting || phase == .stopping || phase == .summarizing }
@@ -155,10 +197,25 @@ public struct CallViewState: Sendable, Equatable {
     }
 
     /// The event stream ended without `.stopped`, so the call was not saved.
-    public mutating func eventsEnded() {
+    public mutating func eventsEnded(now: Date = Date()) {
         if phase == .listening || phase == .stopping || phase == .summarizing {
-            finish(directory: nil)
+            finish(directory: nil, now: now)
         }
+    }
+
+    public mutating func dismissOutcome() {
+        outcome = nil
+    }
+
+    /// A channel started or stopped hearing speech.
+    public mutating func channelActivity(_ speaker: Speaker, isSpeaking: Bool) {
+        var hearing = self.hearing ?? []
+        if isSpeaking {
+            hearing.insert(speaker)
+        } else {
+            hearing.remove(speaker)
+        }
+        self.hearing = hearing
     }
 
     /// Hides the answer card. Returns the answer's ID if it was still streaming, so
@@ -224,11 +281,9 @@ public struct CallViewState: Sendable, Equatable {
             }
         case .summaryFinished(let file):
             summaryFile = file
-            if phase == .finished, let file {
-                addNotice(.info, "The summary is ready.", action: .openFile(path: file))
-            }
+            outcome?.summaryFile = file
         case .stopped(let directory):
-            finish(directory: directory)
+            finish(directory: directory, now: now)
         }
     }
 
@@ -248,11 +303,13 @@ public struct CallViewState: Sendable, Equatable {
         answer = card
     }
 
-    private mutating func finish(directory: String?) {
+    private mutating func finish(directory: String?, now: Date) {
+        let duration = listeningSince.map { now.timeIntervalSince($0) }
         phase = .finished
         listeningSince = nil
-        rows.removeAll(where: \.isInterim)
+        liveRows = []
         interimOrder = []
+        hearing = nil
         sessionDirectory = directory
         if answer?.isActive == true {
             answer = nil
@@ -261,39 +318,44 @@ public struct CallViewState: Sendable, Equatable {
             addNotice(.error, "The call could not be saved.")
             return
         }
-        let name = URL(fileURLWithPath: directory).lastPathComponent
-        if let summaryFile {
-            addNotice(.info, "Call saved as \(name), with a summary.", action: .openFile(path: summaryFile))
-        } else {
-            addNotice(.info, "Call saved as \(name).", action: .revealInFinder(path: directory))
-        }
+        outcome = CallOutcome(
+            directory: directory, summaryFile: summaryFile, duration: duration, turnCount: settledTurns.count,
+            cost: cost.total)
     }
 
     private mutating func updateRows(_ snapshot: TranscriptSnapshot) {
+        if snapshot.turns != settledTurns {
+            settledTurns = snapshot.turns
+            var rows: [TranscriptRow] = []
+            rows.reserveCapacity(snapshot.turns.count)
+            var previous: Speaker?
+            for turn in snapshot.turns {
+                rows.append(
+                    TranscriptRow(
+                        id: .turn(turn.id), speaker: turn.speaker, text: turn.text, isInterim: false,
+                        showsSpeaker: turn.speaker != previous, start: turn.start))
+                previous = turn.speaker
+            }
+            settledRows = rows
+        }
+
         let speaking = Set(snapshot.interim.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }.keys)
         interimOrder.removeAll { !speaking.contains($0) }
         for speaker in Speaker.allCases where speaking.contains(speaker) && !interimOrder.contains(speaker) {
             interimOrder.append(speaker)
         }
-
-        var rows: [TranscriptRow] = []
-        rows.reserveCapacity(snapshot.turns.count + interimOrder.count)
-        var previous: Speaker?
-        for turn in snapshot.turns {
-            rows.append(
-                TranscriptRow(
-                    id: .turn(turn.id), speaker: turn.speaker, text: turn.text, isInterim: false,
-                    showsSpeaker: turn.speaker != previous, start: turn.start))
-            previous = turn.speaker
-        }
+        var live: [TranscriptRow] = []
+        var previous = settledRows.last?.speaker
         for speaker in interimOrder {
             let text = snapshot.interim[speaker, default: ""].trimmingCharacters(in: .whitespaces)
-            rows.append(
+            live.append(
                 TranscriptRow(
                     id: .interim(speaker), speaker: speaker, text: text, isInterim: true,
                     showsSpeaker: speaker != previous, start: nil))
             previous = speaker
         }
-        self.rows = rows
+        if live != liveRows {
+            liveRows = live
+        }
     }
 }

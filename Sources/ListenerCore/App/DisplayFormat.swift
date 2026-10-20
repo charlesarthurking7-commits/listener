@@ -47,6 +47,29 @@ public enum DisplayFormat {
         return String(format: "%.1f s", milliseconds / 1000)
     }
 
+    /// A model ID as people say it: "claude-haiku-5-5" is "Haiku 5.5" and
+    /// "claude-3-5-sonnet-20241022" is "Sonnet 3.5". Anything else is shown unchanged.
+    public static func modelName(_ id: String) -> String {
+        let parts = id.lowercased().split(separator: "-")
+        guard parts.first == "claude" else {
+            return id
+        }
+        var family: Substring?
+        var version: [Substring] = []
+        for part in parts.dropFirst() {
+            if part.allSatisfy(\.isLetter), family == nil {
+                family = part
+            } else if part.count <= 2, part.allSatisfy(\.isNumber) {
+                version.append(part)
+            }
+        }
+        guard let family else {
+            return id
+        }
+        let name = family.prefix(1).uppercased() + family.dropFirst()
+        return version.isEmpty ? name : "\(name) \(version.joined(separator: "."))"
+    }
+
     private static func twoDigits(_ value: Int) -> String {
         value < 10 ? "0\(value)" : "\(value)"
     }

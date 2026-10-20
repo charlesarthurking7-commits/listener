@@ -161,31 +161,73 @@ struct CallViewStateTests {
         #expect(state.listeningSince == nil)
         #expect(state.rows.isEmpty)
         #expect(state.sessionDirectory == "/s/2026-10-20 14.03.11")
-        #expect(state.notices.last?.message == "Call saved as 2026-10-20 14.03.11, with a summary.")
-        #expect(state.notices.last?.action == .openFile(path: "/s/2026-10-20 14.03.11/summary.md"))
+        #expect(state.notices.isEmpty)
+        #expect(
+            state.outcome
+                == CallOutcome(
+                    directory: "/s/2026-10-20 14.03.11", summaryFile: "/s/2026-10-20 14.03.11/summary.md",
+                    duration: 0, turnCount: 0, cost: 0.13))
     }
 
-    @Test func savingWithoutASummaryOffersTheFolder() {
+    @Test func theOutcomeHasTheCallsLengthTurnsAndCost() {
         var state = listening()
-        state.beginStopping()
-        state.apply(.stopped(directory: "/s/call"), now: start)
-        #expect(state.notices.last?.action == .revealInFinder(path: "/s/call"))
-        #expect(NoticeAction.revealInFinder(path: "/s/call").title == "Show in Finder")
+        let turns = [
+            Turn(id: 1, speaker: .them, text: "Hello.", start: 0, end: 1),
+            Turn(id: 2, speaker: .me, text: "Hi.", start: 2, end: 3),
+        ]
+        state.apply(.transcript(TranscriptSnapshot(turns: turns)), now: start)
+        state.apply(.cost(CostSummary(speechCost: 0.1, modelCost: 0.02)), now: start)
+        state.apply(.stopped(directory: "/s/call"), now: start.addingTimeInterval(725))
+
+        #expect(state.outcome?.summaryFile == nil)
+        #expect(state.outcome?.details == "12:05 · 2 turns · $0.12")
+        #expect(state.rows.map(\.text) == ["Hello.", "Hi."])
+
+        state.dismissOutcome()
+        #expect(state.outcome == nil)
     }
 
-    @Test func aSummaryAfterStoppingStillGetsANotice() {
+    @Test func aSummaryAfterStoppingReachesTheOutcome() {
         var state = listening()
         state.apply(.stopped(directory: "/s/call"), now: start)
         state.apply(.summaryStarted, now: start)
         #expect(state.phase == .finished)
         state.apply(.summaryFinished(markdownFile: "/s/call/summary.md"), now: start)
-        #expect(state.notices.last?.action == .openFile(path: "/s/call/summary.md"))
+        #expect(state.outcome?.summaryFile == "/s/call/summary.md")
     }
 
     @Test func failedSaveIsAnError() {
         var state = listening()
         state.apply(.stopped(directory: nil), now: start)
         #expect(state.notices.last?.kind == .error)
+        #expect(state.outcome == nil)
+    }
+
+    @Test func interimUpdatesLeaveTheSettledRowsAlone() {
+        var state = listening()
+        let turns = [Turn(id: 1, speaker: .them, text: "We saw a gap.", start: 0, end: 2)]
+        state.apply(.transcript(TranscriptSnapshot(turns: turns, interim: [.them: "and"])), now: start)
+        let settled = state.settledRows
+        state.apply(.transcript(TranscriptSnapshot(turns: turns, interim: [.them: "and then"])), now: start)
+
+        #expect(state.settledRows == settled)
+        #expect(state.liveRows.map(\.text) == ["and then"])
+        #expect(state.liveRows.first?.showsSpeaker == false)
+
+        state.apply(.transcript(TranscriptSnapshot(turns: turns, interim: [.me: "right"])), now: start)
+        #expect(state.liveRows.first?.showsSpeaker == true)
+    }
+
+    @Test func channelActivityIsUnknownUntilReported() {
+        var state = listening()
+        #expect(state.hearing == nil)
+        state.channelActivity(.them, isSpeaking: true)
+        state.channelActivity(.me, isSpeaking: true)
+        state.channelActivity(.me, isSpeaking: false)
+        #expect(state.hearing == [.them])
+
+        state.apply(.stopped(directory: "/s/call"), now: start)
+        #expect(state.hearing == nil)
     }
 
     @Test func captureEventsBecomeBanners() {

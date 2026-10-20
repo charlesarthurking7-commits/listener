@@ -29,11 +29,11 @@ public struct HotkeyModifiers: OptionSet, Sendable, Hashable {
     public static let command = HotkeyModifiers(rawValue: 1 << 3)
 
     /// In the order macOS menus show them.
-    static let ordered: [(modifier: HotkeyModifiers, name: String, symbol: String)] = [
-        (.control, "ctrl", "⌃"),
-        (.option, "option", "⌥"),
-        (.shift, "shift", "⇧"),
-        (.command, "cmd", "⌘"),
+    static let ordered: [(modifier: HotkeyModifiers, name: String, symbol: String, spoken: String)] = [
+        (.control, "ctrl", "⌃", "Control"),
+        (.option, "option", "⌥", "Option"),
+        (.shift, "shift", "⇧", "Shift"),
+        (.command, "cmd", "⌘", "Command"),
     ]
 
     static let aliases: [String: HotkeyModifiers] = [
@@ -190,7 +190,18 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
 
     /// The menu spelling, e.g. "⌃⌥Space".
     public var displayString: String {
-        HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.symbol).joined() + key.display
+        keycaps.joined()
+    }
+
+    /// One label per key to draw as keycaps, e.g. ["⌃", "⌥", "Space"].
+    public var keycaps: [String] {
+        HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.symbol) + [key.display]
+    }
+
+    /// What VoiceOver reads, e.g. "Control Option Space".
+    public var spokenName: String {
+        (HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.spoken) + [key.display])
+            .joined(separator: " ")
     }
 }
 
