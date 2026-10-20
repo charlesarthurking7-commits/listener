@@ -1,19 +1,21 @@
 import CoreAudio
 import Foundation
 
+let unknownAudioObject = AudioObjectID(kAudioObjectUnknown)
+
 /// Small, typed wrappers around AudioObjectGetPropertyData so capture code reads
 /// like what it does rather than like pointer bookkeeping.
 enum CoreAudioObjects {
     static func defaultInputDevice() throws -> AudioDeviceID {
         try read(
             AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice,
-            default: AudioDeviceID(kAudioObjectUnknown))
+            default: unknownAudioObject)
     }
 
     static func defaultOutputDevice() throws -> AudioDeviceID {
         try read(
             AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice,
-            default: AudioDeviceID(kAudioObjectUnknown))
+            default: unknownAudioObject)
     }
 
     static func deviceUID(_ device: AudioDeviceID) throws -> String {
@@ -28,7 +30,7 @@ enum CoreAudioObjects {
     static func processObject(pid: pid_t) throws -> AudioObjectID? {
         var address = globalAddress(kAudioHardwarePropertyTranslatePIDToProcessObject)
         var qualifier = pid
-        var object = AudioObjectID(kAudioObjectUnknown)
+        var object = unknownAudioObject
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
         let status = AudioObjectGetPropertyData(
             AudioObjectID(kAudioObjectSystemObject), &address,
@@ -36,7 +38,7 @@ enum CoreAudioObjects {
             &size, &object
         )
         try check(status, "Translate PID to audio process")
-        return object == kAudioObjectUnknown ? nil : object
+        return object == unknownAudioObject ? nil : object
     }
 
     static func tapFormat(_ tap: AudioObjectID) throws -> AudioStreamBasicDescription {

@@ -52,6 +52,31 @@ struct SpikeAnalyzerTests {
         #expect(report.phases[0].them.activeRatio == 0)
     }
 
+    @Test func audioBeforeTheFirstPhaseIsIgnored() {
+        var me = ChannelTrace()
+        var them = ChannelTrace()
+        var offset = 0.0
+        while offset < 7 - 1e-9 {
+            offset += 0.1
+            // One second of warm-up with sound on both channels, then the usual script.
+            let phaseIndex = offset <= 1 ? -1 : Int((offset - 1) / 2 - 1e-9)
+            let warmUp = phaseIndex == -1
+            me.append(sine(amplitude: warmUp || phaseIndex != 1 ? 0.3 : 0.001, count: 1600), atOffset: offset)
+            them.append(sine(amplitude: warmUp || phaseIndex != 0 ? 0.3 : 0.001, count: 1600), atOffset: offset)
+        }
+        let report = SpikeAnalyzer().makeReport(
+            me: (me, meInfo),
+            them: (them, themInfo),
+            phases: SpikePhase.standard(secondsEach: 2, startingAt: 1),
+            captureSeconds: 7,
+            voiceProcessing: false,
+            cpuPercentOfOneCore: nil,
+            osVersion: "test"
+        )
+        #expect(report.phases[0].phase.start == 1)
+        #expect(report.allPassed, "\(report.verdicts.filter { !$0.passed })")
+    }
+
     @Test func speakerBleedFailsTheQuietMicCheck() {
         let me = simulate(activeDuring: [0, 1, 2])
         let them = simulate(activeDuring: [1, 2])

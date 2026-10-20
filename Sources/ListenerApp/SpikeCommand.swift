@@ -30,14 +30,18 @@ struct SpikeCommand: AsyncParsableCommand {
     func run() async throws {
         let outputDirectory = try makeOutputDirectory()
         let log = try SpikeLog(url: outputDirectory.appendingPathComponent("spike.log"))
+        let systemPermission = system == .tap ? "System Audio Recording" : "Screen Recording"
         log.write(
             "Listener audio spike, system audio via \(system == .tap ? "Core Audio process tap" : "ScreenCaptureKit")")
-        log.write("First run: macOS asks for Microphone and System Audio Recording access. Allow both, then run again.")
+        log.write("First run: macOS asks for Microphone and \(systemPermission) access. Allow both, then run again.")
 
         let microphone = MicrophoneCapture(voiceProcessing: voiceProcessing)
-        let systemAudio: any AudioCaptureSource = system == .tap ? SystemAudioTap() : ScreenCaptureAudio()
+        let systemAudio: any AudioCaptureSource
+        switch system {
+        case .tap: systemAudio = SystemAudioTap()
+        case .sck: systemAudio = ScreenCaptureAudio()
+        }
         let recorder = try SpikeRecorder(outputDirectory: outputDirectory, startedAt: .now)
-        let cpuAtStart = ProcessCPU.seconds()
 
         let meInfo: ChannelInfo
         let themInfo: ChannelInfo
@@ -52,6 +56,10 @@ struct SpikeCommand: AsyncParsableCommand {
         }
         log.write("Me:   \(meInfo.backend), \(meInfo.device), \(meInfo.nativeFormat)")
         log.write("Them: \(themInfo.backend), \(themInfo.device), \(themInfo.nativeFormat)")
+
+        // Measured from here so time spent on permission prompts doesn't dilute the figure.
+        let cpuWindowStart = recorder.secondsSinceStart()
+        let cpuAtStart = ProcessCPU.seconds()
 
         // Give the user a moment to read the first instruction before it counts.
         let origin = recorder.secondsSinceStart() + 3
@@ -81,7 +89,7 @@ struct SpikeCommand: AsyncParsableCommand {
             phases: phases,
             captureSeconds: captureSeconds,
             voiceProcessing: voiceProcessing,
-            cpuPercentOfOneCore: cpuSeconds / captureSeconds * 100,
+            cpuPercentOfOneCore: cpuSeconds / (captureSeconds - cpuWindowStart) * 100,
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString
         )
         try report.jsonData().write(to: outputDirectory.appendingPathComponent("report.json"))

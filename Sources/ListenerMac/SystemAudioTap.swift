@@ -13,8 +13,8 @@ import ListenerCore
 /// order from one task. The IO block only uses values captured at start.
 public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     private let queue = DispatchQueue(label: "listener.capture.tap", qos: .userInitiated)
-    private var tapID = AudioObjectID(kAudioObjectUnknown)
-    private var aggregateID = AudioObjectID(kAudioObjectUnknown)
+    private var tapID = unknownAudioObject
+    private var aggregateID = unknownAudioObject
     private var ioProcID: AudioDeviceIOProcID?
 
     public init() {}
@@ -75,7 +75,9 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         // the real-time IO thread, so converting here cannot cause audio glitches.
         let status = AudioDeviceCreateIOProcIDWithBlock(&ioProcID, aggregateID, queue) { _, inputData, _, _, _ in
             let capturedAt = ContinuousClock.now
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: inputData, deallocator: nil),
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: converter.inputFormat, bufferListNoCopy: inputData, deallocator: nil)
+            guard let buffer,
                 let samples = try? converter.convert(buffer),
                 !samples.isEmpty
             else {
@@ -96,18 +98,18 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     }
 
     public func stop() {
-        if aggregateID != kAudioObjectUnknown {
+        if aggregateID != unknownAudioObject {
             if let ioProcID {
                 AudioDeviceStop(aggregateID, ioProcID)
                 AudioDeviceDestroyIOProcID(aggregateID, ioProcID)
             }
             AudioHardwareDestroyAggregateDevice(aggregateID)
         }
-        if tapID != kAudioObjectUnknown {
+        if tapID != unknownAudioObject {
             AudioHardwareDestroyProcessTap(tapID)
         }
         ioProcID = nil
-        aggregateID = AudioObjectID(kAudioObjectUnknown)
-        tapID = AudioObjectID(kAudioObjectUnknown)
+        aggregateID = unknownAudioObject
+        tapID = unknownAudioObject
     }
 }

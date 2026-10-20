@@ -44,16 +44,15 @@ final class PCMConverter: @unchecked Sendable {
 
         // The converter pulls input through this block. Handing it the buffer once and
         // then saying "no data now" keeps its resampler state for the next call.
-        var handedOver = false
+        let pending = PendingInput(buffer)
         var conversionError: NSError?
         let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
-            if handedOver {
+            guard let next = pending.take() else {
                 inputStatus.pointee = .noDataNow
                 return nil
             }
-            handedOver = true
             inputStatus.pointee = .haveData
-            return buffer
+            return next
         }
         if status == .error {
             throw conversionError ?? CaptureError.conversionFailed
@@ -63,6 +62,22 @@ final class PCMConverter: @unchecked Sendable {
             return []
         }
         return Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
+    }
+}
+
+/// Hands one buffer to AVAudioConverter's input block. A class rather than a captured
+/// `var` so it compiles whether or not the SDK marks that block @Sendable; the block
+/// runs synchronously inside convert(), so there is no real concurrent access.
+private final class PendingInput: @unchecked Sendable {
+    private var buffer: AVAudioPCMBuffer?
+
+    init(_ buffer: AVAudioPCMBuffer) {
+        self.buffer = buffer
+    }
+
+    func take() -> AVAudioPCMBuffer? {
+        defer { buffer = nil }
+        return buffer
     }
 }
 
