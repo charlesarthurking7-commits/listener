@@ -2,9 +2,10 @@ import AppKit
 import ListenerCore
 import SwiftUI
 
-/// The always-on-top window. A non-activating panel: clicking it never takes focus
-/// away from Meet or Teams, it shows on every Space and over full-screen apps, and
-/// it remembers where it was and how big it was.
+/// The always-on-top window. A non-activating panel that never becomes key: clicking
+/// it never takes focus away from Meet or Teams, so typing still goes to the call.
+/// It shows on every Space and over full-screen apps, and it remembers where it was
+/// and how big it was.
 final class FloatingPanel: NSPanel {
     private static let frameName = "ListenerWindow"
 
@@ -19,7 +20,6 @@ final class FloatingPanel: NSPanel {
         level = window.alwaysOnTop ? .floating : .normal
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hidesOnDeactivate = false
-        becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
         animationBehavior = .utilityWindow
         titleVisibility = .hidden
@@ -58,6 +58,11 @@ final class FloatingPanel: NSPanel {
         setFrameAutosaveName(Self.frameName)
     }
 
+    // Nothing in the window takes typing, and a key panel would take the keyboard from
+    // the call app even though Listener stays inactive.
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
     /// Shows the panel without activating Listener.
     func show() {
         orderFrontRegardless()
@@ -77,5 +82,28 @@ final class FloatingPanel: NSPanel {
 private final class FirstClickHostingView: NSHostingView<AnyView> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+}
+
+/// A background that moves the window when dragged. SwiftUI content does not reliably
+/// count as window background for `isMovableByWindowBackground`, and the title bar it
+/// would otherwise be dragged by is hidden under the header.
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        DragView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class DragView: NSView {
+        override var mouseDownCanMoveWindow: Bool { true }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.performDrag(with: event)
+        }
     }
 }

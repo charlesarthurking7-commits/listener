@@ -4,6 +4,7 @@ import GoogleSpeech
 import ListenerCore
 import ListenerMac
 import Synchronization
+import os
 
 /// The one place that builds audio sources, providers and session storage. Every
 /// concrete type from the capture, speech, Claude and session-store code is named
@@ -51,17 +52,22 @@ enum SessionFactory {
     }
 
     static func speech(_ settings: Settings, callbacks: SessionCallbacks) throws -> any SpeechToTextProvider {
-        switch settings.speech.provider {
-        case "google":
-            return try googleProviders.provider(for: settings.speech)
-        case "apple":
-            return try AppleSpeech.makeProvider(settings: settings) { state in
-                callbacks.onDeviceSpeech(onDeviceStatus(state))
+        do {
+            switch settings.speech.provider {
+            case "google":
+                return try googleProviders.provider(for: settings.speech)
+            case "apple":
+                return try AppleSpeech.makeProvider(settings: settings) { state in
+                    callbacks.onDeviceSpeech(onDeviceStatus(state))
+                }
+            default:
+                throw FactoryError(
+                    "speech.provider \"\(settings.speech.provider)\" only works with listener replay --script. "
+                        + "Set it to \"google\" or \"apple\" for live calls.")
             }
-        default:
-            throw FactoryError(
-                "speech.provider \"\(settings.speech.provider)\" only works with listener replay --script. "
-                    + "Set it to \"google\" or \"apple\" for live calls.")
+        } catch {
+            Log.speech.error("Speech-to-text setup failed: \(ErrorText.describe(error), privacy: .public)")
+            throw error
         }
     }
 

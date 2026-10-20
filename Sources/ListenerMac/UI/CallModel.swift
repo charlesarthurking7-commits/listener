@@ -1,6 +1,7 @@
 import AppKit
 import ListenerCore
 import Observation
+import os
 
 /// The window's model: owns the running CallSession and reduces its events into
 /// `state`. All the reduction logic lives in CallViewState (ListenerCore), this class
@@ -27,11 +28,16 @@ public final class CallModel {
     /// What the last refresh found, so progress updates don't probe the Keychain again.
     @ObservationIgnored private var probes: ReadinessInput?
     @ObservationIgnored private var preparedLanguage: String?
+    @ObservationIgnored private var eventLog = SessionEventLog()
+    /// Held for the length of a call. With the window hidden Listener has nothing on
+    /// screen, and App Nap would otherwise slow its timers and network work mid-call.
+    @ObservationIgnored private var callActivity: (any NSObjectProtocol)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
         settings = environment.launchSettings.settings
         for warning in environment.launchSettings.warnings {
+            Log.ui.notice("\(warning, privacy: .public)")
             appNotices.add(.warning, warning)
         }
         refreshReadiness()
@@ -60,6 +66,7 @@ public final class CallModel {
     public func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
         activeHotkeys = hotkeys
         for failure in failures {
+            Log.ui.error("\(failure.message, privacy: .public)")
             activeHotkeys[failure.action] = nil
             appNotices.add(.warning, failure.message)
         }
@@ -85,13 +92,15 @@ public final class CallModel {
         do {
             loaded = try environment.loadSettings()
         } catch {
-            state.startFailed(ErrorText.describe(error))
+            startFailed(ErrorText.describe(error))
             return
         }
         settings = loaded.settings
         prepareOnDeviceSpeechIfNeeded()
         refreshReadiness()
         if Readiness.blocksStart(readiness) {
+            let blockers = readiness.filter { $0.status == .blocking }.map(\.detail).joined(separator: " ")
+            Log.session.notice("Start blocked by the setup checklist: \(blockers, privacy: .public)")
             state.startFailed("Listener can't start yet. Fix the items marked in red below.")
             return
         }
@@ -100,19 +109,28 @@ public final class CallModel {
         do {
             components = try environment.makeComponents(settings, sessionCallbacks())
         } catch {
-            state.startFailed(ErrorText.describe(error))
+            startFailed(ErrorText.describe(error))
             return
         }
 
         let session = CallSession(settings: settings, components: components)
         self.session = session
+        eventLog = SessionEventLog()
+        let provider = settings.speech.provider
+        let backend = settings.capture.systemAudioBackend
+        Log.session.info(
+            "Starting a call: speech \(provider, privacy: .public), system audio \(backend, privacy: .public)")
         for warning in loaded.warnings {
+            Log.session.notice("\(warning, privacy: .public)")
             state.addNotice(.warning, warning)
         }
         if components.languageModel == nil {
+            Log.answers.notice("No Anthropic API key: answers and the summary are off")
             state.addNotice(.info, "Answers and the summary are off: no Anthropic API key.")
         }
         observe(session)
+        callActivity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiated, reason: "Listening to a call")
 
         Task {
             do {
@@ -124,7 +142,8 @@ public final class CallModel {
                 eventsTask?.cancel()
                 eventsTask = nil
                 self.session = nil
-                state.startFailed(ErrorText.describe(error))
+                endCallActivity()
+                startFailed(ErrorText.describe(error))
                 refreshReadiness()
             }
         }
@@ -180,7 +199,7 @@ public final class CallModel {
         case .revealInFinder(let path):
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
         case .openFile(let path):
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            Self.openTextFile(URL(fileURLWithPath: path))
         case .openURL(let link, _):
             if let url = URL(string: link) {
                 NSWorkspace.shared.open(url)
@@ -196,15 +215,40 @@ public final class CallModel {
             openSettingsFile()
         case .runInTerminal(let command):
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(command, forType: .string)
+            NSPasteboard.general.setString(Self.runnable(command), forType: .string)
             appNotices.add(.info, "Copied \"\(command)\". Paste it into Terminal, then press Check Again.")
         }
+    }
+
+    /// Opens settings.json or summary.md in the app the user picked for that kind of
+    /// file. A Mac without Xcode or a code editor may have no app for .json or .md,
+    /// and then the file opens in TextEdit instead of not at all.
+    private static func openTextFile(_ file: URL) {
+        let workspace = NSWorkspace.shared
+        if workspace.urlForApplication(toOpen: file) != nil {
+            workspace.open(file)
+            return
+        }
+        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        workspace.open([file], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// `listener` is not on the PATH, so a command for it is copied with the full path
+    /// of this binary. That also makes the Keychain item the command stores readable by
+    /// the app without a prompt, because the same binary wrote it.
+    private static func runnable(_ command: String) -> String {
+        let prefix = "listener "
+        guard command.hasPrefix(prefix), let executable = Bundle.main.executablePath else {
+            return command
+        }
+        let quoted = "'" + executable.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        return quoted + " " + command.dropFirst(prefix.count)
     }
 
     public func openSettingsFile() {
         do {
             let file = try SettingsLoader(paths: environment.paths).createSettingsFileIfMissing()
-            NSWorkspace.shared.open(file)
+            Self.openTextFile(file)
         } catch {
             appNotices.add(.error, "Could not create settings.json: \(ErrorText.describe(error))")
         }
@@ -267,8 +311,35 @@ public final class CallModel {
     }
 
     private func onDeviceSpeechChanged(_ status: OnDeviceSpeechStatus) {
+        switch status {
+        case .checking:
+            break
+        case .downloading:
+            if case .downloading = onDeviceSpeech {
+                break
+            }
+            Log.speech.info("Downloading the on-device speech model")
+        case .ready(let locale):
+            if onDeviceSpeech != status {
+                Log.speech.info("On-device speech ready for \(locale, privacy: .public)")
+            }
+        case .failed(let message):
+            Log.speech.error("On-device speech unavailable: \(message, privacy: .public)")
+        }
         onDeviceSpeech = status
         updateReadiness()
+    }
+
+    private func endCallActivity() {
+        if let callActivity {
+            ProcessInfo.processInfo.endActivity(callActivity)
+        }
+        callActivity = nil
+    }
+
+    private func startFailed(_ message: String) {
+        Log.session.error("Could not start the call: \(message, privacy: .public)")
+        state.startFailed(message)
     }
 
     /// Forwards what capture and speech report on their own to the window.
@@ -297,6 +368,7 @@ public final class CallModel {
     }
 
     private func receive(_ event: SessionEvent) {
+        eventLog.record(event)
         let wasListening = state.isListening
         state.apply(event, now: Date())
         if state.isListening != wasListening {
@@ -310,6 +382,7 @@ public final class CallModel {
         }
         self.session = nil
         eventsTask = nil
+        endCallActivity()
         state.eventsEnded()
         onListeningChange?(false)
     }

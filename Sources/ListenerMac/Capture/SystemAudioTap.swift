@@ -99,7 +99,7 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
                 self?.requestRestart(.outputDeviceChanged)
             }
         } catch {
-            CaptureSupport.logger.error(
+            Log.capture.error(
                 "Cannot follow output device changes: \(String(describing: error), privacy: .public)")
         }
         return info
@@ -205,8 +205,8 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
             (pipeline, info) = try buildPipeline(feeding: feed)
             lastFailure = nil
             CaptureSupport.report(.restarted(.them, reason: reason), to: onEvent)
-            CaptureSupport.logger.notice(
-                "Them now \(info.device, privacy: .public), \(info.nativeFormat, privacy: .public)")
+            Log.capture.notice(
+                "Them now \(info.device, privacy: .private), \(info.nativeFormat, privacy: .public)")
         } catch {
             // Retries repeat the same failure every few seconds; say it once.
             let message = String(describing: error)
@@ -314,7 +314,7 @@ private final class TapPipeline: @unchecked Sendable {
                     try PropertyListener(
                         object: device, selector: kAudioDevicePropertyNominalSampleRate, handler: onRouteChange))
             } catch {
-                CaptureSupport.logger.error(
+                Log.capture.error(
                     "Cannot follow sample rate changes: \(String(describing: error), privacy: .public)")
             }
         }
@@ -354,7 +354,7 @@ private final class TapPipeline: @unchecked Sendable {
 
     private func logFailure(_ status: OSStatus, _ operation: String) {
         if status != noErr {
-            CaptureSupport.logger.error(
+            Log.capture.error(
                 "\(operation, privacy: .public) failed with OSStatus \(status, privacy: .public)")
         }
     }
@@ -404,11 +404,13 @@ private final class TapInput: @unchecked Sendable {
 private final class TapBufferSelector: @unchecked Sendable {
     private let format: AVAudioFormat
     private let tapBufferCount: Int
+    private let channelsPerBuffer: UInt32
     private let list: UnsafeMutableAudioBufferListPointer
 
     init(format: AVAudioFormat) {
         self.format = format
         tapBufferCount = format.isInterleaved ? 1 : Int(format.channelCount)
+        channelsPerBuffer = format.isInterleaved ? format.channelCount : 1
         list = AudioBufferList.allocate(maximumBuffers: tapBufferCount)
     }
 
@@ -423,6 +425,12 @@ private final class TapBufferSelector: @unchecked Sendable {
         }
         let firstTapBuffer = input.count - tapBufferCount
         for index in 0..<tapBufferCount {
+            // A buffer of another shape means the format was misread and this may be a
+            // headset mic's buffer. Silence beats your voice on "Them"; the silence
+            // watchdog then rebuilds and reads the format again.
+            if input[firstTapBuffer + index].mNumberChannels != channelsPerBuffer {
+                return nil
+            }
             list[index] = input[firstTapBuffer + index]
         }
         return AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: list.unsafePointer, deallocator: nil)

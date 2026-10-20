@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import ListenerCore
 import ListenerMac
+import os
 
 struct ListenerCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -42,7 +43,14 @@ struct ListenerCommand: AsyncParsableCommand {
 
         let settings = launchSettings.settings
         Task.detached(priority: .background) {
-            _ = try? SessionFactory.deleteExpiredSessions(settings)
+            do {
+                let deleted = try SessionFactory.deleteExpiredSessions(settings)
+                if !deleted.isEmpty {
+                    Log.session.info("Deleted \(deleted.count) calls older than the retention period")
+                }
+            } catch {
+                Log.session.error("Could not delete old calls: \(ErrorText.describe(error), privacy: .public)")
+            }
         }
 
         let secrets = StandardSecrets.chain(paths: paths)

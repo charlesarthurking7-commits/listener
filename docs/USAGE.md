@@ -15,7 +15,8 @@ summary when you stop.
 
    This builds `build/Listener.app`, signs it and opens it. A waveform icon appears in
    the menu bar and the Listener window appears in the top right corner of the screen.
-   See the README for keeping permissions across rebuilds with a stable signing identity.
+   See the README for keeping permissions across rebuilds with a stable signing identity;
+   once a certificate named `Listener Dev` is in your keychain, the build uses it.
 
 2. **Speech-to-text.** Google Cloud is the default. Sign in once with Application Default
    Credentials and tell Listener your project:
@@ -40,14 +41,17 @@ summary when you stop.
    as soon as the setting is in place and macOS downloads it if needed; the checklist
    shows the progress.
 
-3. **Answers (Anthropic).** Store your API key in the Keychain:
+3. **Answers (Anthropic).** Store your API key in the Keychain. The `listener` command
+   is the binary inside the app, so from the repository folder run:
 
    ```sh
-   listener secrets set anthropic
+   build/Listener.app/Contents/MacOS/listener secrets set anthropic
    ```
 
-   Paste the key and press Enter; it is not shown. Without a key the transcript works
-   but answers and the summary are off.
+   (The checklist's **Copy** link copies this command with the full path, and
+   [Running the command line](#running-the-command-line) shows how to make `listener`
+   a command.) Paste the key and press Enter; it is not shown. Without a key the
+   transcript works but answers and the summary are off.
 
 4. **Permissions.** Before the first call the window shows a checklist. Nothing is
    recorded until you press **Start**. On the first Start macOS asks for:
@@ -57,6 +61,7 @@ summary when you stop.
    | Microphone | "Me" | System Settings > Privacy & Security > Microphone |
    | System Audio Recording | "Them" (default tap backend) | Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" |
    | Screen Recording | "Them", only with `capture.systemAudioBackend` set to `sck` | Same pane, "Screen & System Audio Recording" |
+   | Speech Recognition | Only with `speech.provider` set to `apple`, and only if macOS asks | Privacy & Security > Speech Recognition |
 
    Accessibility is not needed: the hotkeys use `RegisterEventHotKey`, which macOS
    allows without it. If "Them" stays silent, the window warns you; it almost always
@@ -79,8 +84,8 @@ macOS asks for permission on behalf of your terminal app, not Listener.
 
 The window floats above other windows, appears on every Space and over full-screen
 Meet or Teams, and never takes keyboard focus from them: clicking its buttons leaves
-your call app active. Drag it anywhere by its background and resize it from any edge;
-it reopens where you left it.
+your call app active. Drag it by the empty part of its top or bottom bar and resize it
+from any edge; it reopens where you left it, on the same display if it is still there.
 
 From top to bottom:
 
@@ -103,7 +108,8 @@ From top to bottom:
 
 The icon turns red while Listener is listening. Its menu has Start/Stop Listening,
 Quick Answer, Deep Answer, Show Window, Open Sessions Folder, Open Settings File and
-Quit Listener. Quitting during a call stops and saves it first.
+Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
+Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without waiting).
 
 ## Hotkeys
 
@@ -280,11 +286,29 @@ Keychain item. Choose Always Allow, or sign with a stable identity (README).
 
 - **"Them" is silent.** Turn on Listener under Privacy & Security > Screen & System Audio
   Recording, then Stop and Start. With headphones, check the call's audio actually plays
-  on this Mac.
+  on this Mac. After a rebuild with an ad hoc signature the switch can show as on while
+  macOS no longer applies it to the new build; run `tccutil reset All local.listener`
+  and press Start again so macOS asks afresh (this resets Listener's microphone access
+  too).
 - **"Me" picks up the other side.** You are on speakers. Use headphones, or set
   `capture.voiceProcessing` to `true`.
 - **No microphone with the lid closed.** The built-in mics are off in clamshell mode;
   plug in a headset or USB mic.
 - **A hotkey does nothing.** The window lists hotkeys that could not be registered.
-  Pick another combination in `hotkeys`.
+  Pick another combination in `hotkeys`. macOS's own shortcuts win without telling
+  Listener: Control-Option-Space is also "Select next source in Input menu" under System
+  Settings > Keyboard > Keyboard Shortcuts > Input Sources. Turn that off, or choose
+  another hotkey.
 - **Answers are off.** `listener secrets status` shows whether the key is found.
+- **Anything else.** Listener logs what it does (calls starting and stopping, each
+  answer's latency, tokens and cost, capture restarts, warnings and errors, never what
+  was said) to the macOS log. Watch it live while you reproduce the problem:
+
+  ```sh
+  log stream --predicate 'subsystem == "local.listener"' --level info
+  ```
+
+  Afterwards, `log show --last 1h --predicate 'subsystem == "local.listener"'` still
+  has the starts, stops, warnings and errors; macOS keeps the per-answer lines only
+  while streaming, but they are also in each call's `session.json`. Device names and
+  file paths show as `<private>`.

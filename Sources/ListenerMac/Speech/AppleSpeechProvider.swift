@@ -115,18 +115,20 @@ import Speech
             // The system installs assets by a module's configuration, so this transcriber only
             // describes what the sessions will use. It never joins an analyzer.
             let transcriber = SpeechTranscriber.live(locale: locale)
-            var format = await installedFormat(for: transcriber)
-            if format == nil {
-                do {
-                    if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-                        try await download(request, onState: onState)
-                    }
-                } catch {
-                    throw AppleSpeechError.from(error, language: language)
+            let wasInstalled = await installedFormat(for: transcriber) != nil
+            do {
+                // An app may only use a locale it has reserved, even when the model is
+                // already on the Mac because another app installed it. Reserve explicitly
+                // rather than rely on the installation request, which has nothing to do
+                // when the model is already there.
+                try await AssetInventory.reserve(locale: locale)
+                if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+                    try await download(request, reportingProgress: !wasInstalled, onState: onState)
                 }
-                format = await installedFormat(for: transcriber)
+            } catch {
+                throw AppleSpeechError.from(error, language: language)
             }
-            guard let format else {
+            guard let format = await installedFormat(for: transcriber) else {
                 throw AppleSpeechError.modelNotInstalled(language: language)
             }
             onState(.ready(locale: language))
@@ -149,8 +151,13 @@ import Speech
 
         private static func download(
             _ request: AssetInstallationRequest,
+            reportingProgress: Bool,
             onState: @escaping @Sendable (AppleSpeechModelState) -> Void
         ) async throws {
+            guard reportingProgress else {
+                try await request.downloadAndInstall()
+                return
+            }
             onState(.downloading(fractionCompleted: 0))
             let reporter = Task {
                 while !Task.isCancelled {

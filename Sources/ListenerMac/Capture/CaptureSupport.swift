@@ -1,11 +1,8 @@
 import Foundation
 import ListenerCore
-import os
 
 /// Shared plumbing for the capture sources.
 enum CaptureSupport {
-    static let logger = Logger(subsystem: "local.listener", category: "capture")
-
     /// For sources that deliver silence themselves (the tap's IO proc, the mic engine),
     /// filling is only needed when they fail, so wait longer before deciding a buffer is
     /// missing rather than late: silence inserted into speech hurts recognition.
@@ -13,7 +10,7 @@ enum CaptureSupport {
 
     /// Logs the event and passes it on to whoever asked to hear about it.
     static func report(_ event: CaptureEvent, to handler: (@Sendable (CaptureEvent) -> Void)?) {
-        logger.notice("\(event.description, privacy: .public)")
+        Log.capture.notice("\(event.description, privacy: .public)")
         handler?(event)
     }
 

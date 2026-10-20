@@ -44,16 +44,27 @@ enum Console {
         guard tcgetattr(STDIN_FILENO, &original) == 0 else {
             return readLine()
         }
+        terminalBeforeHiddenInput = original
+        // Ctrl-C would otherwise leave the terminal without echo.
+        signal(SIGINT) { _ in
+            tcsetattr(STDIN_FILENO, TCSAFLUSH, &terminalBeforeHiddenInput)
+            _exit(130)
+        }
         var hidden = original
         hidden.c_lflag &= ~tcflag_t(ECHO)
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden)
         defer {
             tcsetattr(STDIN_FILENO, TCSAFLUSH, &original)
+            signal(SIGINT, SIG_DFL)
             write("\n")
         }
         return readLine()
     }
 }
+
+/// The terminal settings to restore if Ctrl-C interrupts hidden input. A signal handler
+/// cannot capture context, so it lives here; only set before that handler is installed.
+private nonisolated(unsafe) var terminalBeforeHiddenInput = termios()
 
 /// Ctrl-C as a stream of events instead of the default of killing the process,
 /// so a running call can be stopped and saved.

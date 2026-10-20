@@ -26,5 +26,7 @@
 	<string>Listener can capture system audio through screen recording when the Core Audio tap is unavailable.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Listener transcribes the other side of the call from system audio.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Listener can transcribe calls on this Mac with Apple's on-device speech recognition.</string>
 </dict>
 </plist>
