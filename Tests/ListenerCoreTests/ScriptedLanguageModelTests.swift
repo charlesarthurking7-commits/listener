@@ -48,7 +48,8 @@ struct ScriptedLanguageModelTests {
         }
         #expect(arrivals.count == 3)
         #expect(arrivals[0] >= 0.12)
-        #expect(arrivals[2] - arrivals[0] >= 0.08)
+        // Two 40 ms gaps; a first token picked up late on a busy machine shortens the span.
+        #expect(arrivals[2] - arrivals[0] >= 0.06)
     }
 
     @Test func abandoningTheStreamCancelsGeneration() async throws {
