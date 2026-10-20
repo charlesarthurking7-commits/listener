@@ -81,39 +81,13 @@ public final class ReplaySource: AudioCaptureSource, Sendable {
             guard playback == nil else {
                 throw ReplayError.alreadyStarted
             }
+            // Taken now rather than when the task first runs, so two sources started one
+            // after the other stay in step even on a busy machine.
+            let origin = ContinuousClock.now
             playback = Task {
-                var resampler = freshResampler
-                let origin = ContinuousClock.now
-                let framesPerChunk = max(sampleRate / 10, 1)
-                var frame = 0
-                var delivered = 0
-                while frame < frameCount && !Task.isCancelled {
-                    let end = min(frame + framesPerChunk, frameCount)
-                    var output = resampler.process(Array(samples[frame * channelCount..<end * channelCount]))
-                    if end == frameCount {
-                        output += resampler.flush()
-                    }
-                    frame = end
-                    if output.isEmpty {
-                        continue
-                    }
-                    delivered += output.count
-                    let audioTime = Double(delivered) / Double(AudioChunk.sampleRate)
-                    let capturedAt: ContinuousClock.Instant
-                    switch pacing {
-                    case .realTime(let speed):
-                        capturedAt = origin + .seconds(audioTime / speed)
-                        do {
-                            try await Task.sleep(until: capturedAt, clock: .continuous)
-                        } catch {
-                            return
-                        }
-                    case .unpaced:
-                        capturedAt = origin + .seconds(audioTime)
-                        await Task.yield()
-                    }
-                    onChunk(AudioChunk(speaker: speaker, samples: output, capturedAt: capturedAt))
-                }
+                await Self.play(
+                    samples, channelCount: channelCount, frameCount: frameCount, sampleRate: sampleRate,
+                    resampler: freshResampler, speaker: speaker, pacing: pacing, origin: origin, onChunk: onChunk)
             }
         }
         return ChannelInfo(speaker: speaker, backend: "replay", device: name, nativeFormat: formatDescription)
@@ -129,6 +103,49 @@ public final class ReplaySource: AudioCaptureSource, Sendable {
     public func waitUntilFinished() async {
         let task = playback.withLock { $0 }
         await task?.value
+    }
+
+    private static func play(
+        _ samples: [Int16], channelCount: Int, frameCount: Int, sampleRate: Int, resampler: Resampler,
+        speaker: Speaker, pacing: Pacing, origin: ContinuousClock.Instant, onChunk: @Sendable (AudioChunk) -> Void
+    ) async {
+        var resampler = resampler
+        let framesPerStep = max(sampleRate / 10, 1)
+        let chunkLength = AudioChunk.sampleRate / 10
+        var pending: [Int16] = []
+        var delivered = 0
+        var frame = 0
+        while frame < frameCount {
+            let end = min(frame + framesPerStep, frameCount)
+            pending += resampler.process(Array(samples[frame * channelCount..<end * channelCount]))
+            if end == frameCount {
+                pending += resampler.flush()
+            }
+            frame = end
+            // Exact 100 ms chunks, as a capture device would deliver them; the last may be short.
+            while pending.count >= chunkLength || (frame == frameCount && !pending.isEmpty) {
+                let count = min(chunkLength, pending.count)
+                let chunk = Array(pending[..<count])
+                pending.removeFirst(count)
+                delivered += count
+                let audioTime = Duration.seconds(Double(delivered) / Double(AudioChunk.sampleRate))
+                let capturedAt: ContinuousClock.Instant
+                switch pacing {
+                case .realTime(let speed):
+                    capturedAt = origin + audioTime / speed
+                    guard (try? await Task.sleep(until: capturedAt, clock: .continuous)) != nil else {
+                        return
+                    }
+                case .unpaced:
+                    capturedAt = origin + audioTime
+                    await Task.yield()
+                    if Task.isCancelled {
+                        return
+                    }
+                }
+                onChunk(AudioChunk(speaker: speaker, samples: chunk, capturedAt: capturedAt))
+            }
+        }
     }
 
     private func selectedSamples() -> (samples: [Int16], channelCount: Int) {

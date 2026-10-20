@@ -210,9 +210,22 @@ struct TurnDetectorTests {
         _ = detector.audioProgress(.me, frame: 0..<0.1, capturedAt: 0.1)
         // Half a second of audio went missing before the next frame.
         _ = detector.audioProgress(.me, frame: 0.1..<0.2, capturedAt: 0.7)
-        _ = detector.speechEvent(SpeechEvent(kind: .final, text: "x", audioStart: 0.15, audioEnd: 0.2), speaker: .me)
-        #expect(near(detector.snapshot.turns.first?.start, 0.65))
-        #expect(near(detector.snapshot.turns.first?.end, 0.7))
+        _ = detector.audioProgress(.me, frame: 0.2..<0.3, capturedAt: 0.8)
+        _ = detector.speechEvent(SpeechEvent(kind: .final, text: "x", audioStart: 0.25, audioEnd: 0.3), speaker: .me)
+        #expect(near(detector.snapshot.turns.first?.start, 0.75))
+        #expect(near(detector.snapshot.turns.first?.end, 0.8))
+    }
+
+    @Test func fastReplayMapsAudioOntoTheShorterSessionTime() {
+        var detector = TurnDetector(settings: TurnSettings())
+        // Four times real time: each 100 ms frame arrives 25 ms after the one before.
+        for index in 0..<10 {
+            let frame = Double(index) / 10..<Double(index + 1) / 10
+            _ = detector.audioProgress(.them, frame: frame, capturedAt: 2 + frame.upperBound / 4)
+        }
+        _ = detector.speechEvent(SpeechEvent(kind: .final, text: "x", audioStart: 0.33, audioEnd: 0.47), speaker: .them)
+        #expect(near(detector.snapshot.turns.first?.start, 2.0825))
+        #expect(near(detector.snapshot.turns.first?.end, 2.1175))
     }
 
     @Test func emptyFinalsOnlyClearInterimText() {

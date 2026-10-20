@@ -37,7 +37,8 @@ struct ReplaySourceTests {
                     nativeFormat: "48 kHz, 2 ch, int16, channel 0"))
         let chunks = collector.all
         #expect(chunks.allSatisfy { $0.speaker == .them })
-        #expect(chunks.dropFirst().dropLast().allSatisfy { $0.samples.count == 1_600 })
+        #expect(chunks.dropLast().allSatisfy { $0.samples.count == 1_600 })
+        #expect(chunks.last?.samples.count == 480)
         #expect(collector.samples.count == 32_480)
 
         let amplitude = Measure.amplitude(of: collector.samples[1_000..<31_000], at: 500, rate: 16_000)

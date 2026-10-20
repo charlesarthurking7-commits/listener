@@ -41,7 +41,7 @@ public struct TurnDetector: Sendable {
     private var nextID = 1
 
     private struct Channel {
-        var clock = TimeMap(tolerance: 0.05)
+        var clock = CaptureClock()
         var position = 0.0
         var speaking = false
         var speechStart: Double?
@@ -50,8 +50,13 @@ public struct TurnDetector: Sendable {
         var recentSpeech: [ClosedRange<Double>] = []
         var openTurn: OpenTurn?
 
-        mutating func advance(to time: Double) {
-            position = max(position, time)
+        mutating func record(_ frame: Range<Double>, capturedAt: Double) {
+            if position == 0 {
+                // Nothing before the first frame to interpolate from: assume real time.
+                clock.record(audio: frame.lowerBound, session: capturedAt - (frame.upperBound - frame.lowerBound))
+            }
+            clock.record(audio: frame.upperBound, session: capturedAt)
+            position = max(position, frame.upperBound)
         }
     }
 
@@ -69,9 +74,7 @@ public struct TurnDetector: Sendable {
     /// last sample was captured at `capturedAt` (session seconds).
     public mutating func audioProgress(_ speaker: Speaker, frame: Range<Double>, capturedAt: Double) -> Update {
         // Mutated in place: this runs for every frame of every channel.
-        let length = frame.upperBound - frame.lowerBound
-        channels[speaker, default: Channel()].clock.record(from: frame.lowerBound, to: capturedAt - length)
-        channels[speaker, default: Channel()].advance(to: frame.upperBound)
+        channels[speaker, default: Channel()].record(frame, capturedAt: capturedAt)
         var update = Update()
         closeIfFinished(speaker, &update)
         return update
@@ -86,8 +89,8 @@ public struct TurnDetector: Sendable {
         case .speechEnded(let end):
             channel.speaking = false
             channel.lastSpeechEnd = end
-            let start = channel.clock.map(channel.speechStart ?? end)
-            let finish = channel.clock.map(end)
+            let start = channel.clock.sessionTime(at: channel.speechStart ?? end)
+            let finish = channel.clock.sessionTime(at: end)
             channel.recentSpeech.append(min(start, finish)...max(start, finish))
             if channel.recentSpeech.count > 64 {
                 channel.recentSpeech.removeFirst()
@@ -136,7 +139,7 @@ public struct TurnDetector: Sendable {
 
     /// Session time of a point on a channel's audio.
     public func sessionTime(_ speaker: Speaker, channelTime: Double) -> Double {
-        channels[speaker]?.clock.map(channelTime) ?? channelTime
+        channels[speaker]?.clock.sessionTime(at: channelTime) ?? channelTime
     }
 
     private mutating func setInterim(_ text: String, for speaker: Speaker) -> Bool {
@@ -155,8 +158,8 @@ public struct TurnDetector: Sendable {
         let fallbackEnd = channel.speaking ? channel.position : (channel.lastSpeechEnd ?? channel.position)
         let endOnChannel = audioEnd ?? fallbackEnd
         let startOnChannel = min(audioStart ?? channel.speechStart ?? endOnChannel, endOnChannel)
-        let start = channel.clock.map(startOnChannel)
-        let end = max(channel.clock.map(endOnChannel), start)
+        let start = channel.clock.sessionTime(at: startOnChannel)
+        let end = max(channel.clock.sessionTime(at: endOnChannel), start)
 
         if let open = channel.openTurn, let index = index(of: open.id), canExtend(snapshot.turns[index], from: start) {
             snapshot.turns[index].text += " " + text
@@ -191,7 +194,7 @@ public struct TurnDetector: Sendable {
             if channel.recentSpeech.contains(where: overlaps) {
                 return true
             }
-            if channel.speaking, let start = channel.speechStart, channel.clock.map(start) < gapEnd {
+            if channel.speaking, let start = channel.speechStart, channel.clock.sessionTime(at: start) < gapEnd {
                 return true
             }
         }
