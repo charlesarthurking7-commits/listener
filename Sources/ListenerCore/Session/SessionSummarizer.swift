@@ -14,14 +14,17 @@ public enum SessionSummarizer {
         public var usage: TokenUsage?
     }
 
-    /// Streams the summary request for `turns` to the end.
+    /// Streams the summary request for `turns` to the end. `startedAt` and `duration`
+    /// (seconds) title the notes; without them the call is taken to have just ended.
     public static func generate(
-        turns: [Turn], settings: Settings, model: any LanguageModelProvider
+        turns: [Turn], settings: Settings, model: any LanguageModelProvider, startedAt: Date? = nil,
+        duration: Double? = nil
     ) async throws -> Summary {
         guard !turns.isEmpty else {
             throw SessionSummarizerError.emptyTranscript
         }
-        let request = PromptBuilder(answers: settings.answers).summaryRequest(turns: turns, settings: settings.summary)
+        let request = PromptBuilder(answers: settings.answers)
+            .summaryRequest(turns: turns, settings: settings.summary, startedAt: startedAt, duration: duration)
         var markdown = ""
         var usage: TokenUsage?
         for try await event in model.stream(request) {
@@ -43,10 +46,14 @@ public enum SessionSummarizer {
     public static func summarize(directory: URL, settings: Settings, model: any LanguageModelProvider) async throws
         -> URL
     {
-        let summary = try await generate(turns: SessionStore.readTurns(in: directory), settings: settings, model: model)
+        let saved = try? SessionStore.readRecord(in: directory)
+        let summary = try await generate(
+            turns: SessionStore.readTurns(in: directory), settings: settings, model: model,
+            startedAt: saved?.startedAt ?? SessionStore.startDate(fromDirectoryName: directory.lastPathComponent),
+            duration: saved?.duration)
         let url = try SessionStore.writeSummary(summary.markdown, in: directory)
 
-        if var record = try? SessionStore.readRecord(in: directory) {
+        if var record = saved {
             if let usage = summary.usage {
                 var tracker = CostTracker(prices: settings.prices, speechProvider: settings.speech.provider)
                 record.cost.modelCost += tracker.addModelUsage(usage, model: summary.model)

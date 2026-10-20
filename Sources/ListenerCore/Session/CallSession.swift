@@ -586,7 +586,8 @@ public actor CallSession {
         var file: String?
         do {
             let summary = try await SessionSummarizer.generate(
-                turns: detector.snapshot.turns, settings: settings, model: model)
+                turns: detector.snapshot.turns, settings: settings, model: model, startedAt: startedAt,
+                duration: endedAt?.timeIntervalSince(startedAt))
             if let usage = summary.usage {
                 costTracker.addModelUsage(usage, model: summary.model)
                 emitCost()

@@ -23,7 +23,10 @@ struct SessionSummarizerTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == tradeSummary + "\n")
         let request = try #require(model.requests.first)
         #expect(request.settings == SummarySettings().model)
-        #expect(request.userText.contains("Them: Can you send the report?\nMe: Yes, today."))
+        #expect(request.userText.contains("Them: Can you send the report?"))
+        #expect(request.userText.contains("Me: Yes, today."))
+        // Titled with the saved session's start, not the time it was summarised.
+        #expect(request.userText.contains("21 September 2026"))
 
         let updated = try SessionStore.readRecord(in: store.directory)
         #expect(updated.summaryFile == "summary.md")
