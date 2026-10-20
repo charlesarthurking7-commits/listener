@@ -40,14 +40,17 @@ summary when you stop.
    as soon as the setting is in place and macOS downloads it if needed; the checklist
    shows the progress.
 
-3. **Answers (Anthropic).** Store your API key in the Keychain:
+3. **Answers (Anthropic).** Store your API key in the Keychain. The `listener` command
+   is the binary inside the app, so from the repository folder run:
 
    ```sh
-   listener secrets set anthropic
+   build/Listener.app/Contents/MacOS/listener secrets set anthropic
    ```
 
-   Paste the key and press Enter; it is not shown. Without a key the transcript works
-   but answers and the summary are off.
+   (The checklist's **Copy** link copies this command with the full path, and
+   [Running the command line](#running-the-command-line) shows how to make `listener`
+   a command.) Paste the key and press Enter; it is not shown. Without a key the
+   transcript works but answers and the summary are off.
 
 4. **Permissions.** Before the first call the window shows a checklist. Nothing is
    recorded until you press **Start**. On the first Start macOS asks for:
