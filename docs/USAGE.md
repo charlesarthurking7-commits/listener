@@ -285,7 +285,10 @@ Keychain item. Choose Always Allow, or sign with a stable identity (README).
 
 - **"Them" is silent.** Turn on Listener under Privacy & Security > Screen & System Audio
   Recording, then Stop and Start. With headphones, check the call's audio actually plays
-  on this Mac.
+  on this Mac. After a rebuild with an ad hoc signature the switch can show as on while
+  macOS no longer applies it to the new build; run `tccutil reset All local.listener`
+  and press Start again so macOS asks afresh (this resets Listener's microphone access
+  too).
 - **"Me" picks up the other side.** You are on speakers. Use headphones, or set
   `capture.voiceProcessing` to `true`.
 - **No microphone with the lid closed.** The built-in mics are off in clamshell mode;
