@@ -15,7 +15,8 @@ summary when you stop.
 
    This builds `build/Listener.app`, signs it and opens it. A waveform icon appears in
    the menu bar and the Listener window appears in the top right corner of the screen.
-   See the README for keeping permissions across rebuilds with a stable signing identity.
+   See the README for keeping permissions across rebuilds with a stable signing identity;
+   once a certificate named `Listener Dev` is in your keychain, the build uses it.
 
 2. **Speech-to-text.** Google Cloud is the default. Sign in once with Application Default
    Credentials and tell Listener your project:

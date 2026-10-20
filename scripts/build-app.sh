@@ -3,13 +3,18 @@
 #
 # macOS ties Microphone and System Audio Recording permissions to the app's code
 # signature. An ad-hoc signature changes on every build, so macOS asks again after
-# each rebuild. Set LISTENER_SIGNING_IDENTITY to a stable certificate (see README)
-# to keep permissions across builds.
+# each rebuild. A certificate named "Listener Dev" in the keychain (see README) is
+# used automatically to keep permissions across builds; LISTENER_SIGNING_IDENTITY
+# picks another.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 configuration="${CONFIGURATION:-release}"
-identity="${LISTENER_SIGNING_IDENTITY:--}"
+identity="${LISTENER_SIGNING_IDENTITY:-}"
+if [ -z "$identity" ] && security find-identity -p codesigning 2>/dev/null | grep '"Listener Dev"' >/dev/null; then
+    identity="Listener Dev"
+fi
+identity="${identity:--}"
 app="build/Listener.app"
 
 swift build --configuration "$configuration" --product listener
