@@ -1,0 +1,83 @@
+{
+  "title": "Brackenfield Markets: API rate limits and the planned GCP maintenance window",
+  "lines": [
+    {
+      "speaker": "Them",
+      "start": 0.8,
+      "end": 5.18,
+      "text": "Hi, it's Ruth from integrations at Brackenfield Markets. Two quick ones for you."
+    },
+    {
+      "speaker": "Me",
+      "start": 5.943,
+      "end": 7.013,
+      "text": "Sure, fire away."
+    },
+    {
+      "speaker": "Them",
+      "start": 7.513,
+      "end": 12.213,
+      "text": "Since Monday we've been getting 429s on the positions endpoint. What's the rate limit now?"
+    },
+    {
+      "speaker": "Me",
+      "start": 13.113,
+      "end": 18.683,
+      "text": "It's per API key. A hundred requests per ten seconds, with bursts up to two hundred. That hasn't changed."
+    },
+    {
+      "speaker": "Them",
+      "start": 19.063,
+      "end": 23.043,
+      "text": "Odd, we never used to hit it. Can you see which key is making the most calls?"
+    },
+    {
+      "speaker": "Me",
+      "start": 24.143,
+      "end": 27.943,
+      "text": "Not from here, no. I'll pull the gateway logs and send you a breakdown by key."
+    },
+    {
+      "speaker": "Them",
+      "start": 28.341,
+      "end": 32.971,
+      "text": "Thanks for that. What about Saturday's maintenance? Is copy trading affected?"
+    },
+    {
+      "speaker": "Me",
+      "start": 33.871,
+      "end": 43.881,
+      "text": "It's a database upgrade on our Google Cloud side, six till eight a.m. UK time. Markets are shut, so copy trading isn't affected, but the API is read-only for about twenty minutes."
+    },
+    {
+      "speaker": "Them",
+      "start": 37.511,
+      "end": 38.101,
+      "text": "Right."
+    },
+    {
+      "speaker": "Them",
+      "start": 44.499,
+      "end": 45.569,
+      "text": "And if it goes wrong?"
+    },
+    {
+      "speaker": "Me",
+      "start": 46.448,
+      "end": 51.658,
+      "text": "We've rehearsed the rollback. Um, if it's not done by half seven, we roll back and try again next weekend."
+    },
+    {
+      "speaker": "Them",
+      "start": 52.067,
+      "end": 53.247,
+      "text": "Perfect, thanks."
+    },
+    {
+      "speaker": "Me",
+      "start": 53.047,
+      "end": 53.817,
+      "text": "Cheers, bye."
+    }
+  ]
+}
