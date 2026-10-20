@@ -61,7 +61,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hotkeys = hotkeys
 
         quitOnSignals()
-        showWindow()
+        // The model checked the setup a moment ago; checking again would read the
+        // Keychain twice at launch.
+        panel?.show()
         Log.ui.info("Listener started")
     }
 
@@ -141,10 +143,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handle(_ action: HotkeyAction) {
         switch action {
         case .quickAnswer:
-            showWindow()
+            panel?.show()
             model.ask(.quick)
         case .deepAnswer:
-            showWindow()
+            panel?.show()
             model.ask(.deep)
         case .toggleListening:
             model.toggleListening()
