@@ -58,6 +58,7 @@ private struct ReadinessRow: View {
         switch item.status {
         case .ready: "checkmark.circle.fill"
         case .willAsk: "hand.raised.circle.fill"
+        case .preparing: "arrow.down.circle.fill"
         case .limited: "exclamationmark.circle.fill"
         case .blocking: "xmark.circle.fill"
         }
@@ -66,7 +67,7 @@ private struct ReadinessRow: View {
     private var tint: Color {
         switch item.status {
         case .ready: .green
-        case .willAsk: .blue
+        case .willAsk, .preparing: .blue
         case .limited: .orange
         case .blocking: .red
         }

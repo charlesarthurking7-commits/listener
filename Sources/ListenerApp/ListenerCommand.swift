@@ -50,8 +50,9 @@ struct ListenerCommand: AsyncParsableCommand {
             paths: paths,
             launchSettings: launchSettings,
             loadSettings: { try loader.load(explicitPath: explicitPath) },
-            makeComponents: { try SessionFactory.live(settings: $0, secrets: secrets) },
-            speechCredentialsProblem: { SessionFactory.speechCredentialsProblem($0) },
+            makeComponents: { try SessionFactory.live(settings: $0, secrets: secrets, callbacks: $1) },
+            googleSetup: { SessionFactory.googleSetup($0) },
+            prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
             hasAnthropicKey: { secrets.secret(.anthropicAPIKey) != nil },
             sessionsDirectory: { SessionFactory.sessionsRoot($0) }
         )

@@ -114,11 +114,20 @@ private struct EmptyTranscript: View {
     var body: some View {
         switch model.state.phase {
         case .starting, .listening:
-            ContentUnavailableView(
-                "Listening",
-                systemImage: "waveform",
-                description: Text("The transcript appears here as people speak.")
-            )
+            if case .downloading(let fraction) = model.onDeviceSpeech {
+                ContentUnavailableView(
+                    "Getting speech recognition ready",
+                    systemImage: "arrow.down.circle",
+                    description: Text(
+                        "macOS is downloading the on-device speech model (\(Int((fraction * 100).rounded()))%).")
+                )
+            } else {
+                ContentUnavailableView(
+                    "Listening",
+                    systemImage: "waveform",
+                    description: Text("The transcript appears here as people speak.")
+                )
+            }
         case .stopping, .summarizing:
             ContentUnavailableView("Nothing was said", systemImage: "waveform.slash")
         case .idle, .finished:

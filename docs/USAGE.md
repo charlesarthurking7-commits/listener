@@ -17,8 +17,8 @@ summary when you stop.
    the menu bar and the Listener window appears in the top right corner of the screen.
    See the README for keeping permissions across rebuilds with a stable signing identity.
 
-2. **Speech-to-text (Google Cloud).** Sign in once with Application Default Credentials
-   and tell Listener your project:
+2. **Speech-to-text.** Google Cloud is the default. Sign in once with Application Default
+   Credentials and tell Listener your project:
 
    ```sh
    gcloud auth application-default login
@@ -30,7 +30,15 @@ summary when you stop.
    { "speech": { "googleProjectID": "your-gcp-project-id" } }
    ```
 
-   A service account key works too: set `speech.googleCredentialsFile` to its path.
+   A service account key works too: set `speech.googleCredentialsFile` to its path. If the
+   credentials file names a quota project, that project is used when `googleProjectID`
+   is not set.
+
+   On macOS 26 you can transcribe on the Mac instead: set `speech.provider` to `"apple"`.
+   No Google account is needed and call audio is not sent anywhere for transcription
+   (answers still go to Claude). Listener checks Apple's speech model for your language
+   as soon as the setting is in place and macOS downloads it if needed; the checklist
+   shows the progress.
 
 3. **Answers (Anthropic).** Store your API key in the Keychain:
 
@@ -135,6 +143,8 @@ sits on the last line and updates in place.
 | Ctrl-C | Stop and save. Press it again to quit without waiting. |
 
 The answer streams below the transcript, followed by its first-token time and cost.
+Capture restarts (for example after switching headsets) and on-device model downloads
+show as dimmed lines.
 
 ## Replay
 
@@ -202,7 +212,7 @@ want to change: anything left out keeps its default, at every level.
 
 | Section | What it controls |
 | --- | --- |
-| `speech` | Provider (`google`, or `fake` for scripted replays), Google project, location, endpoint, model (`chirp_3`), language (`en-GB`), endpointing sensitivity, credentials file, stream rotation, silence skipping |
+| `speech` | Provider (`google`, `apple` for on-device on macOS 26, or `fake` for scripted replays), Google project, location, endpoint, model (`chirp_3`), language (`en-GB`), endpointing sensitivity, credentials file, stream rotation, silence skipping |
 | `turns` | When a pause ends a turn: `silenceMs`, the voice activity threshold, minimum speech length |
 | `answers` | The `quick` and `deep` models (model, effort, thinking, max tokens), transcript budget, and `context`: who you are and what your calls are about |
 | `summary` | Whether to write a summary, and its model |

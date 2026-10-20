@@ -1,5 +1,6 @@
 import Foundation
 import ListenerCore
+import ListenerMac
 
 enum TerminalInput: Sendable {
     case event(SessionEvent)
@@ -8,6 +9,31 @@ enum TerminalInput: Sendable {
     case interrupt
     case ask(AnswerTier)
     case audioEnded
+    /// Something capture or speech reported on its own.
+    case notice(String)
+}
+
+extension SessionCallbacks {
+    /// Sends capture events and on-device model progress to the terminal loop.
+    static func terminal(_ continuation: AsyncStream<TerminalInput>.Continuation) -> SessionCallbacks {
+        SessionCallbacks(
+            captureEvent: { event in
+                continuation.yield(.notice(event.description))
+            },
+            onDeviceSpeech: { status in
+                switch status {
+                case .checking:
+                    break
+                case .downloading:
+                    continuation.yield(.notice("Downloading the on-device speech model for this language..."))
+                case .ready(let locale):
+                    continuation.yield(.notice("On-device speech is ready (\(locale))."))
+                case .failed(let message):
+                    continuation.yield(.notice(message))
+                }
+            }
+        )
+    }
 }
 
 /// Runs a CallSession in the terminal. Session events, typed commands, Ctrl-C and
@@ -60,6 +86,7 @@ struct TerminalSession {
         var renderer = TerminalRenderer(style: style)
         var answers = AnswerLog()
         var stopping = false
+        var lastNotice: String?
         let started = ContinuousClock.now
 
         func stopOnce() {
@@ -105,6 +132,11 @@ struct TerminalSession {
                 }
                 Console.write(renderer.clearLiveLine() + "\nStopping and saving. Press Ctrl-C again to quit at once.\n")
                 stopOnce()
+            case .notice(let message):
+                if message != lastNotice {
+                    lastNotice = message
+                    Console.write(renderer.note(message))
+                }
             case .audioEnded:
                 if !stopping {
                     Console.write(renderer.clearLiveLine() + "\nEnd of the recordings. Stopping and saving.\n")

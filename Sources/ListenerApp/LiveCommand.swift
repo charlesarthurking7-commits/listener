@@ -28,7 +28,9 @@ struct LiveCommand: AsyncParsableCommand {
 
     func run() async throws {
         let settings = try options.loadSettings().settings
-        let components = try SessionFactory.live(settings: settings, secrets: StandardSecrets.chain())
+        let (notices, noticeContinuation) = AsyncStream.makeStream(of: TerminalInput.self)
+        let components = try SessionFactory.live(
+            settings: settings, secrets: StandardSecrets.chain(), callbacks: .terminal(noticeContinuation))
         if components.languageModel == nil {
             Console.error(
                 "No Anthropic API key, so answers and the summary are off. Run: listener secrets set anthropic")
@@ -38,6 +40,7 @@ struct LiveCommand: AsyncParsableCommand {
         Console.write("Starting. The first time, macOS asks for microphone and system audio access.\n")
         try await session.start()
         Console.write(TerminalSession.keyHint)
-        _ = await TerminalSession(session: session, style: Console.style, acceptsTyping: true).run()
+        _ = await TerminalSession(session: session, style: Console.style, acceptsTyping: true)
+            .run(extraInputs: [notices])
     }
 }

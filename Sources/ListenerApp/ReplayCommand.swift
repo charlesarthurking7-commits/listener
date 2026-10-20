@@ -57,9 +57,11 @@ struct ReplayCommand: AsyncParsableCommand {
         if conversation != nil {
             settings.speech.provider = "fake"
         }
+        let (notices, noticeContinuation) = AsyncStream.makeStream(of: TerminalInput.self)
         let replay = try SessionFactory.replay(
             settings: settings,
             secrets: StandardSecrets.chain(),
+            callbacks: .terminal(noticeContinuation),
             me: URL(fileURLWithPath: expand(me)),
             them: URL(fileURLWithPath: expand(them)),
             script: conversation,
@@ -74,7 +76,7 @@ struct ReplayCommand: AsyncParsableCommand {
         Console.write("Replaying at \(speed)x speed. Ctrl-C stops early and saves.\n\n")
         try await session.start()
 
-        let inputs = [schedule(askTimes, from: .now), endOfAudio(replay.sources)]
+        let inputs = [schedule(askTimes, from: .now), endOfAudio(replay.sources), notices]
         let answers = await TerminalSession(session: session, style: Console.style, acceptsTyping: false)
             .run(extraInputs: inputs)
         if !askTimes.isEmpty {

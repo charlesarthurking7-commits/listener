@@ -9,9 +9,13 @@ public struct AppEnvironment: Sendable {
     public var launchSettings: LoadedSettings
     /// Read again at every Start, so edits to settings.json apply to the next call.
     public var loadSettings: @Sendable () throws -> LoadedSettings
-    public var makeComponents: @Sendable (Settings) throws -> SessionComponents
-    /// Why speech-to-text credentials cannot be loaded, or nil when they can.
-    public var speechCredentialsProblem: @Sendable (Settings) -> String?
+    public var makeComponents: @Sendable (Settings, SessionCallbacks) throws -> SessionComponents
+    /// The Google project and credentials a call would use, without connecting.
+    public var googleSetup: @Sendable (Settings) -> GoogleSetup
+    /// Checks the on-device speech model for the configured language and downloads it
+    /// if needed, reporting progress. Returns when it is ready or has failed.
+    public var prepareOnDeviceSpeech:
+        @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void
     public var hasAnthropicKey: @Sendable () -> Bool
     public var sessionsDirectory: @Sendable (Settings) -> URL
 
@@ -19,8 +23,10 @@ public struct AppEnvironment: Sendable {
         paths: ListenerPaths,
         launchSettings: LoadedSettings,
         loadSettings: @escaping @Sendable () throws -> LoadedSettings,
-        makeComponents: @escaping @Sendable (Settings) throws -> SessionComponents,
-        speechCredentialsProblem: @escaping @Sendable (Settings) -> String?,
+        makeComponents: @escaping @Sendable (Settings, SessionCallbacks) throws -> SessionComponents,
+        googleSetup: @escaping @Sendable (Settings) -> GoogleSetup,
+        prepareOnDeviceSpeech:
+            @escaping @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void,
         hasAnthropicKey: @escaping @Sendable () -> Bool,
         sessionsDirectory: @escaping @Sendable (Settings) -> URL
     ) {
@@ -28,8 +34,36 @@ public struct AppEnvironment: Sendable {
         self.launchSettings = launchSettings
         self.loadSettings = loadSettings
         self.makeComponents = makeComponents
-        self.speechCredentialsProblem = speechCredentialsProblem
+        self.googleSetup = googleSetup
+        self.prepareOnDeviceSpeech = prepareOnDeviceSpeech
         self.hasAnthropicKey = hasAnthropicKey
         self.sessionsDirectory = sessionsDirectory
+    }
+}
+
+/// Things the capture sources and speech providers report on their own while a call
+/// runs. Called from their private queues.
+public struct SessionCallbacks: Sendable {
+    public var captureEvent: @Sendable (CaptureEvent) -> Void
+    public var onDeviceSpeech: @Sendable (OnDeviceSpeechStatus) -> Void
+
+    public init(
+        captureEvent: @escaping @Sendable (CaptureEvent) -> Void,
+        onDeviceSpeech: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
+    ) {
+        self.captureEvent = captureEvent
+        self.onDeviceSpeech = onDeviceSpeech
+    }
+}
+
+public struct GoogleSetup: Sendable, Equatable {
+    /// speech.googleProjectID, or else the quota project in the credentials file.
+    public var projectID: String?
+    /// Why the credentials could not be loaded, or nil if they were found.
+    public var credentialsProblem: String?
+
+    public init(projectID: String?, credentialsProblem: String?) {
+        self.projectID = projectID
+        self.credentialsProblem = credentialsProblem
     }
 }

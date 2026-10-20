@@ -15,6 +15,8 @@ public final class CallModel {
     /// Hotkeys that registered, for the footer and the menu.
     public private(set) var activeHotkeys: [HotkeyAction: Hotkey] = [:]
     public private(set) var settings: Settings
+    /// The on-device model's state when speech.provider is "apple".
+    public private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
 
     /// Called whenever listening starts or stops, for the menu bar icon.
     @ObservationIgnored public var onListeningChange: ((Bool) -> Void)?
@@ -22,6 +24,9 @@ public final class CallModel {
     @ObservationIgnored private let environment: AppEnvironment
     @ObservationIgnored private var session: CallSession?
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
+    /// What the last refresh found, so progress updates don't probe the Keychain again.
+    @ObservationIgnored private var probes: ReadinessInput?
+    @ObservationIgnored private var preparedLanguage: String?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -30,20 +35,26 @@ public final class CallModel {
             appNotices.add(.warning, warning)
         }
         refreshReadiness()
+        prepareOnDeviceSpeechIfNeeded()
     }
 
     public var hasSession: Bool { session != nil }
 
+    /// Checks permissions, credentials and keys again.
     public func refreshReadiness() {
-        let input = ReadinessInput(
-            microphone: SystemPermissions.microphone(),
-            screenRecording: settings.capture.systemAudioBackend == "sck" ? SystemPermissions.screenRecording() : nil,
+        let google =
+            settings.speech.provider == "google"
+            ? environment.googleSetup(settings) : GoogleSetup(projectID: nil, credentialsProblem: nil)
+        probes = ReadinessInput(
+            microphone: SystemPermissions.microphone,
+            screenRecording: settings.capture.systemAudioBackend == "sck" ? SystemPermissions.screenRecording : nil,
             speechProvider: settings.speech.provider,
-            googleProjectID: settings.speech.googleProjectID,
-            googleCredentialsProblem: environment.speechCredentialsProblem(settings),
+            googleProjectID: google.projectID,
+            googleCredentialsProblem: google.credentialsProblem,
+            onDeviceSpeech: onDeviceSpeech,
             hasAnthropicKey: environment.hasAnthropicKey()
         )
-        readiness = Readiness.check(input)
+        updateReadiness()
     }
 
     public func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
@@ -78,6 +89,7 @@ public final class CallModel {
             return
         }
         settings = loaded.settings
+        prepareOnDeviceSpeechIfNeeded()
         refreshReadiness()
         if Readiness.blocksStart(readiness) {
             state.startFailed("Listener can't start yet. Fix the items marked in red below.")
@@ -86,7 +98,7 @@ public final class CallModel {
 
         let components: SessionComponents
         do {
-            components = try environment.makeComponents(settings)
+            components = try environment.makeComponents(settings, sessionCallbacks())
         } catch {
             state.startFailed(ErrorText.describe(error))
             return
@@ -219,6 +231,60 @@ public final class CallModel {
             await session.stop()
         }
         await eventsTask?.value
+    }
+
+    private func updateReadiness() {
+        guard var input = probes else {
+            return
+        }
+        input.onDeviceSpeech = onDeviceSpeech
+        readiness = Readiness.check(input)
+    }
+
+    /// Gets Apple's on-device model ready as soon as it is the chosen provider, so
+    /// the first call doesn't wait for a download. Runs again after a failure or
+    /// when the language changes.
+    private func prepareOnDeviceSpeechIfNeeded() {
+        guard settings.speech.provider == "apple" else {
+            return
+        }
+        let language = settings.speech.languageCode
+        let failed = if case .failed = onDeviceSpeech { true } else { false }
+        if preparedLanguage == language && !failed {
+            return
+        }
+        preparedLanguage = language
+        onDeviceSpeechChanged(.checking)
+        let settings = settings
+        let prepare = environment.prepareOnDeviceSpeech
+        Task { [weak self] in
+            await prepare(settings) { status in
+                Task { @MainActor in
+                    self?.onDeviceSpeechChanged(status)
+                }
+            }
+        }
+    }
+
+    private func onDeviceSpeechChanged(_ status: OnDeviceSpeechStatus) {
+        onDeviceSpeech = status
+        updateReadiness()
+    }
+
+    /// Forwards what capture and speech report on their own to the window.
+    private func sessionCallbacks() -> SessionCallbacks {
+        SessionCallbacks(
+            captureEvent: { [weak self] event in
+                Task { @MainActor in
+                    self?.state.apply(event)
+                }
+            },
+            onDeviceSpeech: { [weak self] status in
+                Task { @MainActor in
+                    self?.onDeviceSpeechChanged(status)
+                }
+            }
+        )
     }
 
     private func observe(_ session: CallSession) {
