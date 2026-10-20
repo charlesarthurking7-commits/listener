@@ -8,6 +8,8 @@ private struct Harness {
     var detector = TurnDetector(settings: TurnSettings())
     /// Session time minus channel time for each channel's audio.
     var offsets: [Speaker: Double] = [.me: 0, .them: 0]
+    /// Replay speed: how many seconds of audio go by per second of session time.
+    var speed = 1.0
     var closed: [Turn] = []
     var changes = 0
     private var tenths: [Speaker: Int] = [:]
@@ -19,7 +21,7 @@ private struct Harness {
         var tenth = tenths[speaker, default: 0]
         while tenth < target {
             let frame = Double(tenth) / 10..<Double(tenth + 1) / 10
-            apply(detector.audioProgress(speaker, frame: frame, capturedAt: frame.upperBound + offsets[speaker]!))
+            apply(detector.audioProgress(speaker, frame: frame, capturedAt: capturedAt(frame, speaker)))
             tenth += 1
         }
         tenths[speaker] = tenth
@@ -30,9 +32,12 @@ private struct Harness {
         let tenth = tenths[speaker, default: 0]
         let frame = Double(tenth) / 10..<Double(tenth + 1) / 10
         apply(
-            detector.audioProgress(
-                speaker, frame: frame, capturedAt: frame.upperBound + offsets[speaker]!, activity: activity))
+            detector.audioProgress(speaker, frame: frame, capturedAt: capturedAt(frame, speaker), activity: activity))
         tenths[speaker] = tenth + 1
+    }
+
+    private func capturedAt(_ frame: Range<Double>, _ speaker: Speaker) -> Double {
+        frame.upperBound / speed + offsets[speaker]!
     }
 
     mutating func play(to seconds: Double) {
@@ -247,6 +252,37 @@ struct TurnDetectorTests {
         #expect(harness.closed.isEmpty)
         harness.final(.them, "and by how much?", nil)
         #expect(harness.turns.map(\.text) == ["Which accounts were affected, and by how much?"])
+    }
+
+    /// A recogniser's delay is real time, which fast replay packs into more audio: a
+    /// final half a second late at eight times speed comes 4 s of audio later.
+    @Test func aSlowFinalStillJoinsItsTurnInFastReplay() {
+        var harness = Harness()
+        harness.speed = 8
+        harness.speech(.them, 1.0...2.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Which accounts were affected,", 1.0...2.0)
+        harness.speech(.them, 2.4...3.4)
+        harness.play(.them, to: 8.2)
+        #expect(harness.closed.isEmpty)
+        harness.final(.them, "and by how much?", 2.4...3.4)
+        #expect(harness.turns.map(\.text) == ["Which accounts were affected, and by how much?"])
+        harness.play(.them, to: 9)
+        #expect(harness.closed.count == 1)
+    }
+
+    /// A pause is a stretch of audio, however fast it is replayed.
+    @Test func aPauseLongerThanTheSilenceSplitsTurnsInFastReplayToo() {
+        var harness = Harness()
+        harness.speed = 4
+        harness.speech(.them, 1.0...2.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Fine.", 1.0...2.0)
+        harness.play(.them, to: 2.7)
+        harness.speech(.them, 2.75...3.5)
+        harness.play(.them, to: 3.6)
+        harness.final(.them, "What's the reference?", 2.75...3.5)
+        #expect(harness.turns.map(\.text) == ["Fine.", "What's the reference?"])
     }
 
     /// Speech that never gets a final, a cough say, holds the turn open only so long.

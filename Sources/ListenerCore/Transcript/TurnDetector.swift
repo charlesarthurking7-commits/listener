@@ -42,8 +42,8 @@ public struct TurnDetector: Sendable {
     /// turn open (and off disk) for the whole call.
     static let staleAfter = 15.0
     /// How much longer than `silenceMs` a turn waits for the final of speech that
-    /// followed it. Recognisers can take well over a second; speech that has had no
-    /// final by then (a cough, a noise) was not words.
+    /// followed it, in seconds of session time. Recognisers can take well over a
+    /// second; speech that has had no final by then (a cough, a noise) was not words.
     static let finalGrace = 2.0
 
     private let silence: Double
@@ -236,7 +236,9 @@ public struct TurnDetector: Sendable {
         let start = channel.clock.sessionTime(at: startOnChannel)
         let end = max(channel.clock.sessionTime(at: endOnChannel), start)
 
-        if let open = channel.openTurn, let index = index(of: open.id), canExtend(snapshot.turns[index], from: start) {
+        if let open = channel.openTurn, let index = index(of: open.id),
+            canExtend(snapshot.turns[index], ending: open.end, from: startOnChannel, at: start)
+        {
             snapshot.turns[index].text += " " + text
             snapshot.turns[index].end = max(snapshot.turns[index].end, end)
             channel.openTurn?.end = max(open.end, endOnChannel)
@@ -253,8 +255,11 @@ public struct TurnDetector: Sendable {
         revision += 1
     }
 
-    private func canExtend(_ turn: Turn, from start: Double) -> Bool {
-        start - turn.end < silence && !someoneElseSpoke(after: turn.end, before: start, besides: turn.speaker)
+    /// Whether speech starting at `startOnChannel` (`start` in session time) continues
+    /// `turn`, whose last final ended at `end` on the channel. The pause is measured in
+    /// the channel's audio, so replay at any speed splits turns where a live call would.
+    private func canExtend(_ turn: Turn, ending end: Double, from startOnChannel: Double, at start: Double) -> Bool {
+        startOnChannel - end < silence && !someoneElseSpoke(after: turn.end, before: start, besides: turn.speaker)
     }
 
     private func someoneElseSpoke(after gapStart: Double, before gapEnd: Double, besides speaker: Speaker) -> Bool {
@@ -275,8 +280,14 @@ public struct TurnDetector: Sendable {
             return
         }
         let quietSince = max(open.end, channel.lastSpeechEnd ?? open.end)
-        let wait = silence + confirmation + (channel.awaitingFinal ? Self.finalGrace : 0)
-        let silent = !channel.speaking && channel.position - quietSince >= wait
+        let silenceOver = quietSince + silence + confirmation
+        var silent = !channel.speaking && channel.position >= silenceOver
+        if silent && channel.awaitingFinal {
+            // A recogniser's delay is real time, not audio, which replay at speed packs
+            // into more audio: the grace is measured on the session clock.
+            let clock = channel.clock
+            silent = clock.sessionTime(at: channel.position) - clock.sessionTime(at: silenceOver) >= Self.finalGrace
+        }
         let stale = channel.position - open.end >= Self.staleAfter
         guard silent || stale, let index = index(of: open.id) else {
             return
