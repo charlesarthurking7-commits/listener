@@ -199,7 +199,7 @@ public final class CallModel {
         case .revealInFinder(let path):
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
         case .openFile(let path):
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            Self.openTextFile(URL(fileURLWithPath: path))
         case .openURL(let link, _):
             if let url = URL(string: link) {
                 NSWorkspace.shared.open(url)
@@ -220,6 +220,19 @@ public final class CallModel {
         }
     }
 
+    /// Opens settings.json or summary.md in the app the user picked for that kind of
+    /// file. A Mac without Xcode or a code editor may have no app for .json or .md,
+    /// and then the file opens in TextEdit instead of not at all.
+    private static func openTextFile(_ file: URL) {
+        let workspace = NSWorkspace.shared
+        if workspace.urlForApplication(toOpen: file) != nil {
+            workspace.open(file)
+            return
+        }
+        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        workspace.open([file], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
+    }
+
     /// `listener` is not on the PATH, so a command for it is copied with the full path
     /// of this binary. That also makes the Keychain item the command stores readable by
     /// the app without a prompt, because the same binary wrote it.
@@ -235,7 +248,7 @@ public final class CallModel {
     public func openSettingsFile() {
         do {
             let file = try SettingsLoader(paths: environment.paths).createSettingsFileIfMissing()
-            NSWorkspace.shared.open(file)
+            Self.openTextFile(file)
         } catch {
             appNotices.add(.error, "Could not create settings.json: \(ErrorText.describe(error))")
         }
