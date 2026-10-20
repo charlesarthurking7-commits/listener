@@ -164,12 +164,15 @@ make it miss the last words of the question, which is worse.
   credential type falls back to `gcloud auth application-default print-access-token`.
   The `x-goog-user-project` quota header is sent for user credentials.
 
-Plan: M1 builds the Google provider and a replay benchmark that measures, per model and
-sensitivity, end of speech -> final, end of speech -> first interim, and accuracy on the
-fixture recordings. If Google's median end of speech -> final is above about 700 ms, I
-recommend adding Deepgram Nova-3 on its EU endpoint (`api.eu.deepgram.com`) as a second
-provider. That needs a Deepgram account, so per your rules I'm asking rather than doing
-it: **may I add Deepgram as an option if Google measures slow?**
+Decision after the cost discussion: on-device recognition (section 3.12) is the default
+choice for you, being free and the lowest latency; Google stays as the specified cloud
+option. Cheaper cloud alternatives exist if on-device accuracy falls short on real calls:
+AssemblyAI Universal-Streaming (about $0.15 per hour per stream) and Soniox (about $0.12,
+vendor figure), both far below Google's $0.96 per hour per channel. Deepgram Nova-3 is
+the fastest in published tests at roughly $0.29 to $0.46 per hour per channel. Any of
+them needs an account, so none is added without your go-ahead. The comparison should run
+on recordings of your own calls (`storage.saveAudio`), not only on the fixtures, which
+are clean synthetic speech and flatter every engine.
 
 ### 3.8 "Hide from screen sharing" does not work reliably any more
 Apple's current documentation calls `NSWindow.SharingType.none` "a legacy constant that
@@ -196,6 +199,13 @@ share a window or a tab rather than the whole screen.
 Core Audio taps need 14.2, grpc-swift 2 needs 15. macOS 26 and 27 are supported; the
 optional on-device speech provider needs 26.
 
+### 3.11 Pushing and CI
+The spec says not to push or create remotes. This repository already has a GitHub remote
+and this session is set up to push to `claude/exciting-mayer-txjtxk`, so I push there
+and nowhere else. I wrote a CI workflow (lint and Linux tests, macOS build and bundle),
+but GitHub refuses workflow files from this session's token, so it sits in `ci/` until
+you move it (README, "CI").
+
 ### 3.12 On-device speech recognition as an option
 macOS 26 added `SpeechAnalyzer`/`SpeechTranscriber`: on-device, long-form, streaming
 recognition with interim ("volatile") results. Against Google it costs nothing, has no
@@ -204,38 +214,40 @@ a regulated firm. Accuracy on British English and trading jargon is unknown unti
 measured. It is built as `speech.provider = "apple"` alongside Google; the replay
 benchmark compares the two on the fixture calls.
 
-### 3.11 Pushing and CI
-The spec says not to push or create remotes. This repository already has a GitHub remote
-and this session is set up to push to `claude/exciting-mayer-txjtxk`, so I push there
-and nowhere else. I wrote a CI workflow (lint and Linux tests, macOS build and bundle),
-but GitHub refuses workflow files from this session's token, so it sits in `ci/` until
-you move it (README, "CI").
-
 ## 4. Architecture
 
 ### 4.1 Modules
 
 ```
-ListenerCore  (Foundation only, Linux-testable)
-  Audio/          AudioChunk, LevelMeter, WAV reader/writer, 100 ms framing, energy VAD
-  Transcription/  SpeechToTextProvider protocol, TranscriptEvent, TurnDetector
-  Transcript/     TranscriptStore (segments: speaker, text, audio start/end, final?)
-  Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow, AnswerService
-  Providers/      GoogleSpeechV2 (gRPC), AnthropicMessages (HTTPS + SSE), Google auth
-  Metrics/        LatencyTrace, CostTracker, PriceTable
-  Session/        CallSession (actor that wires everything), SessionStore, Retention, Summary
-  Config/         Settings (JSON file + LISTENER_* env vars), SecretStore protocol
-  Spike/          M0 spike analysis
+ListenerCore  (Foundation only, builds and tests on Linux)
+  Audio/          AudioChunk, LevelMeter, WAV I/O, VoiceActivityDetector, AudioFramer,
+                  Resampler, GapFiller and the capture recovery logic
+  Transcription/  SpeechToTextProvider protocol, the on-device rotating stream logic
+  Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
+  Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow
+  Metrics/        PriceTable, CostTracker, LatencyStats
+  Session/        CallSession (the actor that wires everything), SessionStore,
+                  SessionSummarizer, SessionEvent
+  Config/         Settings, SettingsLoader (JSON + LISTENER_* env), secrets, paths
+  App/            window and terminal state reduced from session events, hotkey parsing,
+                  display formatting, the setup checklist logic
+  Replay/, Fakes/ ReplaySource, ScriptedSpeechToText, ScriptedLanguageModel
+  Spike/          the audio spike's analysis
 
-ListenerMac   (macOS glue)
-  Capture/        MicrophoneCapture, SystemAudioTap, ScreenCaptureAudio, PCMConverter
+GoogleSpeech  Speech-to-Text v2 streaming over gRPC (generated client), credentials
+ClaudeAPI     Anthropic Messages API client with SSE streaming and retries
+
+ListenerMac   (macOS only)
+  Capture/        MicrophoneCapture, SystemAudioTap, ScreenCaptureAudio, PCMConverter,
+                  LiveAudioSources, CapturePermissions
+  Speech/         AppleSpeechProvider (SpeechAnalyzer, macOS 26+)
+  Network/        URLSessionStreamingTransport for ClaudeAPI
   Hotkeys/        RegisterEventHotKey wrapper
-  Secrets/        KeychainSecretStore
-  Window/         floating NSPanel host
+  Secrets/        Keychain store and the standard secret chain
+  UI/             floating NSPanel, SwiftUI views, menu bar item, CallModel
 
-ListenerApp   (executable)
-  CLI             listener spike | live --terminal | replay | summarize | secrets
-  UI              SwiftUI views: transcript, answer, Start/Stop, listening indicator, cost/latency footer
+ListenerApp   the `listener` executable: the app with no arguments, plus the
+              live, replay, secrets, sessions, summarize and spike subcommands
 ```
 
 ### 4.2 Data flow
@@ -365,50 +377,40 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
   LLM -> assert transcript, turns, answer text, latency records and cost.
 - `ListenerCore` tests run on Linux and macOS; capture code is exercised by the spike.
 
-## 5. Milestones (revised)
+## 5. Milestones
 
-| | Deliverable | How you try it |
-| --- | --- | --- |
-| M0 | This plan, audio spike | `scripts/spike.sh` |
-| M1 | Live speaker-labelled transcript in the terminal, replay mode, sample recordings, Google STT v2 (EU), turn detection, session storage | `listener live --terminal`, `listener replay Fixtures/...` |
-| M2 | Floating always-on-top window: transcript, Start/Stop, listening indicator, optional hide-from-sharing | `scripts/run.sh` |
-| M3 | Hotkey answers (Haiku 5.5), escalation hotkey (Sonnet 5.5), latency logging, cost tracking | press the hotkeys during replay or a test call |
-| M4 | Post-call summary and action items as Markdown | press Stop |
+You asked for the whole app at once, so the milestones were built in parallel and
+merged together:
 
-Each milestone ends with tests passing, a commit, and measured numbers (latency per
-stage, cost per test session).
+| | Deliverable | Status | How you try it |
+| --- | --- | --- | --- |
+| M0 | Plan, audio spike | built | `scripts/spike.sh` |
+| M1 | Terminal transcript, replay, fixture calls, Google STT (EU), on-device STT, turn detection, storage | built | `listener live --terminal`, `listener replay ...` |
+| M2 | Floating window, Start/Stop, listening indicator, menu bar item, setup checklist | built | `scripts/run.sh` |
+| M3 | Quick and deep hotkey answers, latency logging, cost tracking | built | the hotkeys, or `listener replay ... --ask-at` |
+| M4 | Post-call summary and action items as Markdown | built | press Stop |
+
+Everything outside ListenerMac and ListenerApp is covered by tests that run on Linux,
+including end-to-end runs of the fixture calls through the real pipeline with scripted
+speech-to-text and model. The macOS code type-checks against the macOS 15.5 and 26.5
+SDKs but has not been linked or run, because this was built without a Mac.
 
 ## 6. Open questions for you
 
-1. Which macOS version are you on? (15 is the minimum in this plan.)
+1. Which macOS version are you on? On-device speech needs 26 or later.
 2. Headphones on calls, or speakers? Which mic do you use with the lid closed?
-3. GCP project ID for Speech-to-Text, and do you want ADC (your gcloud login) or a
-   service account key?
-4. Default hotkeys: Control-Option-Space for the quick answer and
-   Control-Option-Shift-Space for escalation. Any clashes with your setup?
-5. English variant of your calls: en-GB?
+3. Speech-to-text: on-device (free) to start with? If its accuracy on your real calls
+   falls short, AssemblyAI or Soniox stream for roughly 25 to 30 cents per call-hour,
+   much less than Google; either needs an account, so I'm asking before adding one.
+4. Default hotkeys: Control-Option-Space (quick), Control-Option-Shift-Space (deep),
+   Control-Option-L (start/stop). Any clashes with your setup?
 
-## 7. M0 status
+## 7. First run on your Mac
 
-Done:
-
-- Swift package with the module split above. `ListenerCore` has the spike's analysis,
-  level metering and WAV I/O, with 21 unit tests passing (run on Linux, Swift 6.4.1).
-- `listener spike`: captures the mic and system audio as two separate 16 kHz streams,
-  with either backend, guides you through three phases, writes both channels to WAV and
-  a report with PASS/FAIL checks. `scripts/spike.sh` bundles, signs and launches it.
-- swift-format config, lint clean.
-
-Not verified, and why: this session runs on Linux. There is no Mac to run the spike on,
-and GitHub refused the CI workflow (token lacks the `workflow` scope), so the macOS code
-(`Sources/ListenerMac`, `Sources/ListenerApp`) has **not been compiled yet**. I checked
-every Apple API call against Apple's headers and working open-source code instead, but
-expect the first build on your Mac to possibly need a small fix. The proof that capture
-works on your Mac is the spike report you get from running it.
-
-What I need from you to close M0:
-
-1. Run `scripts/spike.sh` and `scripts/spike.sh --system sck` (headphones on), and send
-   me both reports. If anything fails to compile, send the error.
-2. Answers to the questions in section 6, and the Deepgram question in 3.7.
-3. Approval of this plan, or changes.
+1. `scripts/spike.sh` with headphones on: both channels should pass. Then
+   `scripts/spike.sh --system sck` for comparison.
+2. `scripts/run.sh`, `listener secrets set anthropic`, choose a speech provider in the
+   settings file, press Start on a test call (Meet's "Check your audio and video" works).
+3. `listener replay` on a fixture with `--ask-at` to see the latency table.
+4. Send me any build error, spike report or odd behaviour, and turn on
+   `storage.saveAudio` for a couple of real calls so we can compare providers on them.

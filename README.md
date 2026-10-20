@@ -1,104 +1,125 @@
 # Listener
 
-A macOS app that transcribes both sides of a call live (your mic as "Me", system
-audio as "Them") and, when you press a hotkey, streams a suggested answer from Claude
-into an always-on-top window. After the call it writes a summary and action items.
+A macOS app that sits beside your calls. It transcribes both sides live, your mic as
+"Me" and the Mac's audio as "Them", in a floating window that never takes focus from
+Meet or Teams. Press a hotkey and it streams a suggested answer from Claude. When the
+call ends it writes a summary with action items.
 
-Status: **M0, plan and audio spike.** The plan, architecture and the decisions behind
-them are in [docs/PLAN.md](docs/PLAN.md).
+- **Quick answer** (Control-Option-Space): Claude Haiku 5.5, short and speakable, first
+  words in well under a second.
+- **Deep answer** (Control-Option-Shift-Space): Claude Sonnet 5.5 for harder questions.
+- **Grounded**: answers may use general knowledge but never invent call-specific facts
+  (amounts, account or ticket numbers, dates, names); they say what to check instead.
+- **Speech-to-text**: Apple's on-device recognition (macOS 26 and later, free) or Google
+  Cloud Speech-to-Text v2 in the EU (about $1.92 per call-hour for both channels).
+- **Visible**: a pulsing red indicator in the window and a red menu bar icon while
+  listening. Nothing is recorded until you press Start.
+- **Measured**: every answer logs end-of-speech, hotkey, first-token and done times; the
+  running cost is in the window and saved with each call.
+- **Local**: calls are saved under `~/Library/Application Support/Listener/sessions`
+  with 30-day retention. Raw audio is not kept unless you turn it on.
+
+**Status:** all features are built and the macOS code type-checks against the macOS 15.5
+and 26.5 SDKs, but it was developed without a Mac, so the first build and run on yours
+is the first real test. Start with the audio spike below.
 
 ## Requirements
 
-- Apple Silicon Mac on macOS 15 (Sequoia) or later.
-- Swift 6: Xcode 16 or later, or just the Command Line Tools (`xcode-select --install`).
-  Check with `swift --version`.
-- A microphone that works with the lid closed. In clamshell mode the MacBook's built-in
-  mics are off, so use a headset, USB mic or webcam mic.
-- Headphones on calls. On speakers the mic also hears the other side, so "Me" would
-  transcribe them too. The spike measures this for your setup.
+- Apple Silicon Mac, macOS 15 or later (macOS 26 or later for on-device speech).
+- Xcode 16.3 or later, or its Command Line Tools (`xcode-select --install`). Xcode 26 is
+  needed to build the on-device speech provider.
+- A microphone that works with the lid closed (the built-in mics are off in clamshell
+  mode), and headphones on calls so the mic does not hear the other side.
+- An Anthropic API key for answers and summaries.
+- For Google speech-to-text only: a GCP project with the Speech-to-Text API enabled and
+  `gcloud auth application-default login`.
 
-## M0: run the audio spike
+## Quick start
 
 ```sh
-scripts/spike.sh                     # system audio via a Core Audio process tap (recommended)
-scripts/spike.sh --system sck        # system audio via ScreenCaptureKit, for comparison
-scripts/spike.sh --voice-processing  # add Apple's echo cancellation to the mic
+scripts/spike.sh                          # 1. check both audio channels on this Mac (30 s, guided)
+scripts/run.sh                            # 2. build and open the app
+build/Listener.app/Contents/MacOS/listener secrets set anthropic   # 3. store your API key
 ```
 
-The script builds and signs `build/Listener.app`, launches it, and shows its log. After a
-3 second countdown it walks you through three 10 second phases:
+Then choose **Open Settings File** from the menu bar icon and set the speech provider:
 
-1. **Voice only**: talk, with nothing playing on the Mac.
-2. **System audio only**: stay quiet and play something with speech (a YouTube video, or
-   a Google Meet test call at meet.google.com > "Check your audio and video").
-3. **Both**: keep it playing and talk over it.
+```json
+{ "speech": { "provider": "apple" } }
+```
 
-It prints a level meter per channel every second, then a report with PASS/FAIL checks:
-both channels deliver a continuous 16 kHz stream, each is active when it should be and
-quiet when it should be, plus timing, gaps and CPU use. Everything lands in
-`~/Library/Application Support/Listener/spike/<timestamp>/`:
+or, for Google, `{ "speech": { "provider": "google", "googleProjectID": "your-project" } }`.
+Add a line about yourself to `answers.context` so answers fit your role
+(see [`settings.example.json`](settings.example.json)). Press **Start** in the window.
 
-| File | Contents |
-| --- | --- |
-| `me.wav`, `them.wav` | The two channels exactly as speech-to-text will receive them |
-| `report.json` | Every measurement and verdict |
-| `spike.log` | What you saw in the terminal |
+Try it without a call by replaying a fixture through the full pipeline:
 
-Listen to the two WAV files: `me.wav` should hold only your voice, `them.wav` only the
-Mac's audio. Please send me the report text for one `tap` run and one `sck` run.
+```sh
+listener replay Fixtures/delayed-executions/me.wav Fixtures/delayed-executions/them.wav \
+    --script Fixtures/delayed-executions/script.json --ask-at 0:30,0:39
+```
 
-Use `--phase-seconds 15` for longer phases and `--help` for all options.
+[docs/USAGE.md](docs/USAGE.md) covers everything: the window, hotkeys, terminal mode,
+replay, settings, environment variables, API keys, where files go and troubleshooting.
+[docs/PLAN.md](docs/PLAN.md) explains the architecture and the decisions behind it.
+
+## The audio spike
+
+`scripts/spike.sh` builds the app, launches it and walks you through three 10 second
+phases: talk with nothing playing, stay quiet while something plays, then both. It
+reports PASS/FAIL checks for each channel (continuous 16 kHz stream, active when it
+should be, quiet when it should be), timing, gaps and CPU, and writes `me.wav`,
+`them.wav` and `report.json` to `~/Library/Application Support/Listener/spike/`.
+
+```sh
+scripts/spike.sh --system sck           # compare with the ScreenCaptureKit backend
+scripts/spike.sh --voice-processing     # echo cancellation, if you are on speakers
+```
 
 ## macOS permissions
 
 | Permission | Used for | Where to change it |
 | --- | --- | --- |
-| Microphone | "Me" channel | System Settings > Privacy & Security > Microphone |
-| System Audio Recording | "Them" channel, tap backend | System Settings > Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" list |
-| Screen Recording | "Them" channel, only with `--system sck` | Same pane, "Screen & System Audio Recording" list |
+| Microphone | "Me" | System Settings > Privacy & Security > Microphone |
+| System Audio Recording | "Them" (default Core Audio tap) | Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" |
+| Screen Recording | "Them", only with the `sck` backend | Same pane, "Screen & System Audio Recording" |
 
-macOS asks the first time each one is used. Allow it, then run the spike again: a
-channel that ran without permission records silence, and the report says so.
+macOS asks the first time each is used. A channel without permission records silence
+rather than failing, and the window warns you. **Accessibility is not needed**: the
+hotkeys use `RegisterEventHotKey`, which macOS allows without it.
 
-**Accessibility is not needed.** The hotkeys (M3) use `RegisterEventHotKey`, which macOS
-allows without Accessibility or Input Monitoring access.
+macOS ties permissions to the app's code signature. `scripts/build-app.sh` signs ad hoc,
+which changes with every build, so macOS asks again after rebuilds. To keep permissions,
+create a stable identity once: Keychain Access > Certificate Assistant > Create a
+Certificate, name `Listener Dev`, "Self Signed Root", "Code Signing"; then
+`export LISTENER_SIGNING_IDENTITY="Listener Dev"`.
 
-### Keep permissions across rebuilds
-
-macOS ties these permissions to the app's code signature. `scripts/build-app.sh` signs
-ad hoc by default, and an ad hoc signature changes with every build, so macOS asks
-again after each rebuild. To avoid that, create a stable signing identity once:
-
-1. Open Keychain Access > Keychain Access menu > Certificate Assistant > Create a Certificate.
-2. Name it `Listener Dev`, Identity Type "Self Signed Root", Certificate Type "Code Signing".
-3. Add `export LISTENER_SIGNING_IDENTITY="Listener Dev"` to your shell profile.
-
-### Why the script launches the app with `open`
-
-macOS asks for permission on behalf of the app that is "responsible" for a process.
-Running `swift run listener spike` from Terminal works, but the permissions are then
-granted to Terminal (or iTerm) rather than to Listener. `scripts/spike.sh` launches
-`Listener.app` through LaunchServices so Listener owns its permissions.
+The scripts launch the app through `open` so that macOS asks on behalf of Listener. A
+command run straight from Terminal gets its permissions through your terminal app.
 
 ## Development
 
 ```sh
-swift build                 # build everything
-swift test                  # run the tests (the core module also builds and tests on Linux)
+swift build                 # everything (the macOS targets build only on macOS)
+swift test                  # ListenerCore, GoogleSpeech and ClaudeAPI tests, also on Linux
 swift format lint --strict --recursive Sources Tests Package.swift
 swift format --in-place --recursive Sources Tests Package.swift
+scripts/generate-protos.sh  # regenerate the Speech-to-Text gRPC client
 ```
 
-Layout:
-
 ```
-Sources/ListenerCore   platform independent logic (Foundation only), unit tested
-Sources/ListenerMac    macOS capture: AVAudioEngine mic, Core Audio tap, ScreenCaptureKit
-Sources/ListenerApp    the `listener` executable and its subcommands
-Tests/                 swift-testing tests for ListenerCore
+Sources/ListenerCore   platform independent: audio framing, VAD, resampling, turn detection,
+                       the call session, prompts, cost, settings, storage, replay, fakes
+Sources/GoogleSpeech   Speech-to-Text v2 streaming over gRPC, Google credentials
+Sources/ClaudeAPI      Anthropic Messages API client with streaming
+Sources/ListenerMac    capture (Core Audio tap, AVAudioEngine, ScreenCaptureKit), on-device
+                       speech, hotkeys, Keychain, the floating window and menu bar item
+Sources/ListenerApp    the `listener` executable: the app and its subcommands
+Tests/                 swift-testing suites, including end-to-end runs on the fixtures
+Fixtures/              three mock broker calls (two channels plus script) for replay;
+                       see Fixtures/README.md to regenerate them
+Protos/                trimmed Speech-to-Text v2 proto the gRPC client is generated from
 App/Info.plist         bundle metadata and permission prompts
-scripts/               build-app.sh, spike.sh
-docs/PLAN.md           architecture, decisions, milestones
 ```
 
 ### CI
