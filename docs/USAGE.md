@@ -14,7 +14,8 @@ summary when you stop.
    ```
 
    This builds `build/Listener.app`, signs it and opens it. A waveform icon appears in
-   the menu bar and the Listener window appears in the top right corner of the screen.
+   the menu bar and the Listener window appears on the right of your second display, or
+   in the top right corner if you have one display.
    See the README for keeping permissions across rebuilds with a stable signing identity;
    once a certificate named `Listener Dev` is in your keychain, the build uses it.
 
@@ -48,13 +49,16 @@ summary when you stop.
    build/Listener.app/Contents/MacOS/listener secrets set anthropic
    ```
 
-   (The checklist's **Copy** link copies this command with the full path, and
+   (The checklist shows this command with a **Copy** button that copies it with the full
+   path, and
    [Running the command line](#running-the-command-line) shows how to make `listener`
    a command.) Paste the key and press Enter; it is not shown. Without a key the
    transcript works but answers and the summary are off.
 
-4. **Permissions.** Before the first call the window shows a checklist. Nothing is
-   recorded until you press **Start**. On the first Start macOS asks for:
+4. **Permissions.** Until everything is in place the window shows a setup checklist
+   with a fix for each item; once it is, a short "Ready when you are" screen with the
+   hotkeys and a compact status list. Nothing is recorded until you press **Start**. On
+   the first Start macOS asks for:
 
    | Permission | Used for | Where to change it |
    | --- | --- | --- |
@@ -89,26 +93,37 @@ from any edge; it reopens where you left it, on the same display if it is still 
 
 From top to bottom:
 
-- **Header.** A pulsing red dot, "Listening" and the call's elapsed time while
-  recording; a grey dot and "Not listening" otherwise. **Start** and **Stop** sit on the
-  right, next to the button that hides the window (show it again from the menu bar).
-- **Banners.** Warnings during the call, such as a silent channel, and notices after it,
-  such as where the call was saved, with a link to open it.
-- **Transcript.** Each line has a "Me" (blue) or "Them" (orange) chip. Text still being
-  recognised is shown dimmed and in italics until it settles. The transcript follows
-  the newest line; scroll up to read back and it stays where you are, with a **Jump to
-  latest** button to return.
-- **Answer card.** Appears when you press an answer hotkey: a **Quick** or **Deep** badge,
-  the model, the time from the hotkey to the first word, a copy button and a close
-  button. Closing a card that is still streaming cancels it.
+- **Header.** While recording, a red "Listening" pill with a pulsing dot and the
+  call's elapsed time; a grey dot and "Not listening" otherwise. **Start** and **Stop**
+  sit on the right, next to the button that hides the window (show it again from the
+  menu bar).
+- **Banners.** Warnings during the call, such as a silent channel or a capture restart.
+- **Answer card.** Appears at the top when you press an answer hotkey: a **Quick** or
+  **Deep** badge, the model, the time from the hotkey to the first word, a copy button
+  and a close button. A placeholder shimmers until the first word arrives; words then
+  appear as they stream, without moving. Lists and **bold** are formatted, and notes in
+  square brackets, which are for you and not to be said, are shown apart under
+  "For you". Copy leaves those notes out. A failed answer offers **Try Again**. Closing
+  a card that is still streaming cancels it.
+- **Transcript.** Turns are grouped by speaker under "Me" (teal) or "Them" (amber) with
+  the time they started. Text still being recognised is dimmed until it settles. The
+  transcript follows the newest line; scroll up to read back and it stays where you
+  are, with a **Jump to latest** button to return.
+- **After Stop.** A card shows the call being saved and summarised, then "Call saved"
+  with its length, turns and cost, and **Open Summary** and **Show in Finder**.
 - **Footer.** The call's running cost (hover for the split between speech-to-text and
   Claude), the first-word time of the last answer, and the answer hotkeys.
 
+The window follows Light and Dark Mode. With Reduce Motion on, the dot and the answer
+placeholder stay still and cards appear without sliding; with Reduce Transparency the
+background is solid.
+
 ### Menu bar
 
-The icon turns red while Listener is listening. Its menu has Start/Stop Listening,
-Quick Answer, Deep Answer, Show Window, Open Sessions Folder, Open Settings File and
-Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
+The icon becomes a red capsule while Listener is listening. Its menu shows whether
+Listener is listening and for how long, then Start/Stop Listening, Quick Answer and Deep
+Answer with their hotkeys, Show Window, Open Last Summary (after a call), Open Sessions
+Folder, Open Settings File and Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
 Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without waiting).
 
 ## Hotkeys

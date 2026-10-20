@@ -1,106 +1,292 @@
 import ListenerCore
 import SwiftUI
 
-/// The suggested answer: tier badge, model, first-token latency, copy and dismiss,
-/// then the text as it streams in. Long answers scroll inside the card.
+/// The suggested answer: tier, model and time to the first word as quiet metadata, then
+/// the words in a large size, with notes meant only for the user set apart. Long
+/// answers scroll inside the card.
 struct AnswerCardView: View {
-    let card: AnswerCard
+    let model: CallModel
     let maxTextHeight: CGFloat
-    let copy: @MainActor () -> Void
-    let dismiss: @MainActor () -> Void
-
-    @State private var copied = false
-    @State private var textHeight: CGFloat = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            content
-        }
-        .padding(12)
-        .background(
-            .background.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
-                .strokeBorder(card.tier.tint.opacity(0.5), lineWidth: 1)
+        if let card = model.answer {
+            VStack(alignment: .leading, spacing: 8) {
+                AnswerHeader(card: card, model: model)
+                AnswerContent(card: card, blocks: model.answerBlocks, maxTextHeight: maxTextHeight) {
+                    model.ask(card.tier)
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 8)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
+            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .strokeBorder(border(card).opacity(0.4), lineWidth: 1)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Suggested answer")
         }
     }
 
-    private var header: some View {
+    private func border(_ card: AnswerCard) -> Color {
+        if case .failed = card.status {
+            return .red
+        }
+        return card.tier.tint
+    }
+}
+
+private struct AnswerHeader: View {
+    let card: AnswerCard
+    let model: CallModel
+    @State private var copied = false
+
+    var body: some View {
         HStack(spacing: 8) {
             TierBadge(tier: card.tier)
-            Text(card.model)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            HStack(spacing: 6) {
+                Text(DisplayFormat.modelName(card.model))
+                    .help(card.model)
+                if let detail {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text(detail)
+                        .monospacedDigit()
+                }
+            }
+            .font(Theme.metaFont)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 4)
-            if let latency = card.firstTokenMs {
-                Label(DisplayFormat.latency(milliseconds: latency), systemImage: "bolt.horizontal")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .help("Time from the hotkey to the first word")
-            }
-            Button {
-                copy()
-                copied = true
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .frame(width: 18, height: 18)
-            }
-            .buttonStyle(.borderless)
-            .disabled(card.text.isEmpty)
-            .help("Copy the answer")
-            Button(action: dismiss) {
+            trailing
+            Button(action: model.dismissAnswer) {
                 Image(systemName: "xmark")
-                    .frame(width: 18, height: 18)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(IconButtonStyle(size: 24))
             .help(card.isActive ? "Stop and dismiss" : "Dismiss")
+            .accessibilityLabel(card.isActive ? "Stop and dismiss the answer" : "Dismiss the answer")
+        }
+        .frame(height: 24)
+    }
+
+    private var detail: String? {
+        switch card.status {
+        case .waiting:
+            card.tier == .deep ? "Thinking…" : "Writing…"
+        case .streaming, .finished:
+            card.firstTokenMs.map { DisplayFormat.latency(milliseconds: $0) }
+        case .failed:
+            nil
         }
     }
 
     @ViewBuilder
-    private var content: some View {
+    private var trailing: some View {
         switch card.status {
         case .waiting:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Thinking…")
-                    .foregroundStyle(.secondary)
+            EmptyView()
+        case .failed:
+            Button {
+                model.ask(card.tier)
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
             }
+            .buttonStyle(SoftButtonStyle(small: true))
+            .accessibilityLabel("Try the \(card.tier.title.lowercased()) answer again")
         case .streaming, .finished:
-            answerText
-        case .failed(let message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !card.text.isEmpty {
-                    answerText
+            if copied {
+                Label("Copied", systemImage: "checkmark")
+                    .labelStyle(CompactLabelStyle(spacing: 4))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.green)
+                    .padding(.trailing, 4)
+                    .transition(.opacity)
+                    .accessibilityLabel("Copied")
+            } else {
+                Button(action: copy) {
+                    Image(systemName: "doc.on.doc")
                 }
+                .buttonStyle(IconButtonStyle(size: 24))
+                .help("Copy the answer, without the notes for you")
+                .accessibilityLabel("Copy the answer")
             }
         }
     }
 
-    /// Sized to the text up to `maxTextHeight`, then scrolls.
-    private var answerText: some View {
+    private func copy() {
+        model.copyAnswer()
+        withAnimation(.easeOut(duration: 0.15)) {
+            copied = true
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            withAnimation(.easeOut(duration: 0.25)) {
+                copied = false
+            }
+        }
+    }
+}
+
+private struct AnswerContent: View {
+    let card: AnswerCard
+    let blocks: [AnswerBlock]
+    let maxTextHeight: CGFloat
+    let retry: @MainActor () -> Void
+
+    var body: some View {
+        switch card.status {
+        case .waiting:
+            ShimmerBars()
+                .frame(height: ShimmerView.height)
+                .padding(.top, 6)
+                .padding(.trailing, 8)
+                .padding(.bottom, 4)
+                .accessibilityLabel(card.tier == .deep ? "Thinking" : "Writing the answer")
+        case .streaming, .finished:
+            AnswerText(blocks: blocks, maxHeight: maxTextHeight)
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityHidden(true)
+                    Text(message)
+                        .font(.system(size: 13))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.trailing, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("The answer failed: \(message)")
+                if !blocks.isEmpty {
+                    AnswerText(blocks: blocks, maxHeight: maxTextHeight)
+                }
+            }
+        }
+    }
+}
+
+/// Sized to the words up to `maxHeight`, then scrolls. Each block is its own equatable
+/// view and blocks only ever append, so a new word redraws the last block alone.
+private struct AnswerText: View {
+    let blocks: [AnswerBlock]
+    let maxHeight: CGFloat
+    @State private var height: CGFloat = 0
+
+    var body: some View {
         ScrollView {
-            Text(card.text)
-                .font(Theme.answerFont)
-                .lineSpacing(3)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(blocks) { block in
+                    AnswerBlockView(block: block, spacingAbove: spacing(above: block))
+                        .equatable()
+                }
+            }
+            .padding(.trailing, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                height = newHeight
+            }
+        }
+        .frame(height: min(max(height, 24), maxHeight))
+        .scrollIndicators(height > maxHeight ? .automatic : .never)
+    }
+
+    private func spacing(above block: AnswerBlock) -> CGFloat {
+        guard block.id > 0, block.id <= blocks.count else {
+            return 0
+        }
+        if case .bullet = block.kind, case .bullet = blocks[block.id - 1].kind {
+            return 4
+        }
+        return 8
+    }
+}
+
+private struct AnswerBlockView: View, Equatable {
+    let block: AnswerBlock
+    let spacingAbove: CGFloat
+
+    var body: some View {
+        content
+            .padding(.top, spacingAbove)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch block.kind {
+        case .paragraph:
+            words
+        case .bullet(let marker):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(marker)
+                    .font(Theme.answerFont)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 12)
+                    .accessibilityHidden(true)
+                words
+            }
+        case .note:
+            NoteAside(text: block.text)
+        }
+    }
+
+    private var words: some View {
+        Text(Self.styled(block.spans))
+            .font(Theme.answerFont)
+            .tracking(-0.2)
+            .lineSpacing(Theme.answerLineSpacing)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static func styled(_ spans: [AnswerSpan]) -> AttributedString {
+        var text = AttributedString()
+        for span in spans {
+            var run = AttributedString(span.text)
+            switch span.style {
+            case .plain:
+                break
+            case .bold:
+                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .system(
+                    size: Theme.answerSize, weight: .semibold)
+            case .note:
+                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .system(size: 15)
+                run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Theme.noteLabel
+            }
+            text += run
+        }
+        return text
+    }
+}
+
+/// A line in [square brackets]: for the user's eyes only, so it reads as an aside and
+/// never as part of what to say.
+private struct NoteAside: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("For you")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.4)
+                .textCase(.uppercase)
+                .foregroundStyle(Theme.noteLabel)
+            Text(text)
+                .font(.system(size: 13))
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    textHeight = height
-                }
         }
-        .frame(height: min(max(textHeight, 20), maxTextHeight))
-        .scrollIndicators(textHeight > maxTextHeight ? .automatic : .hidden)
+        .padding(.horizontal, 10)
+        .padding(.top, 7)
+        .padding(.bottom, 8)
+        .background(Theme.noteFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Note for you, not to say: \(text)")
     }
 }

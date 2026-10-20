@@ -3,13 +3,33 @@ import ListenerCore
 import Observation
 import os
 
-/// The window's model: owns the running CallSession and reduces its events into
-/// `state`. All the reduction logic lives in CallViewState (ListenerCore), this class
-/// only connects it to the session, the settings and AppKit.
+/// The window's model: owns the running CallSession and reduces its events into a
+/// CallViewState (ListenerCore), which holds all the logic. This class connects it to
+/// the session, the settings and AppKit, and publishes it to the views in slices.
+///
+/// Each slice is assigned only when it changes, and session events are drawn at most
+/// once per display frame, so a word of interim text redraws the live line and not the
+/// hour of transcript above it, and a streaming answer redraws the answer alone.
 @MainActor
 @Observable
 public final class CallModel {
-    public private(set) var state = CallViewState()
+    public private(set) var phase = CallViewState.Phase.idle
+    public private(set) var listeningSince: Date?
+    public private(set) var settledRows: [TranscriptRow] = []
+    public private(set) var liveRows: [TranscriptRow] = []
+    /// Changes whenever either list of rows does, for following the newest line.
+    public private(set) var transcriptRevision = 0
+    public private(set) var answer: AnswerCard?
+    /// The answer on screen, for layout that must not redraw with every word.
+    public private(set) var answerID: Int?
+    public private(set) var answerBlocks: [AnswerBlock] = []
+    public private(set) var callNotices: [Notice] = []
+    public private(set) var cost = CostSummary()
+    public private(set) var lastLatencyMs: Double?
+    public private(set) var outcome: CallOutcome?
+    /// Which channels hear speech right now; nil while the session does not report it.
+    public private(set) var hearing: Set<Speaker>?
+
     public private(set) var readiness: [ReadinessItem] = []
     /// Banners about the app rather than the call, e.g. a hotkey that is taken.
     public private(set) var appNotices = NoticeList()
@@ -18,6 +38,10 @@ public final class CallModel {
     public private(set) var settings: Settings
     /// The on-device model's state when speech.provider is "apple".
     public private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
+
+    /// Everything about the current call. Not observed: views read the slices above, and
+    /// the menu reads this when it opens.
+    @ObservationIgnored public private(set) var state = CallViewState()
 
     /// Called whenever listening starts or stops, for the menu bar icon.
     @ObservationIgnored public var onListeningChange: ((Bool) -> Void)?
@@ -32,6 +56,8 @@ public final class CallModel {
     /// Held for the length of a call. With the window hidden Listener has nothing on
     /// screen, and App Nap would otherwise slow its timers and network work mid-call.
     @ObservationIgnored private var callActivity: (any NSObjectProtocol)?
+    @ObservationIgnored private var throttle = UpdateThrottle.displayRate
+    @ObservationIgnored private var markup = AnswerMarkup()
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -45,6 +71,8 @@ public final class CallModel {
     }
 
     public var hasSession: Bool { session != nil }
+    public var isListening: Bool { phase == .listening }
+    public var hasTranscript: Bool { !settledRows.isEmpty || !liveRows.isEmpty }
 
     /// Checks permissions, credentials and keys again.
     public func refreshReadiness() {
@@ -88,6 +116,7 @@ public final class CallModel {
             return
         }
         state.beginStarting()
+        publish()
         let loaded: LoadedSettings
         do {
             loaded = try environment.loadSettings()
@@ -102,6 +131,7 @@ public final class CallModel {
             let blockers = readiness.filter { $0.status == .blocking }.map(\.detail).joined(separator: " ")
             Log.session.notice("Start blocked by the setup checklist: \(blockers, privacy: .public)")
             state.startFailed("Listener can't start yet. Fix the items marked in red below.")
+            publish()
             return
         }
 
@@ -128,6 +158,7 @@ public final class CallModel {
             Log.answers.notice("No Anthropic API key: answers and the summary are off")
             state.addNotice(.info, "Answers and the summary are off: no Anthropic API key.")
         }
+        publish()
         observe(session)
         callActivity = ProcessInfo.processInfo.beginActivity(
             options: .userInitiated, reason: "Listening to a call")
@@ -154,7 +185,7 @@ public final class CallModel {
             return
         }
         state.beginStopping()
-        onListeningChange?(false)
+        publish()
         Task {
             await session.stop()
         }
@@ -163,6 +194,7 @@ public final class CallModel {
     public func ask(_ tier: AnswerTier) {
         guard state.canAsk, let session else {
             state.addNotice(.info, "Answers need a live call. Press Start first.")
+            publish()
             return
         }
         Task {
@@ -176,10 +208,13 @@ public final class CallModel {
                 await session.cancelAnswer()
             }
         }
+        publish()
     }
 
+    /// Copies what to say, leaving out the notes in brackets that are only for the user.
     public func copyAnswer() {
-        guard let text = state.answer?.text, !text.isEmpty else {
+        let text = markup.textToSay
+        guard !text.isEmpty else {
             return
         }
         NSPasteboard.general.clearContents()
@@ -188,7 +223,16 @@ public final class CallModel {
 
     public func dismissNotice(_ notice: Notice) {
         state.dismissNotice(id: notice.id)
+        publish()
     }
+
+    public func dismissOutcome() {
+        state.dismissOutcome()
+        publish()
+    }
+
+    /// The last call's summary, until the next call starts.
+    public var lastSummaryFile: String? { state.summaryFile }
 
     public func dismissAppNotice(_ notice: Notice) {
         appNotices.dismiss(id: notice.id)
@@ -340,6 +384,7 @@ public final class CallModel {
     private func startFailed(_ message: String) {
         Log.session.error("Could not start the call: \(message, privacy: .public)")
         state.startFailed(message)
+        publish()
     }
 
     /// Forwards what capture and speech report on their own to the window.
@@ -348,6 +393,7 @@ public final class CallModel {
             captureEvent: { [weak self] event in
                 Task { @MainActor in
                     self?.state.apply(event)
+                    self?.publish()
                 }
             },
             onDeviceSpeech: { [weak self] status in
@@ -369,10 +415,53 @@ public final class CallModel {
 
     private func receive(_ event: SessionEvent) {
         eventLog.record(event)
-        let wasListening = state.isListening
         state.apply(event, now: Date())
-        if state.isListening != wasListening {
-            onListeningChange?(state.isListening)
+        switch throttle.request(at: ProcessInfo.processInfo.systemUptime) {
+        case .now:
+            publish()
+        case .after(let delay):
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                self?.publish()
+            }
+        case .alreadyScheduled:
+            break
+        }
+    }
+
+    /// Copies whatever changed in `state` into the observed slices.
+    private func publish() {
+        throttle.didUpdate(at: ProcessInfo.processInfo.systemUptime)
+        let wasListening = isListening
+        update(\.phase, state.phase)
+        update(\.listeningSince, state.listeningSince)
+        if state.settledRows != settledRows || state.liveRows != liveRows {
+            update(\.settledRows, state.settledRows)
+            update(\.liveRows, state.liveRows)
+            transcriptRevision += 1
+        }
+        if state.answer != answer {
+            if state.answer?.id != answer?.id {
+                markup = AnswerMarkup()
+            }
+            markup.update(state.answer?.text ?? "")
+            answer = state.answer
+            update(\.answerID, state.answer?.id)
+            update(\.answerBlocks, markup.blocks)
+        }
+        update(\.callNotices, state.notices)
+        update(\.cost, state.cost)
+        update(\.lastLatencyMs, state.lastLatencyMs)
+        update(\.outcome, state.outcome)
+        update(\.hearing, state.hearing)
+        if isListening != wasListening {
+            onListeningChange?(isListening)
+        }
+    }
+
+    private func update<Value: Equatable>(_ slice: ReferenceWritableKeyPath<CallModel, Value>, _ value: Value) {
+        if self[keyPath: slice] != value {
+            self[keyPath: slice] = value
         }
     }
 
@@ -384,6 +473,6 @@ public final class CallModel {
         eventsTask = nil
         endCallActivity()
         state.eventsEnded()
-        onListeningChange?(false)
+        publish()
     }
 }

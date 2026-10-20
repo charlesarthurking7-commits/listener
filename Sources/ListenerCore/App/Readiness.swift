@@ -87,6 +87,16 @@ public struct ReadinessItem: Sendable, Equatable, Identifiable {
     public let detail: String
     public let status: Status
     public let fix: ReadinessFix?
+    /// A few words for the compact list once everything is set up, e.g. "Allowed".
+    public let summary: String
+}
+
+/// How far the setup checklist is: items that need nothing more from the user, out of all.
+public struct ReadinessProgress: Sendable, Equatable {
+    public let done: Int
+    public let total: Int
+
+    public var isComplete: Bool { done == total }
 }
 
 public enum Readiness {
@@ -98,22 +108,34 @@ public enum Readiness {
         items.contains { $0.status == .blocking }
     }
 
+    /// "Will ask" counts as done: macOS asks on the first Start and there is nothing to do
+    /// before then.
+    public static func progress(_ items: [ReadinessItem]) -> ReadinessProgress {
+        ReadinessProgress(done: items.filter { $0.status == .ready || $0.status == .willAsk }.count, total: items.count)
+    }
+
+    /// The full checklist shows until nothing blocks a call and nothing is limited;
+    /// after that a compact summary is enough.
+    public static func needsAttention(_ items: [ReadinessItem]) -> Bool {
+        items.contains { $0.status == .blocking || $0.status == .limited }
+    }
+
     private static func microphone(_ permission: ReadinessInput.Permission) -> ReadinessItem {
         switch permission {
         case .granted:
             ReadinessItem(
                 id: "microphone", title: "Microphone", detail: "Allowed. Your voice is the \"Me\" channel.",
-                status: .ready, fix: nil)
+                status: .ready, fix: nil, summary: "Allowed")
         case .notDetermined:
             ReadinessItem(
                 id: "microphone", title: "Microphone",
                 detail: "macOS will ask for access when you press Start. Choose Allow.",
-                status: .willAsk, fix: nil)
+                status: .willAsk, fix: nil, summary: "macOS asks on Start")
         case .denied:
             ReadinessItem(
                 id: "microphone", title: "Microphone",
                 detail: "Access is off. Turn on Listener in Privacy & Security > Microphone, then press Start again.",
-                status: .blocking, fix: .openPrivacySettings(.microphone))
+                status: .blocking, fix: .openPrivacySettings(.microphone), summary: "Turned off")
         }
     }
 
@@ -125,18 +147,20 @@ public enum Readiness {
                 detail:
                     "macOS asks for System Audio Recording the first time. If \"Them\" stays silent, turn on Listener "
                     + "under Screen & System Audio Recording.",
-                status: .willAsk, fix: .openPrivacySettings(.screenAndSystemAudioRecording))
+                status: .willAsk, fix: .openPrivacySettings(.screenAndSystemAudioRecording),
+                summary: "macOS asks on Start")
         case .granted:
             ReadinessItem(
                 id: "systemAudio", title: "System audio", detail: "Screen Recording is allowed.",
-                status: .ready, fix: nil)
+                status: .ready, fix: nil, summary: "Allowed")
         case .notDetermined, .denied:
             ReadinessItem(
                 id: "systemAudio", title: "System audio",
                 detail:
                     "The ScreenCaptureKit backend needs Screen Recording. macOS asks when you press Start; if you "
                     + "denied it before, turn on Listener under Screen & System Audio Recording.",
-                status: .willAsk, fix: .openPrivacySettings(.screenAndSystemAudioRecording))
+                status: .willAsk, fix: .openPrivacySettings(.screenAndSystemAudioRecording),
+                summary: "macOS asks on Start")
         }
     }
 
@@ -147,7 +171,7 @@ public enum Readiness {
         case "fake":
             item(
                 .blocking, "speech.provider is \"fake\", which only works with listener replay --script.",
-                fix: .editSettings)
+                fix: .editSettings, summary: "Needs setting up")
         default:
             googleSpeech(input)
         }
@@ -157,47 +181,54 @@ public enum Readiness {
         if let problem = input.googleCredentialsProblem {
             return item(
                 .blocking, "Google credentials: \(problem)",
-                fix: .runInTerminal("gcloud auth application-default login"))
+                fix: .runInTerminal("gcloud auth application-default login"), summary: "Needs signing in")
         }
         guard let project = input.googleProjectID, !project.trimmingCharacters(in: .whitespaces).isEmpty else {
             return item(
                 .blocking, "Set speech.googleProjectID in settings.json to your Google Cloud project.",
-                fix: .editSettings)
+                fix: .editSettings, summary: "Needs a project")
         }
-        return item(.ready, "Google Cloud, project \(project).")
+        return item(.ready, "Google Cloud, project \(project).", summary: "Google Cloud")
     }
 
     private static func onDeviceSpeech(_ status: OnDeviceSpeechStatus?) -> ReadinessItem {
         switch status {
         case nil, .checking:
-            item(.preparing, "Checking Apple's on-device speech model.")
+            item(.preparing, "Checking Apple's on-device speech model.", summary: "Checking")
         case .downloading(let fraction):
             item(
                 .preparing,
-                "macOS is downloading the on-device speech model (\(Int((fraction * 100).rounded()))%). "
-                    + "Wait for it to finish before starting a call.")
+                "macOS is downloading the on-device speech model (\(percent(fraction))). "
+                    + "Wait for it to finish before starting a call.",
+                summary: "Downloading \(percent(fraction))")
         case .ready(let locale):
-            item(.ready, "On this Mac (\(locale)). Call audio is not sent anywhere for transcription.")
+            item(
+                .ready, "On this Mac (\(locale)). Call audio is not sent anywhere for transcription.",
+                summary: "On this Mac")
         case .failed(let message):
-            item(.blocking, message, fix: .editSettings)
+            item(.blocking, message, fix: .editSettings, summary: "Unavailable")
         }
     }
 
-    private static func item(_ status: ReadinessItem.Status, _ detail: String, fix: ReadinessFix? = nil)
-        -> ReadinessItem
-    {
-        ReadinessItem(id: "speech", title: "Speech to text", detail: detail, status: status, fix: fix)
+    private static func percent(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
+    }
+
+    private static func item(
+        _ status: ReadinessItem.Status, _ detail: String, fix: ReadinessFix? = nil, summary: String
+    ) -> ReadinessItem {
+        ReadinessItem(id: "speech", title: "Speech to text", detail: detail, status: status, fix: fix, summary: summary)
     }
 
     private static func answers(_ input: ReadinessInput) -> ReadinessItem {
         if input.hasAnthropicKey {
             return ReadinessItem(
                 id: "answers", title: "Answers and summary", detail: "Anthropic API key found.",
-                status: .ready, fix: nil)
+                status: .ready, fix: nil, summary: "Key found")
         }
         return ReadinessItem(
             id: "answers", title: "Answers and summary",
             detail: "No Anthropic API key, so the transcript works but answers and the summary are off.",
-            status: .limited, fix: .runInTerminal("listener secrets set anthropic"))
+            status: .limited, fix: .runInTerminal("listener secrets set anthropic"), summary: "No API key")
     }
 }

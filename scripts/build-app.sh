@@ -21,9 +21,10 @@ swift build --configuration "$configuration" --product listener
 binary="$(swift build --configuration "$configuration" --show-bin-path)/listener"
 
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary" "$app/Contents/MacOS/listener"
 cp App/Info.plist "$app/Contents/Info.plist"
+cp App/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 codesign --force --sign "$identity" "$app"
 
 echo "Built $app (signed with ${identity/#-/ad-hoc identity})"
