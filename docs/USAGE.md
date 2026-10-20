@@ -103,7 +103,8 @@ From top to bottom:
 
 The icon turns red while Listener is listening. Its menu has Start/Stop Listening,
 Quick Answer, Deep Answer, Show Window, Open Sessions Folder, Open Settings File and
-Quit Listener. Quitting during a call stops and saves it first.
+Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
+Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without waiting).
 
 ## Hotkeys
 

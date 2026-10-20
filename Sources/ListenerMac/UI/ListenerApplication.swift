@@ -26,6 +26,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: FloatingPanel?
     private var statusItem: StatusItemController?
     private var hotkeys: HotkeyCenter?
+    private var quitSignals: [any DispatchSourceSignal] = []
     private var terminationPending = false
 
     init(environment: AppEnvironment) {
@@ -59,11 +60,19 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
         self.hotkeys = hotkeys
 
+        quitOnSignals()
         showWindow()
+        Log.ui.info("Listener started")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// Opening the app again (Finder, `open`, the Dock icon) brings back a hidden window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWindow()
+        return false
     }
 
     /// A running call is stopped and saved before quitting. Saving normally takes a
@@ -74,6 +83,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !terminationPending {
             terminationPending = true
+            Log.session.notice("Quitting during a call: saving it first")
             Task {
                 await model.finishForQuit()
                 replyToTermination()
@@ -84,6 +94,33 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         return .terminateLater
+    }
+
+    /// `kill`, or Ctrl-C in the terminal that started the app, quits like the menu
+    /// does, so a running call is saved first. A second signal quits at once.
+    private func quitOnSignals() {
+        for number in [SIGTERM, SIGINT] {
+            // A handler that does nothing rather than SIG_IGN: ignoring would be
+            // inherited by child processes such as gcloud, and they could no longer be
+            // stopped with SIGTERM.
+            signal(number) { _ in }
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.quitFromSignal()
+                }
+            }
+            source.resume()
+            quitSignals.append(source)
+        }
+    }
+
+    private func quitFromSignal() {
+        if terminationPending {
+            exit(1)
+        }
+        Log.ui.notice("Quitting on a signal")
+        NSApplication.shared.terminate(nil)
     }
 
     private func replyToTermination() {
