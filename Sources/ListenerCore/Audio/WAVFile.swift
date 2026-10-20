@@ -56,10 +56,11 @@ public final class WAVWriter {
     }
 
     public func append(_ samples: [Int16]) throws {
-        var bytes = Data(capacity: samples.count * 2)
-        for sample in samples {
-            bytes.appendLittleEndian(UInt16(bitPattern: sample))
-        }
+        #if _endian(big)
+            let bytes = samples.map(\.littleEndian).withUnsafeBytes { Data($0) }
+        #else
+            let bytes = samples.withUnsafeBytes { Data($0) }
+        #endif
         try handle.write(contentsOf: bytes)
         dataByteCount += bytes.count
     }
