@@ -34,9 +34,11 @@ struct SpeechTimelineTests {
         timeline.speechEnded(.me, at: 2)
         #expect(timeline.endOfSpeech()?.end == 2)
         timeline.speechStarted(.them, at: 3)
-        // Them is still talking: the last finished speech is still Me's.
-        #expect(timeline.endOfSpeech()?.speaker == .me)
-        timeline.speechEnded(.them, at: 4)
+        // Them may still be talking, or have just stopped and not been confirmed yet.
+        #expect(timeline.endOfSpeech()?.speaker == .them)
+        #expect(timeline.endOfSpeech()?.end == nil)
+        #expect(timeline.speechEnded(.them, at: 4)?.end == 4)
+        #expect(timeline.speechEnded(.them, at: 4.5) == nil)
         timeline.speechStarted(.me, at: 5)
         timeline.speechEnded(.me, at: 6)
         #expect(timeline.endOfSpeech()?.speaker == .them)

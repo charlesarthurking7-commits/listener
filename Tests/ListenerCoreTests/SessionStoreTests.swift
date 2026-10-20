@@ -89,6 +89,21 @@ struct SessionStoreTests {
         #expect(lines.hasSuffix("\n"))
     }
 
+    @Test func anAnswerSavedAgainReadsBackAsItsLastVersion() throws {
+        let root = try temporaryDirectory("store")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try SessionStore(root: root)
+        var first = AnswerRecord(id: 1, tier: .quick, model: "claude-haiku-5-5", askedAt: 2, text: "Yes.")
+        let second = AnswerRecord(id: 2, tier: .quick, model: "claude-haiku-5-5", askedAt: 5, text: "No.")
+        try store.append(first)
+        try store.append(second)
+        // The first answer's speech only got its final after the second answer ended.
+        first.latency.finalToHotkey = -250
+        try store.append(first)
+        try store.close()
+        #expect(try SessionStore.readAnswers(in: store.directory) == [first, second])
+    }
+
     @Test func noAudioFilesUnlessAsked() throws {
         let root = try temporaryDirectory("store")
         defer { try? FileManager.default.removeItem(at: root) }

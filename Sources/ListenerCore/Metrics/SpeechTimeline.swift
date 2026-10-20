@@ -1,6 +1,7 @@
 /// Recent speech on each channel in session time, and when speech-to-text finalised it.
-/// Answer latency is measured from here: the end of speech is the last speech the local
-/// voice activity detector heard on Them, or on Me when Them has said nothing yet.
+/// Answer latency is measured from here: the end of speech is the end of the latest
+/// speech the local voice activity detector heard on Them, or on Me when Them has said
+/// nothing yet.
 struct SpeechTimeline {
     struct Segment: Sendable, Equatable {
         let id: Int
@@ -27,10 +28,18 @@ struct SpeechTimeline {
         }
     }
 
-    mutating func speechEnded(_ speaker: Speaker, at time: Double) {
-        if let index = segments.lastIndex(where: { $0.speaker == speaker && $0.end == nil }) {
-            segments[index].end = max(time, segments[index].start)
+    /// Returns the speech that ended, if any was going on.
+    @discardableResult
+    mutating func speechEnded(_ speaker: Speaker, at time: Double) -> Segment? {
+        guard let index = segments.lastIndex(where: { $0.speaker == speaker && $0.end == nil }) else {
+            return nil
         }
+        segments[index].end = max(time, segments[index].start)
+        return segments[index]
+    }
+
+    func segment(_ id: Int) -> Segment? {
+        segments.last { $0.id == id }
     }
 
     /// A final for audio up to `audioEnd` (nil: unknown) arrived at `arrivedAt`. Marks
@@ -51,12 +60,10 @@ struct SpeechTimeline {
         return covered
     }
 
-    /// The speech an answer asked for now is measured from.
+    /// The speech an answer asked for now is measured from. It may not have ended yet:
+    /// the detector confirms an end only after a stretch of quiet, and a quick hotkey
+    /// comes before that.
     func endOfSpeech() -> Segment? {
-        lastFinished(.them) ?? lastFinished(.me)
-    }
-
-    private func lastFinished(_ speaker: Speaker) -> Segment? {
-        segments.last { $0.speaker == speaker && $0.end != nil }
+        segments.last { $0.speaker == .them } ?? segments.last { $0.speaker == .me }
     }
 }

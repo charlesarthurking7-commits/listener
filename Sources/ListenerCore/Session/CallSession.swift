@@ -96,8 +96,15 @@ public actor CallSession {
     private var draft: Generation?
     private var nextAnswerID = 1
     private var nextGenerationKey = 1
-    /// Answers already ended whose speech had no final yet, by speech segment id.
-    private var answersAwaitingFinal: [Int: [Int]] = [:]
+    /// Answers already ended whose speech had not ended or had no final yet, by speech
+    /// segment id.
+    private var answersAwaitingSpeech: [Int: [PendingAnswer]] = [:]
+
+    private struct PendingAnswer {
+        /// Index into `answers`.
+        var index: Int
+        var shownAt: Double?
+    }
 
     /// Starts capture and recognition on every source. Throws if a source cannot
     /// start (permission denied, no device); nothing keeps running in that case.
@@ -218,7 +225,9 @@ public actor CallSession {
             case .speechStarted(let start):
                 timeline.speechStarted(speaker, at: detector.sessionTime(speaker, channelTime: start))
             case .speechEnded(let end):
-                timeline.speechEnded(speaker, at: detector.sessionTime(speaker, channelTime: end))
+                if let speech = timeline.speechEnded(speaker, at: detector.sessionTime(speaker, channelTime: end)) {
+                    speechChanged(speech)
+                }
             }
         }
         if report.speechSeconds > 0 {
@@ -244,7 +253,9 @@ public actor CallSession {
             if event.kind == .final && !event.text.allSatisfy(\.isWhitespace) {
                 let arrived = sessionTime(.now)
                 let end = event.audioEnd.map { detector.sessionTime(speaker, channelTime: $0) }
-                noteFinal(covering: timeline.finalArrived(speaker, audioEnd: end, at: arrived), at: arrived)
+                for id in timeline.finalArrived(speaker, audioEnd: end, at: arrived) {
+                    timeline.segment(id).map(speechChanged)
+                }
             }
             apply(detector.speechEvent(event, speaker: speaker))
         }
@@ -456,8 +467,9 @@ public actor CallSession {
             text: kept ? generation.text : "", latency: latency(of: generation), usage: generation.usage,
             cost: generation.cost, error: generation.error, fromDraft: generation.isDraft)
         answers.append(record)
-        if let speech = generation.speech, speech.finalAt == nil {
-            answersAwaitingFinal[speech.id, default: []].append(answers.count - 1)
+        if let speech = generation.speech, speech.end == nil || speech.finalAt == nil {
+            answersAwaitingSpeech[speech.id, default: []].append(
+                PendingAnswer(index: answers.count - 1, shownAt: shownAt(generation)))
         }
         save { try $0.append(record) }
         if let error = generation.error {
@@ -479,29 +491,55 @@ public actor CallSession {
         guard let hotkey = generation.hotkeyAt else {
             return latency
         }
-        // A draft may have produced text before the hotkey; the user saw it at the hotkey.
-        let shownAt = generation.firstTokenAt.map { max($0, hotkey) }
+        let shownAt = shownAt(generation)
         latency.hotkeyToRequestSent = milliseconds(generation.requestSentAt - hotkey)
         latency.hotkeyToFirstToken = shownAt.map { milliseconds($0 - hotkey) }
         latency.hotkeyToDone = generation.doneAt.map { milliseconds(max($0, hotkey) - hotkey) }
-        if let speech = generation.speech, let end = speech.end {
-            latency.endOfSpeechToHotkey = milliseconds(hotkey - end)
-            latency.endOfSpeechToFirstToken = shownAt.map { milliseconds($0 - end) }
-            latency.finalToHotkey = speech.finalAt.map { milliseconds(hotkey - $0) }
+        if let speech = generation.speech {
+            measure(&latency, from: speech, hotkey: hotkey, shownAt: shownAt)
         }
         return latency
     }
 
-    /// A final arrived for speech that answers are measured from: fills in their
-    /// final-to-hotkey time, negative because the hotkey came first.
-    private func noteFinal(covering segments: [Int], at arrived: Double) {
-        for segment in segments {
-            if let speech = visible?.speech, speech.id == segment {
-                visible?.speech?.finalAt = arrived
+    /// When the user saw the first token. A draft may have produced text before the
+    /// hotkey; it was shown at the hotkey.
+    private func shownAt(_ generation: Generation) -> Double? {
+        guard let hotkey = generation.hotkeyAt else {
+            return nil
+        }
+        return generation.firstTokenAt.map { max($0, hotkey) }
+    }
+
+    private func measure(
+        _ latency: inout AnswerLatency, from speech: SpeechTimeline.Segment, hotkey: Double, shownAt: Double?
+    ) {
+        guard let end = speech.end else {
+            return
+        }
+        latency.endOfSpeechToHotkey = milliseconds(hotkey - end)
+        latency.endOfSpeechToFirstToken = shownAt.map { milliseconds($0 - end) }
+        latency.finalToHotkey = speech.finalAt.map { milliseconds(hotkey - $0) }
+    }
+
+    /// The speech answers are measured from ended, or its final arrived, which can be
+    /// after the hotkey: the answers measured from it catch up.
+    private func speechChanged(_ speech: SpeechTimeline.Segment) {
+        if visible?.speech?.id == speech.id {
+            visible?.speech = speech
+        }
+        guard let pending = answersAwaitingSpeech[speech.id] else {
+            return
+        }
+        for answer in pending {
+            var record = answers[answer.index]
+            measure(&record.latency, from: speech, hotkey: record.askedAt, shownAt: answer.shownAt)
+            if record != answers[answer.index] {
+                answers[answer.index] = record
+                save { try $0.append(record) }
             }
-            for index in answersAwaitingFinal.removeValue(forKey: segment) ?? [] {
-                answers[index].latency.finalToHotkey = milliseconds(answers[index].askedAt - arrived)
-            }
+        }
+        if speech.finalAt != nil {
+            answersAwaitingSpeech[speech.id] = nil
         }
     }
 
