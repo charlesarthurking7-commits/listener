@@ -12,7 +12,9 @@ import Foundation
 /// A turn grows while its speaker's finals follow each other with gaps shorter than
 /// `silenceMs` and nobody else speaks in between. It closes, and never changes again,
 /// once its final is in and the speaker's voice activity has seen `silenceMs` of
-/// silence after it, or when the speaker starts a new turn.
+/// silence after it (which it can only be sure of `minSpeechMs` later), or when the
+/// speaker starts a new turn. Speech the speaker went on with that has no final yet may
+/// still belong to the turn, so the turn waits up to `finalGrace` longer for that final.
 ///
 /// Where a final's speech began comes from the voice activity detector when it can:
 /// recognisers often report no start, or the end of the previous final (Chirp 3 has no
@@ -39,8 +41,15 @@ public struct TurnDetector: Sendable {
     /// the voice activity detector still hears sound, so a noisy channel cannot hold a
     /// turn open (and off disk) for the whole call.
     static let staleAfter = 15.0
+    /// How much longer than `silenceMs` a turn waits for the final of speech that
+    /// followed it. Recognisers can take well over a second; speech that has had no
+    /// final by then (a cough, a noise) was not words.
+    static let finalGrace = 2.0
 
     private let silence: Double
+    /// How long the voice activity detector takes to report speech after it starts:
+    /// silence is only certain once a start that came within it would have shown.
+    private let confirmation: Double
     private var channels: [Speaker: Channel] = [:]
     private var nextID = 1
 
@@ -62,6 +71,21 @@ public struct TurnDetector: Sendable {
 
         var speaking: Bool { speech.last.map { $0.end == nil } ?? false }
         var lastSpeechEnd: Double? { speech.last { $0.end != nil }?.end }
+        /// Speech went on after the last final ended, after a pause or straight on, and no
+        /// final has covered it yet.
+        var awaitingFinal: Bool {
+            guard let last = speech.last else {
+                return false
+            }
+            return last.start >= lastFinalEnd - Self.slack || (last.end ?? .infinity) > lastFinalEnd + Self.endSlack
+        }
+
+        /// Speech starting a hair before the previous final's end is still new speech:
+        /// the recogniser and the detector rarely agree to the frame.
+        static let slack = 0.05
+        /// Where the detector hears speech end can lie a few tenths of a second past the
+        /// end of the final that covers it: breath, room sound.
+        static let endSlack = 0.3
 
         mutating func record(_ frame: Range<Double>, capturedAt: Double) {
             if position == 0 {
@@ -90,9 +114,7 @@ public struct TurnDetector: Sendable {
         /// after the previous final, else the recogniser's start, else the speech that
         /// was going on, but never before the previous final.
         func speechStart(before end: Double, reported: Double?) -> Double {
-            // Speech starting a hair before the previous final's end is still new speech:
-            // the recogniser and the detector rarely agree to the frame.
-            if let fresh = speech.first(where: { $0.start >= lastFinalEnd - 0.05 && $0.start < end }) {
+            if let fresh = speech.first(where: { $0.start >= lastFinalEnd - Self.slack && $0.start < end }) {
                 return fresh.start
             }
             if let reported {
@@ -104,11 +126,14 @@ public struct TurnDetector: Sendable {
             return end
         }
 
-        /// Whether this channel's speech overlaps `start...end` of session time.
+        /// Whether this channel's speech overlaps `start...end` of session time. Speech
+        /// still going on counts up to the audio the channel has delivered: a channel
+        /// that lags behind the other has said nothing yet about what came after.
         func spoke(between start: Double, and end: Double) -> Bool {
-            speech.contains { segment in
+            let heardUntil = clock.sessionTime(at: position)
+            return speech.contains { segment in
                 let from = clock.sessionTime(at: segment.start)
-                let to = segment.end.map { clock.sessionTime(at: $0) } ?? .infinity
+                let to = segment.end.map { clock.sessionTime(at: $0) } ?? heardUntil
                 return from < end && to > start
             }
         }
@@ -122,13 +147,22 @@ public struct TurnDetector: Sendable {
 
     public init(settings: TurnSettings) {
         silence = Double(settings.silenceMs) / 1000
+        let frames = (max(settings.minSpeechMs, 1) * VoiceActivityDetector.framesPerSecond + 999) / 1000
+        confirmation = Double(frames) * VoiceActivityDetector.frameDuration
     }
 
-    /// The channel's audio over `frame` (channel seconds) has been analysed, and its
-    /// last sample was captured at `capturedAt` (session seconds).
-    public mutating func audioProgress(_ speaker: Speaker, frame: Range<Double>, capturedAt: Double) -> Update {
+    /// The channel's audio over `frame` (channel seconds) has been analysed, its last
+    /// sample was captured at `capturedAt` (session seconds), and the voice activity
+    /// detector found `activity` in it. Taking both at once means a turn is never closed
+    /// for silence that the frame's own speech start ends.
+    public mutating func audioProgress(
+        _ speaker: Speaker, frame: Range<Double>, capturedAt: Double, activity: [VoiceActivity] = []
+    ) -> Update {
         // Mutated in place: this runs for every frame of every channel.
         channels[speaker, default: Channel()].record(frame, capturedAt: capturedAt)
+        for change in activity {
+            channels[speaker]?.apply(change)
+        }
         var update = Update()
         closeIfFinished(speaker, &update)
         return update
@@ -241,7 +275,8 @@ public struct TurnDetector: Sendable {
             return
         }
         let quietSince = max(open.end, channel.lastSpeechEnd ?? open.end)
-        let silent = !channel.speaking && channel.position - quietSince >= silence
+        let wait = silence + confirmation + (channel.awaitingFinal ? Self.finalGrace : 0)
+        let silent = !channel.speaking && channel.position - quietSince >= wait
         let stale = channel.position - open.end >= Self.staleAfter
         guard silent || stale, let index = index(of: open.id) else {
             return

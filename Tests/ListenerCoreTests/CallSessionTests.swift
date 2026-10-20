@@ -282,6 +282,21 @@ struct CallSessionTests {
             ])
     }
 
+    /// The detector only reports speech once it has heard 150 ms of it, so a pause just
+    /// under the silence threshold looks, for that long, like one just over it.
+    @Test func aPauseJustShortOfTheSilenceKeepsOneTurn() async throws {
+        let script = ConversationScript(
+            title: "pause",
+            lines: [
+                .init(speaker: .them, start: 1.0, end: 2.0, text: "Which accounts"),
+                .init(speaker: .them, start: 2.65, end: 3.5, text: "were affected?"),
+            ])
+        let setup = try setUp(script: script, seconds: 5, model: nil)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.run()
+        #expect(await setup.session.transcript.turns.map(\.text) == ["Which accounts were affected?"])
+    }
+
     @Test func speechToTextErrorsDoNotEndTheCall() async throws {
         let setup = try setUp(speech: FlakySpeech(script: tradeScript))
         defer { try? FileManager.default.removeItem(at: setup.root) }

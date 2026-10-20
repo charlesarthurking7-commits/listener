@@ -25,6 +25,16 @@ private struct Harness {
         tenths[speaker] = tenth
     }
 
+    /// The next 100 ms frame, with the voice activity found in it.
+    mutating func frame(_ speaker: Speaker, activity: [VoiceActivity]) {
+        let tenth = tenths[speaker, default: 0]
+        let frame = Double(tenth) / 10..<Double(tenth + 1) / 10
+        apply(
+            detector.audioProgress(
+                speaker, frame: frame, capturedAt: frame.upperBound + offsets[speaker]!, activity: activity))
+        tenths[speaker] = tenth + 1
+    }
+
     mutating func play(to seconds: Double) {
         play(.me, to: seconds)
         play(.them, to: seconds)
@@ -153,6 +163,21 @@ struct TurnDetectorTests {
         #expect(talking.turns.count == 2)
     }
 
+    /// A channel behind the other has only said it was speaking up to the audio it has
+    /// delivered; whether it went on speaking is not known yet.
+    @Test func speechStillGoingOnALaggingChannelOnlyCountsUpToItsAudio() {
+        var harness = Harness()
+        harness.play(.them, to: 0.5)
+        harness.started(.them, at: 0.2)
+        harness.speech(.me, 1.0...2.0)
+        harness.play(.me, to: 2.3)
+        harness.final(.me, "First part,", 1.0...2.0)
+        harness.speech(.me, 2.4...3.4)
+        harness.play(.me, to: 3.6)
+        harness.final(.me, "second part.", 2.4...3.4)
+        #expect(harness.turns.map(\.text) == ["First part, second part."])
+    }
+
     @Test func lateFinalsAreOrderedByStartWithStableIDs() {
         var harness = Harness()
         harness.play(.them, to: 7)
@@ -165,15 +190,76 @@ struct TurnDetectorTests {
         #expect(harness.turns.map(\.text) == ["Earlier words and more", "Later words"])
     }
 
+    /// 700 ms of silence, plus the 160 ms the detector needs to report a start that
+    /// might have come at the end of it.
     @Test func aTurnClosesAfterSilenceOnceItsFinalIsIn() {
         var harness = Harness()
         harness.speech(.them, 0.2...1.0)
         harness.play(.them, to: 1.2)
         harness.final(.them, "Done.", 0.2...1.0)
-        harness.play(.them, to: 1.6)
+        harness.play(.them, to: 1.8)
         #expect(harness.closed.isEmpty)
-        harness.play(.them, to: 1.7)
+        harness.play(.them, to: 1.9)
         #expect(harness.closed.map(\.text) == ["Done."])
+    }
+
+    @Test func aStartReportedWithTheFrameThatEndsTheSilenceKeepsTheTurnOpen() {
+        var harness = Harness()
+        harness.speech(.them, 1.0...2.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Which accounts", 1.0...2.0)
+        harness.play(.them, to: 2.8)
+        // Speech came back 0.65 s after it stopped; the detector reports it 160 ms in.
+        harness.frame(.them, activity: [.speechStarted(at: 2.65)])
+        #expect(harness.closed.isEmpty)
+        harness.play(.them, to: 3.6)
+        harness.frame(.them, activity: [.speechEnded(at: 3.5)])
+        harness.final(.them, "were affected?", nil)
+        #expect(harness.turns.map(\.text) == ["Which accounts were affected?"])
+    }
+
+    /// Recognisers often finalise later than the silence that closes a turn. Speech the
+    /// speaker went on with after a short pause is still waiting for its final then,
+    /// and may belong to the turn, so the turn waits for it.
+    @Test func aTurnWaitsForTheFinalOfSpeechThatFollowedAShortPause() {
+        var harness = Harness()
+        harness.speech(.them, 1.0...2.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Which accounts were affected,", 1.0...2.0)
+        harness.speech(.them, 2.4...3.4)
+        harness.play(.them, to: 4.5)
+        #expect(harness.closed.isEmpty)
+        harness.final(.them, "and by how much?", 2.4...3.4)
+        #expect(harness.turns.map(\.text) == ["Which accounts were affected, and by how much?"])
+        #expect(harness.closed.map(\.text) == ["Which accounts were affected, and by how much?"])
+    }
+
+    /// Recognisers also split speech that has no pause in it, and the second final can
+    /// come later than the silence after it.
+    @Test func aTurnWaitsForTheFinalOfSpeechThatRanOnPastItsFinal() {
+        var harness = Harness()
+        harness.started(.them, at: 1.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Which accounts were affected,", 1.0...2.0)
+        harness.play(.them, to: 3.5)
+        harness.ended(.them, at: 3.4)
+        harness.play(.them, to: 4.6)
+        #expect(harness.closed.isEmpty)
+        harness.final(.them, "and by how much?", nil)
+        #expect(harness.turns.map(\.text) == ["Which accounts were affected, and by how much?"])
+    }
+
+    /// Speech that never gets a final, a cough say, holds the turn open only so long.
+    @Test func speechThatNeverGetsAFinalOnlyDelaysTheClose() {
+        var harness = Harness()
+        harness.speech(.them, 1.0...2.0)
+        harness.play(.them, to: 2.3)
+        harness.final(.them, "Right.", 1.0...2.0)
+        harness.speech(.them, 2.4...2.7)
+        harness.play(.them, to: 3.4)
+        #expect(harness.closed.isEmpty)
+        harness.play(.them, to: 6)
+        #expect(harness.closed.map(\.text) == ["Right."])
     }
 
     @Test func aFinalArrivingAfterTheSilenceClosesAtOnce() {

@@ -218,9 +218,9 @@ public actor CallSession {
         let frame = report.frame
         apply(
             detector.audioProgress(
-                speaker, frame: frame.start..<frame.end, capturedAt: sessionTime(frame.chunk.capturedAt)))
+                speaker, frame: frame.start..<frame.end, capturedAt: sessionTime(frame.chunk.capturedAt),
+                activity: report.activity))
         for activity in report.activity {
-            apply(detector.voiceActivity(activity, speaker: speaker))
             switch activity {
             case .speechStarted(let start):
                 timeline.speechStarted(speaker, at: detector.sessionTime(speaker, channelTime: start))
