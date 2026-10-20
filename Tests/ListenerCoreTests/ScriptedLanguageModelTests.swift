@@ -27,6 +27,7 @@ struct ScriptedLanguageModelTests {
         #expect(texts == ["Fills ", "look ", "fine,\n", "all ", "within\t", "tolerance. ", "(1 ", "block)"])
         #expect(events.last == .finished(usage, stopReason: "end_turn"))
         #expect(model.requests == [request])
+        #expect(model.finishedCount == 1 && model.cancelledCount == 0)
     }
 
     @Test func estimatesUsageWhenNoneIsGiven() async throws {

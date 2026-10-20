@@ -18,6 +18,7 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
     private struct State {
         var requests: [ModelRequest] = []
         var warmUps = 0
+        var finished = 0
         var cancelled = 0
     }
 
@@ -44,6 +45,8 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
     /// Every request so far, oldest first.
     public var requests: [ModelRequest] { state.withLock { $0.requests } }
     public var warmUpCount: Int { state.withLock { $0.warmUps } }
+    /// Streams that ran to their final event.
+    public var finishedCount: Int { state.withLock { $0.finished } }
     /// Streams the consumer abandoned before they finished.
     public var cancelledCount: Int { state.withLock { $0.cancelled } }
 
@@ -68,6 +71,7 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
                 let usage = usage ?? Self.estimatedUsage(request: request, outputTokens: tokens.count)
                 continuation.yield(.finished(usage, stopReason: "end_turn"))
                 continuation.finish()
+                state.withLock { $0.finished += 1 }
             } catch is CancellationError {
                 state.withLock { $0.cancelled += 1 }
                 continuation.finish(throwing: CancellationError())

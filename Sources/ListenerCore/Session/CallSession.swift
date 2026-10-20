@@ -59,6 +59,8 @@ public actor CallSession {
     /// Where this session is saved; nil before start or if the directory could not be made.
     public private(set) var directory: URL?
     public var cost: CostSummary { costTracker.summary }
+    /// Session time of the speech answers are measured from right now, for tests.
+    var endOfSpeech: Double? { timeline.endOfSpeech()?.end }
 
     private enum Phase {
         case idle, starting, running, stopping, stopped
@@ -391,18 +393,24 @@ public actor CallSession {
                 return
             }
             let cost = costTracker.addModelUsage(usage, model: model)
-            update(key) {
+            costChanged()
+            generationEnded(key, error: nil) {
                 $0.usage = usage
                 $0.cost = cost
                 $0.stopReason = stopReason
             }
-            costChanged()
         }
     }
 
-    private func generationEnded(_ key: Int, error: (any Error)?) {
+    /// The generation is done: `.finished` arrived, or the stream ended or failed.
+    /// Whichever comes first counts.
+    private func generationEnded(_ key: Int, error: (any Error)?, _ change: (inout Generation) -> Void = { _ in }) {
+        guard generation(key)?.doneAt == nil else {
+            return
+        }
         let now = sessionTime(.now)
         let ended = update(key) {
+            change(&$0)
             $0.doneAt = now
             $0.error = error.map { String(describing: $0) }
         }

@@ -133,11 +133,13 @@ final class FakeSource: AudioCaptureSource, Sendable {
 
     let speaker: Speaker
     let fails: Bool
+    let startDelay: Duration
     private let counts = Mutex((starts: 0, stops: 0))
 
-    init(_ speaker: Speaker, fails: Bool = false) {
+    init(_ speaker: Speaker, fails: Bool = false, startDelay: Duration = .zero) {
         self.speaker = speaker
         self.fails = fails
+        self.startDelay = startDelay
     }
 
     var starts: Int { counts.withLock { $0.starts } }
@@ -145,6 +147,7 @@ final class FakeSource: AudioCaptureSource, Sendable {
 
     func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
         counts.withLock { $0.starts += 1 }
+        try await Task.sleep(for: startDelay)
         if fails {
             throw Failure()
         }
@@ -174,12 +177,13 @@ let tradeSummary = "## Summary\n\nEUR fills confirmed.\n\n## Action items\n\n- S
 func tradeModel(
     firstTokenDelay: Duration = .milliseconds(50), tokenInterval: Duration = .milliseconds(5)
 ) -> ScriptedLanguageModel {
-    let summaryModel = SummarySettings().model.model
+    // The deep tier uses the summary's model too; the settings as a whole differ.
+    let summarySettings = SummarySettings().model
     return ScriptedLanguageModel(
         firstTokenDelay: firstTokenDelay, tokenInterval: tokenInterval,
         usage: TokenUsage(inputTokens: 1_200, outputTokens: 40)
     ) { request in
-        request.settings.model == summaryModel ? tradeSummary : tradeAnswer
+        request.settings == summarySettings ? tradeSummary : tradeAnswer
     }
 }
 
