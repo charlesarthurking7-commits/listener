@@ -4,7 +4,9 @@ public enum CaptureError: Error, CustomStringConvertible {
     case microphonePermissionDenied
     case screenRecordingPermissionDenied
     case noInputDevice
+    case noOutputDevice
     case noDisplay
+    case alreadyRunning
     case unsupportedFormat(String)
     case conversionFailed
     case coreAudio(operation: String, status: Int32)
@@ -14,11 +16,16 @@ public enum CaptureError: Error, CustomStringConvertible {
         case .microphonePermissionDenied:
             "Microphone access is denied. Allow it in System Settings > Privacy & Security > Microphone."
         case .screenRecordingPermissionDenied:
-            "Screen Recording access is denied. Allow it in System Settings > Privacy & Security > Screen & System Audio Recording."
+            "Screen Recording access is denied. Allow it in System Settings > Privacy & Security > "
+                + "Screen & System Audio Recording, then quit and reopen Listener."
         case .noInputDevice:
             "No microphone found. In clamshell mode the built-in mics are off, so plug in a headset or USB mic."
+        case .noOutputDevice:
+            "No audio output device found, so there is no system audio to capture."
         case .noDisplay:
             "ScreenCaptureKit returned no displays to attach the audio stream to."
+        case .alreadyRunning:
+            "This audio source is already capturing."
         case .unsupportedFormat(let format):
             "Cannot convert audio format \(format) to 16 kHz mono."
         case .conversionFailed:

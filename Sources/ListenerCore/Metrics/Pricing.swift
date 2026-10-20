@@ -61,6 +61,7 @@ public struct PriceTable: Sendable, Codable, Equatable {
         ],
         speechPerMinute: [
             "google": 0.016,
+            "apple": 0,
             "fake": 0,
         ]
     )

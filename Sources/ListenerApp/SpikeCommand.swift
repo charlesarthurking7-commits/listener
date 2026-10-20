@@ -35,11 +35,12 @@ struct SpikeCommand: AsyncParsableCommand {
             "Listener audio spike, system audio via \(system == .tap ? "Core Audio process tap" : "ScreenCaptureKit")")
         log.write("First run: macOS asks for Microphone and \(systemPermission) access. Allow both, then run again.")
 
-        let microphone = MicrophoneCapture(voiceProcessing: voiceProcessing)
-        let systemAudio: any AudioCaptureSource
-        switch system {
-        case .tap: systemAudio = SystemAudioTap()
-        case .sck: systemAudio = ScreenCaptureAudio()
+        var captureSettings = CaptureSettings()
+        captureSettings.systemAudioBackend = system.rawValue
+        captureSettings.voiceProcessing = voiceProcessing
+        let sources = LiveAudioSources.make(settings: captureSettings) { log.write($0.description) }
+        guard let microphone = sources[.me], let systemAudio = sources[.them] else {
+            throw ExitCode.failure
         }
         let recorder = try SpikeRecorder(outputDirectory: outputDirectory, startedAt: .now)
 
@@ -137,8 +138,9 @@ struct SpikeCommand: AsyncParsableCommand {
 }
 
 /// Writes every line to stdout and to a file. When the app is launched through
-/// `open`, stdout goes nowhere, so the file is what scripts/spike.sh shows.
-final class SpikeLog {
+/// `open`, stdout goes nowhere, so the file is what scripts/spike.sh shows. Capture
+/// sources log their restarts from their own queues, hence Sendable.
+final class SpikeLog: Sendable {
     private let handle: FileHandle
 
     init(url: URL) throws {
