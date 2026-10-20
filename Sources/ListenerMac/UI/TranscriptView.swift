@@ -49,10 +49,13 @@ private struct TranscriptList: View {
                     followsLatest = false
                 }
             }
+            // A settled turn can land above the live line without changing the last row,
+            // so the row count matters too.
+            .onChange(of: rows.count) {
+                followLatest(proxy)
+            }
             .onChange(of: rows.last) {
-                if followsLatest {
-                    proxy.scrollTo(Self.bottom, anchor: .bottom)
-                }
+                followLatest(proxy)
             }
             .onAppear {
                 proxy.scrollTo(Self.bottom, anchor: .bottom)
@@ -66,16 +69,21 @@ private struct TranscriptList: View {
                         }
                     } label: {
                         Label("Jump to latest", systemImage: "arrow.down")
-                            .font(.callout.weight(.medium))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
+                    .buttonStyle(FilledButtonStyle(tint: .accentColor, compact: true))
                     .shadow(radius: 4, y: 2)
                     .padding(12)
                     .transition(.opacity)
                 }
             }
+        }
+    }
+}
+
+extension TranscriptList {
+    fileprivate func followLatest(_ proxy: ScrollViewProxy) {
+        if followsLatest {
+            proxy.scrollTo(Self.bottom, anchor: .bottom)
         }
     }
 }

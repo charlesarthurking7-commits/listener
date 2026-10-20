@@ -92,3 +92,32 @@ struct PulsingDot: View {
         .accessibilityHidden(true)
     }
 }
+
+/// A filled button that keeps its colour. The window is never key, and macOS draws
+/// `.borderedProminent` buttons grey in a window that is not key.
+struct FilledButtonStyle: ButtonStyle {
+    let tint: Color
+    var compact = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        FilledButton(configuration: configuration, tint: tint, compact: compact)
+    }
+}
+
+private struct FilledButton: View {
+    let configuration: ButtonStyleConfiguration
+    let tint: Color
+    let compact: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .font(compact ? .callout.weight(.medium) : .body.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? 10 : 14)
+            .padding(.vertical, compact ? 4 : 6)
+            .background(tint.opacity(configuration.isPressed ? 0.7 : 1), in: Capsule())
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
+    }
+}

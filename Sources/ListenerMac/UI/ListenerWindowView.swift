@@ -120,25 +120,22 @@ private struct StartStopButton: View {
     let model: CallModel
 
     var body: some View {
-        Group {
-            if model.state.canStop {
-                Button(action: model.stop) {
-                    Label("Stop", systemImage: "stop.fill")
-                        .frame(minWidth: 60)
-                }
-                .tint(.red)
-                .help(tooltip("Stop listening and save the call"))
-            } else {
-                Button(action: model.start) {
-                    Label("Start", systemImage: "mic.fill")
-                        .frame(minWidth: 60)
-                }
-                .disabled(!model.state.canStart)
-                .help(tooltip("Start listening"))
+        if model.state.canStop {
+            Button(action: model.stop) {
+                Label("Stop", systemImage: "stop.fill")
+                    .frame(minWidth: 60)
             }
+            .buttonStyle(FilledButtonStyle(tint: .red))
+            .help(tooltip("Stop listening and save the call"))
+        } else {
+            Button(action: model.start) {
+                Label("Start", systemImage: "mic.fill")
+                    .frame(minWidth: 60)
+            }
+            .buttonStyle(FilledButtonStyle(tint: .accentColor))
+            .disabled(!model.state.canStart)
+            .help(tooltip("Start listening"))
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
     }
 
     private func tooltip(_ text: String) -> String {
