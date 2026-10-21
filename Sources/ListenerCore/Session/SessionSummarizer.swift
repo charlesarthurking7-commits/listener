@@ -17,13 +17,13 @@ public enum SessionSummarizer {
     /// Streams the summary request for `turns` to the end. `startedAt` and `duration`
     /// (seconds) title the notes; without them the call is taken to have just ended.
     public static func generate(
-        turns: [Turn], settings: Settings, model: any LanguageModelProvider, startedAt: Date? = nil,
-        duration: Double? = nil
+        turns: [Turn], settings: Settings, call: CallContext = .none, model: any LanguageModelProvider,
+        startedAt: Date? = nil, duration: Double? = nil
     ) async throws -> Summary {
         guard !turns.isEmpty else {
             throw SessionSummarizerError.emptyTranscript
         }
-        let request = PromptBuilder(answers: settings.answers)
+        let request = PromptBuilder(answers: settings.answers, call: call)
             .summaryRequest(turns: turns, settings: settings.summary, startedAt: startedAt, duration: duration)
         var markdown = ""
         var usage: TokenUsage?
@@ -48,7 +48,8 @@ public enum SessionSummarizer {
     {
         let saved = try? SessionStore.readRecord(in: directory)
         let summary = try await generate(
-            turns: SessionStore.readTurns(in: directory), settings: settings, model: model,
+            turns: SessionStore.readTurns(in: directory), settings: settings,
+            call: SessionStore.readCall(in: directory), model: model,
             startedAt: saved?.startedAt ?? SessionStore.startDate(fromDirectoryName: directory.lastPathComponent),
             duration: saved?.duration)
         let url = try SessionStore.writeSummary(summary.markdown, in: directory)

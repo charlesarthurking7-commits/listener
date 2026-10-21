@@ -138,7 +138,7 @@ public struct CallViewState: Sendable, Equatable {
         /// Capture has stopped; the last finals arrive and the session is saved.
         case stopping
         case summarizing
-        /// A call ended. Its transcript stays on screen until the next Start.
+        /// A call ended. Its transcript stays on screen until the next Start or New Call.
         case finished
     }
 
@@ -203,8 +203,14 @@ public struct CallViewState: Sendable, Equatable {
         }
     }
 
-    public mutating func dismissOutcome() {
-        outcome = nil
+    /// Back to the start screen after a call. The last summary stays in the menu.
+    public mutating func clearFinishedCall() {
+        guard phase == .finished else {
+            return
+        }
+        let summaryFile = summaryFile
+        self = CallViewState()
+        self.summaryFile = summaryFile
     }
 
     /// A channel started or stopped hearing speech.

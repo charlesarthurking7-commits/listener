@@ -55,6 +55,7 @@ public struct TurnSettings: Sendable, Codable, Equatable {
 public struct AnswerSettings: Sendable, Codable, Equatable {
     public var quick = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 600)
     public var deep = ModelSettings(model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 4000)
+    public var recap = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 1000)
     /// Transcript tokens sent with each answer: about 20 minutes of non-stop conversation,
     /// longer for a real call with pauses.
     public var transcriptBudgetTokens = 8_000
@@ -69,10 +70,17 @@ public struct AnswerSettings: Sendable, Codable, Equatable {
 
     public init() {}
 
+    /// Tidying a web page for a call's background: the quick model, with room for a
+    /// long job posting.
+    public var webPageImport: ModelSettings {
+        ModelSettings(model: quick.model, effort: quick.effort, thinking: .off, maxTokens: 4_000)
+    }
+
     public func settings(for tier: AnswerTier) -> ModelSettings {
         switch tier {
         case .quick: quick
         case .deep: deep
+        case .recap: recap
         }
     }
 }
@@ -110,7 +118,9 @@ public struct HotkeySettings: Sendable, Codable, Equatable {
     /// ctrl+option+space, which macOS uses to switch input sources.
     public var quickAnswer = "ctrl+option+a"
     public var deepAnswer = "ctrl+option+shift+a"
+    public var recap = "ctrl+option+s"
     public var toggleListening = "ctrl+option+l"
+    public var toggleWindow = "ctrl+option+h"
 
     public init() {}
 }

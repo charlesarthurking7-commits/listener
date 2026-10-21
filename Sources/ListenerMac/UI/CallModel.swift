@@ -39,6 +39,22 @@ public final class CallModel {
     /// The on-device model's state when speech.provider is "apple".
     public private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
 
+    /// The kinds of call to pick from before Start, the one picked, and its files.
+    public private(set) var callTypes: [String] = []
+    public private(set) var callType = CallTypeLibrary.defaultType
+    public private(set) var callFiles: [LoadedCallType.File] = []
+    /// While a pasted link is being read.
+    public private(set) var isImportingPage = false
+    /// The call type and documents the running call started with.
+    public private(set) var activeCall: CallContext?
+
+    /// How the window looks during a call; kept between launches.
+    public private(set) var transparency = WindowTransparency.stored
+    public private(set) var showsTranscriptInCall = UserDefaults.standard.bool(forKey: CallModel.transcriptKey)
+    public private(set) var hidesFromScreenSharing =
+        UserDefaults.standard.object(forKey: CallModel.screenSharingKey) as? Bool ?? true
+    public private(set) var isPointerOver = false
+
     /// Everything about the current call. Not observed: views read the slices above, and
     /// the menu reads this when it opens.
     @ObservationIgnored public private(set) var state = CallViewState()
@@ -58,9 +74,12 @@ public final class CallModel {
     @ObservationIgnored private var callActivity: (any NSObjectProtocol)?
     @ObservationIgnored private var throttle = UpdateThrottle.displayRate
     @ObservationIgnored private var markup = AnswerMarkup()
+    @ObservationIgnored private let library: CallTypeLibrary
+    @ObservationIgnored private let callTypeWatcher = FolderWatcher()
 
     public init(environment: AppEnvironment) {
         self.environment = environment
+        library = CallTypeLibrary(paths: environment.paths)
         settings = environment.launchSettings.settings
         for warning in environment.launchSettings.warnings {
             Log.ui.notice("\(warning, privacy: .public)")
@@ -68,6 +87,7 @@ public final class CallModel {
         }
         refreshReadiness()
         prepareOnDeviceSpeechIfNeeded()
+        refreshCallTypes()
     }
 
     public var hasSession: Bool { session != nil }
@@ -82,6 +102,7 @@ public final class CallModel {
         probes = ReadinessInput(
             microphone: SystemPermissions.microphone,
             screenRecording: settings.capture.systemAudioBackend == "sck" ? SystemPermissions.screenRecording : nil,
+            systemAudioHeard: UserDefaults.standard.bool(forKey: Self.systemAudioHeardKey),
             speechProvider: settings.speech.provider,
             googleProjectID: google.projectID,
             googleCredentialsProblem: google.credentialsProblem,
@@ -143,7 +164,11 @@ public final class CallModel {
             return
         }
 
-        let session = CallSession(settings: settings, components: components)
+        let call = library.load(callType, readText: DocumentText.read).context
+        activeCall = call
+        Log.session.info(
+            "Call type \(call.callType, privacy: .public) with \(call.documents.count) documents")
+        let session = CallSession(settings: settings, components: components, call: call)
         self.session = session
         eventLog = SessionEventLog()
         let provider = settings.speech.provider
@@ -205,6 +230,53 @@ public final class CallModel {
         }
     }
 
+    /// During a call the window is a slim bar with the answer card under it, unless the
+    /// transcript is turned on.
+    public var isCompact: Bool {
+        (phase == .starting || phase == .listening) && !showsTranscriptInCall
+    }
+
+    public var isInCall: Bool {
+        phase != .idle && phase != .finished
+    }
+
+    /// Whether an answer can be asked for now. Reads the observed phase, so views that
+    /// use it redraw when a call starts.
+    public var canAsk: Bool {
+        phase == .listening
+    }
+
+    /// Clear also fades the window between answers during a call, and brings it back when
+    /// an answer arrives or the pointer is over it.
+    public var windowOpacity: Double {
+        if transparency == .clear && isInCall && answer == nil && !isPointerOver {
+            return WindowTransparency.clearIdleOpacity
+        }
+        return settings.window.opacity
+    }
+
+    public func setTransparency(_ transparency: WindowTransparency) {
+        self.transparency = transparency
+        UserDefaults.standard.set(transparency.rawValue, forKey: WindowTransparency.key)
+    }
+
+    public func toggleTranscriptInCall() {
+        showsTranscriptInCall.toggle()
+        UserDefaults.standard.set(showsTranscriptInCall, forKey: Self.transcriptKey)
+    }
+
+    public func toggleHidingFromScreenSharing() {
+        hidesFromScreenSharing.toggle()
+        UserDefaults.standard.set(hidesFromScreenSharing, forKey: Self.screenSharingKey)
+    }
+
+    public func pointerMoved(over: Bool) {
+        isPointerOver = over
+    }
+
+    private static let transcriptKey = "showsTranscriptInCall"
+    private static let screenSharingKey = "hidesFromScreenSharing"
+
     public func dismissAnswer() {
         if state.dismissAnswer() != nil, let session {
             Task {
@@ -229,9 +301,12 @@ public final class CallModel {
         publish()
     }
 
-    public func dismissOutcome() {
-        state.dismissOutcome()
+    /// Leaves the finished call for the start screen, to set up the next one.
+    public func newCall() {
+        state.clearFinishedCall()
         publish()
+        refreshReadiness()
+        refreshCallTypes()
     }
 
     /// The last call's summary, until the next call starts.
@@ -322,6 +397,157 @@ public final class CallModel {
             await session.stop()
         }
         await eventsTask?.value
+    }
+
+    private static let systemAudioHeardKey = "systemAudioHeard"
+    private static let callTypeKey = "callType"
+
+    /// Reads the call types again, for when the window shows: files may have changed in
+    /// Finder or TextEdit while it was hidden.
+    public func refreshCallTypes() {
+        do {
+            try library.createIfMissing()
+        } catch {
+            appNotices.add(.error, "Could not create the Call Types folder: \(ErrorText.describe(error))")
+        }
+        callTypes = library.names()
+        let saved = UserDefaults.standard.string(forKey: Self.callTypeKey)
+        callType =
+            [saved, callType, CallTypeLibrary.defaultType].compactMap { $0 }.first(where: callTypes.contains)
+            ?? callTypes.first ?? CallTypeLibrary.defaultType
+        watchCallType()
+    }
+
+    /// The call type for the next call. A running call keeps the one it started with.
+    public func selectCallType(_ name: String) {
+        guard callTypes.contains(name) else {
+            return
+        }
+        callType = name
+        UserDefaults.standard.set(name, forKey: Self.callTypeKey)
+        watchCallType()
+    }
+
+    /// Copies files dropped on the window into the call type's folder.
+    public func addFiles(_ urls: [URL]) {
+        let readable = urls.filter(DocumentText.canRead)
+        if readable.count < urls.count {
+            appNotices.add(.warning, "Listener reads \(DocumentText.kinds). Other files were left out.")
+        }
+        guard !readable.isEmpty else {
+            return
+        }
+        do {
+            try library.add(files: readable, to: callType)
+        } catch {
+            appNotices.add(.error, "Could not add the files: \(ErrorText.describe(error))")
+        }
+        reloadCallFiles()
+    }
+
+    /// Adds whatever is on the clipboard: copied files, a link to read, or text.
+    public func pasteFromClipboard() {
+        let pasteboard = NSPasteboard.general
+        let files = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+        if let files = files as? [URL], !files.isEmpty {
+            addFiles(files)
+            return
+        }
+        let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !text.isEmpty else {
+            appNotices.add(.info, "The clipboard is empty. Copy a job description, or its link, then press Paste.")
+            return
+        }
+        if !text.contains(where: \.isWhitespace), let url = URL(string: text),
+            ["http", "https"].contains(url.scheme?.lowercased())
+        {
+            importPage(url)
+            return
+        }
+        do {
+            try library.add(text: text, to: callType)
+        } catch {
+            appNotices.add(.error, "Could not save the pasted text: \(ErrorText.describe(error))")
+        }
+        reloadCallFiles()
+    }
+
+    public func editBrief() {
+        do {
+            Self.openTextFile(try library.createBriefIfMissing(for: callType))
+        } catch {
+            appNotices.add(.error, "Could not create the brief: \(ErrorText.describe(error))")
+        }
+    }
+
+    public func editCallTypeInstructions() {
+        Self.openTextFile(library.folder(for: callType).appendingPathComponent(CallTypeLibrary.instructionsFile))
+    }
+
+    public func revealCallTypes() {
+        NSWorkspace.shared.activateFileViewerSelecting([library.folder(for: callType)])
+    }
+
+    /// Moves a file to the Bin, so a mistake can be undone in Finder.
+    public func removeCallFile(_ url: URL) {
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        } catch {
+            appNotices.add(.error, "Could not move \(url.lastPathComponent) to the Bin: \(ErrorText.describe(error))")
+        }
+        reloadCallFiles()
+    }
+
+    private func importPage(_ url: URL) {
+        guard !isImportingPage else {
+            return
+        }
+        isImportingPage = true
+        let name = callType
+        let settings = settings
+        Task {
+            do {
+                let markdown = try await environment.importWebPage(url, settings)
+                try library.add(text: markdown, to: name)
+            } catch {
+                Log.ui.notice("Reading \(url.host() ?? "a link", privacy: .public) failed")
+                appNotices.add(.warning, ErrorText.describe(error))
+            }
+            isImportingPage = false
+            reloadCallFiles()
+        }
+    }
+
+    private func watchCallType() {
+        callTypeWatcher.watch(library.folder(for: callType)) { [weak self] in
+            self?.reloadCallFiles()
+        }
+        reloadCallFiles()
+    }
+
+    /// Reads the files off the main thread: a long PDF takes a moment.
+    private func reloadCallFiles() {
+        let library = library
+        let name = callType
+        Task {
+            let loaded = await Task.detached { library.load(name, readText: DocumentText.read) }.value
+            if callType == name {
+                callFiles = loaded.files
+            }
+        }
+    }
+
+    /// macOS has no way to ask whether System Audio Recording is allowed, but the tap
+    /// only ever hears speech when it is, so the first speech from "Them" settles it.
+    private func noteSystemAudioHeard(_ event: SessionEvent) {
+        guard case .channelActivity(.them, isSpeaking: true) = event, settings.capture.systemAudioBackend == "tap",
+            probes?.systemAudioHeard == false
+        else {
+            return
+        }
+        UserDefaults.standard.set(true, forKey: Self.systemAudioHeardKey)
+        probes?.systemAudioHeard = true
+        updateReadiness()
     }
 
     private func updateReadiness() {
@@ -418,6 +644,7 @@ public final class CallModel {
 
     private func receive(_ event: SessionEvent) {
         eventLog.record(event)
+        noteSystemAudioHeard(event)
         state.apply(event, now: Date())
         switch throttle.request(at: ProcessInfo.processInfo.systemUptime) {
         case .now:

@@ -67,7 +67,7 @@ struct HotkeyTests {
     @Test func settingsReportBadAndDuplicateHotkeys() {
         var settings = HotkeySettings()
         #expect(settings.problems.isEmpty)
-        #expect(settings.hotkeys.count == 3)
+        #expect(settings.hotkeys.count == 5)
 
         settings.quickAnswer = "ctrl+option+q"
         settings.deepAnswer = "option+control+Q"

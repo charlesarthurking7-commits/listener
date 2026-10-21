@@ -42,20 +42,24 @@ actor BrokenStream: SpeechStream {
     }
 }
 
-/// Scripted speech-to-text that holds every final back until the test releases them.
+/// Scripted speech-to-text that holds the finals of `holding` back until the test
+/// releases them.
 final class HeldFinalsSpeech: SpeechToTextProvider, Sendable {
     let script: ConversationScript
+    let holding: Set<Speaker>
     private let streams = Mutex<[HeldFinalsStream]>([])
 
-    init(script: ConversationScript) {
+    init(script: ConversationScript, holding: Set<Speaker> = [.me, .them]) {
         self.script = script
+        self.holding = holding
     }
 
     var displayName: String { "Held finals" }
 
     func openStream(for speaker: Speaker) async throws -> any SpeechStream {
         let lines = script.lines.filter { $0.speaker == speaker }
-        let stream = HeldFinalsStream(ScriptRecognizer(lines: lines, finalDelay: 0.3))
+        let stream = HeldFinalsStream(
+            ScriptRecognizer(lines: lines, finalDelay: 0.3), released: !holding.contains(speaker))
         streams.withLock { $0.append(stream) }
         return stream
     }
@@ -72,12 +76,13 @@ actor HeldFinalsStream: SpeechStream {
     private let continuation: AsyncThrowingStream<SpeechEvent, any Error>.Continuation
     private var recognizer: ScriptRecognizer
     private var held: [SpeechEvent] = []
-    private var released = false
+    private var released: Bool
     private var samples = 0
 
-    init(_ recognizer: ScriptRecognizer) {
+    init(_ recognizer: ScriptRecognizer, released: Bool) {
         (events, continuation) = AsyncThrowingStream.makeStream(of: SpeechEvent.self)
         self.recognizer = recognizer
+        self.released = released
     }
 
     func send(_ chunk: AudioChunk) async throws {
@@ -408,13 +413,20 @@ struct CallSessionTests {
                 .init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?"),
                 .init(speaker: .me, start: 3.0, end: 3.5, text: "Let me look."),
             ])
+        // Me's line is held back until the draft is out: under load Them's turn can
+        // otherwise close after it, and a draft that already has it is rightly kept.
+        let speech = HeldFinalsSpeech(script: script, holding: [.me])
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
-        let setup = try setUp(script: script, seconds: 5, pacing: .realTime(speed: 8), model: model) {
+        let setup = try setUp(
+            script: script, seconds: 5, pacing: .realTime(speed: 8), speech: speech, model: model
+        ) {
             $0.answers.draftAhead = true
         }
         defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.session.start()
+        #expect(await eventually { model.requests.count == 1 })
         await waitForReplay(setup.sources)
+        await speech.releaseFinals()
         #expect(await eventually { await setup.session.transcript.turns.count == 2 })
 
         await setup.session.requestAnswer(.quick)
@@ -424,7 +436,68 @@ struct CallSessionTests {
         let answer = try #require(setup.recorder.finishedAnswers.first)
         #expect(!answer.fromDraft)
         #expect(model.requests.count == 3)
+        // The draft may show Me's line as still being said, but not as a turn.
+        #expect(!model.requests[0].userText.contains("] Me: Let me look."))
         #expect(model.requests[1].userText.contains("Me: Let me look."))
+    }
+
+    @Test func aCallWithDocumentsCachesItsPromptsAtStart() async throws {
+        let root = try temporaryDirectory("session")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
+        let call = CallContext(
+            callType: "Work call", documents: [CallContext.Document(name: "runbook.pdf", text: "Restart the bridge.")])
+        let session = CallSession(
+            settings: sessionSettings(directory: root),
+            components: SessionComponents(
+                sources: [.me: FakeSource(.me)], speech: ScriptedSpeechToText(script: tradeScript),
+                languageModel: model),
+            call: call)
+        let recording = EventRecorder().record(session)
+        try await session.start()
+        #expect(await eventually { await session.cost.modelUsage.count == 2 })
+        await session.stop()
+        await recording.value
+
+        let warmUps = model.requests.filter { $0.settings.maxTokens == 1 }
+        #expect(warmUps.map(\.settings.model).sorted() == ["claude-haiku-5-5", "claude-sonnet-5-5"])
+        #expect(warmUps.allSatisfy { $0.cacheSystem && $0.system.contains("<document name=\"runbook.pdf\">") })
+    }
+
+    @Test func aCallWithoutDocumentsSendsNoWarmUps() async throws {
+        let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
+        let setup = try setUp(model: model)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.run()
+        #expect(!model.requests.contains { $0.settings.maxTokens == 1 })
+    }
+
+    @Test func aCachedPromptIsRefreshedBeforeItExpires() {
+        let now = ContinuousClock.now
+        #expect(CallSession.needsCaching(sentAt: nil, now: now))
+        #expect(!CallSession.needsCaching(sentAt: now - .seconds(200), now: now))
+        #expect(CallSession.needsCaching(sentAt: now - CallSession.cacheRefreshAfter, now: now))
+    }
+
+    @Test func aRecapNeverUsesTheDraft() async throws {
+        let script = ConversationScript(
+            title: "draft", lines: [.init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?")])
+        let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
+        let setup = try setUp(script: script, seconds: 4, pacing: .realTime(speed: 8), model: model) {
+            $0.answers.draftAhead = true
+        }
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.session.start()
+        await waitForReplay(setup.sources)
+        #expect(await eventually { model.requests.count == 1 })
+
+        await setup.session.requestAnswer(.recap)
+        #expect(await eventually { await setup.session.answers.count == 1 })
+        await setup.stop()
+
+        let answer = try #require(setup.recorder.finishedAnswers.first)
+        #expect(answer.tier == .recap && !answer.fromDraft && answer.model == AnswerSettings().recap.model)
+        #expect(model.requests[1].userText.hasSuffix("Recap the call so far."))
     }
 
     @Test func aFinalThatArrivesAfterTheHotkeyIsRecordedLate() async throws {

@@ -38,6 +38,7 @@ public final class SessionStore {
     public static let answersFile = "answers.jsonl"
     public static let recordFile = "session.json"
     public static let summaryFile = "summary.md"
+    public static let contextFile = "context.json"
 
     public static func audioFile(for speaker: Speaker) -> String {
         "\(speaker.rawValue.lowercased()).wav"
@@ -96,6 +97,12 @@ public final class SessionStore {
     public func write(_ record: SessionRecord) throws {
         try Self.encoder(pretty: true).encode(record)
             .write(to: directory.appendingPathComponent(Self.recordFile), options: .atomic)
+    }
+
+    /// The call type and documents the call started with, for writing its summary again.
+    public func write(_ call: CallContext) throws {
+        try Self.encoder(pretty: true).encode(call)
+            .write(to: directory.appendingPathComponent(Self.contextFile), options: .atomic)
     }
 
     @discardableResult
@@ -228,6 +235,12 @@ extension SessionStore {
         let saved = try readLines(AnswerRecord.self, from: directory.appendingPathComponent(answersFile))
         let latest = Dictionary(saved.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         return latest.values.sorted { $0.id < $1.id }
+    }
+
+    /// The call type and documents of a session; none for a call without them.
+    public static func readCall(in directory: URL) -> CallContext {
+        let url = directory.appendingPathComponent(contextFile)
+        return (try? decoder().decode(CallContext.self, from: Data(contentsOf: url))) ?? .none
     }
 
     public static func readRecord(in directory: URL) throws -> SessionRecord {

@@ -45,6 +45,12 @@ public struct TurnDetector: Sendable {
     /// followed it, in seconds of session time. Recognisers can take well over a
     /// second; speech that has had no final by then (a cough, a noise) was not words.
     static let finalGrace = 2.0
+    /// Recognisers make up short fillers ("Yeah.", "Okay.") in near silence. Text of at
+    /// most this many words with no speech under it is taken for one and dropped. Longer
+    /// text is kept: it is more likely speech too quiet for the voice activity detector.
+    static let madeUpMaxWords = 3
+    /// How far a recogniser's word times and the detector's speech may disagree.
+    static let wordTimingSlack = 0.1
 
     private let silence: Double
     /// How long the voice activity detector takes to report speech after it starts:
@@ -63,7 +69,7 @@ public struct TurnDetector: Sendable {
     private struct Channel {
         var clock = CaptureClock()
         var position = 0.0
-        /// Recent speech, oldest first.
+        /// Recent speech, oldest first, at most `speechKept` of it.
         var speech: [Speech] = []
         /// Channel time where the last final's audio ended.
         var lastFinalEnd = 0.0
@@ -86,6 +92,7 @@ public struct TurnDetector: Sendable {
         /// Where the detector hears speech end can lie a few tenths of a second past the
         /// end of the final that covers it: breath, room sound.
         static let endSlack = 0.3
+        static let speechKept = 64
 
         mutating func record(_ frame: Range<Double>, capturedAt: Double) {
             if position == 0 {
@@ -100,7 +107,7 @@ public struct TurnDetector: Sendable {
             switch activity {
             case .speechStarted(let start):
                 speech.append(Speech(start: start))
-                if speech.count > 64 {
+                if speech.count > Self.speechKept {
                     speech.removeFirst()
                 }
             case .speechEnded(let end):
@@ -124,6 +131,15 @@ public struct TurnDetector: Sendable {
                 return min(max(current.start, lastFinalEnd), end)
             }
             return end
+        }
+
+        /// Whether the detector heard speech overlapping `start...end` of channel time.
+        /// Audio older than the speech kept counts as heard, since nothing shows otherwise.
+        func heard(from start: Double, to end: Double) -> Bool {
+            if speech.count == Self.speechKept, let oldest = speech.first, oldest.start > start {
+                return true
+            }
+            return speech.contains { $0.start < end && ($0.end ?? position) > start }
         }
 
         /// Whether this channel's speech overlaps `start...end` of session time. Speech
@@ -176,9 +192,14 @@ public struct TurnDetector: Sendable {
     }
 
     /// An empty interim clears the speaker's interim text; an empty final only does that.
+    /// Text without a letter or digit counts as empty, and so does a made-up filler
+    /// (`madeUpMaxWords`).
     public mutating func speechEvent(_ event: SpeechEvent, speaker: Speaker) -> Update {
         var update = Update()
-        let text = event.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = event.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.contains(where: { $0.isLetter || $0.isNumber }) || isMadeUp(text, event, speaker: speaker) {
+            text = ""
+        }
         switch event.kind {
         case .interim:
             update.changed = setInterim(text, for: speaker)
@@ -209,6 +230,18 @@ public struct TurnDetector: Sendable {
         }
         update.closed.sort { $0.start < $1.start }
         return update
+    }
+
+    /// Only audio the detector has analysed can show that nobody spoke, so text without
+    /// an end time, or ending past what the channel has delivered, is never made up.
+    private func isMadeUp(_ text: String, _ event: SpeechEvent, speaker: Speaker) -> Bool {
+        guard let channel = channels[speaker], let end = event.audioEnd, end <= channel.position,
+            text.split(whereSeparator: \.isWhitespace).count <= Self.madeUpMaxWords
+        else {
+            return false
+        }
+        let start = min(event.audioStart ?? channel.lastFinalEnd, end)
+        return !channel.heard(from: start - Self.wordTimingSlack, to: end + Self.wordTimingSlack)
     }
 
     /// Session time of a point on a channel's audio.

@@ -26,7 +26,7 @@ struct AnswerCardView: View {
                     .strokeBorder(border(card).opacity(0.4), lineWidth: 1)
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Suggested answer")
+            .accessibilityLabel(card.tier == .recap ? "Recap so far" : "Suggested answer")
         }
     }
 
@@ -67,7 +67,7 @@ private struct AnswerHeader: View {
             }
             .buttonStyle(IconButtonStyle(size: 24))
             .help(card.isActive ? "Stop and dismiss" : "Dismiss")
-            .accessibilityLabel(card.isActive ? "Stop and dismiss the answer" : "Dismiss the answer")
+            .accessibilityLabel("\(card.isActive ? "Stop and dismiss" : "Dismiss") the \(card.tier.noun)")
         }
         .frame(height: 24)
     }
@@ -95,7 +95,7 @@ private struct AnswerHeader: View {
                 Label("Try Again", systemImage: "arrow.clockwise")
             }
             .buttonStyle(SoftButtonStyle(small: true))
-            .accessibilityLabel("Try the \(card.tier.title.lowercased()) answer again")
+            .accessibilityLabel("Try the \(card.tier.noun) again")
         case .streaming, .finished:
             if copied {
                 Label("Copied", systemImage: "checkmark")
@@ -110,8 +110,8 @@ private struct AnswerHeader: View {
                     Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(IconButtonStyle(size: 24))
-                .help("Copy the answer, without the notes for you")
-                .accessibilityLabel("Copy the answer")
+                .help("Copy the \(card.tier.noun), without the notes for you")
+                .accessibilityLabel("Copy the \(card.tier.noun)")
             }
         }
     }
@@ -144,7 +144,7 @@ private struct AnswerContent: View {
                 .padding(.top, 6)
                 .padding(.trailing, 8)
                 .padding(.bottom, 4)
-                .accessibilityLabel(card.tier == .deep ? "Thinking" : "Writing the answer")
+                .accessibilityLabel(card.tier == .deep ? "Thinking" : "Writing the \(card.tier.noun)")
         case .streaming, .finished:
             AnswerText(blocks: blocks, maxHeight: maxTextHeight)
         case .failed(let message):
@@ -179,8 +179,18 @@ private struct AnswerText: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                let chipIn = chipInBlock
                 ForEach(blocks) { block in
-                    AnswerBlockView(block: block, spacingAbove: spacing(above: block))
+                    if block.id == chipIn {
+                        Text("If you want to chip in")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.4)
+                            .textCase(.uppercase)
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 10)
+                            .accessibilityHidden(true)
+                    }
+                    AnswerBlockView(block: block, spacingAbove: block.id == chipIn ? 4 : spacing(above: block))
                         .equatable()
                 }
             }
@@ -194,6 +204,20 @@ private struct AnswerText: View {
         }
         .frame(height: min(max(height, 24), maxHeight))
         .scrollIndicators(height > maxHeight ? .automatic : .never)
+    }
+
+    /// When nothing was asked, the prompt has the answer open with a note saying so; any
+    /// words after it are optional, and labelled so they don't read as a cue to speak.
+    private var chipInBlock: Int? {
+        guard let first = blocks.first, case .note = first.kind, first.text.hasPrefix("Nothing asked of you") else {
+            return nil
+        }
+        return blocks.dropFirst().first { block in
+            if case .note = block.kind {
+                return false
+            }
+            return true
+        }?.id
     }
 
     private func spacing(above block: AnswerBlock) -> CGFloat {

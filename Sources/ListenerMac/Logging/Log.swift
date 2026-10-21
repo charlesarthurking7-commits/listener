@@ -19,4 +19,6 @@ public enum Log {
     public static let capture = Logger(subsystem: subsystem, category: "capture")
     /// The window, menu bar and hotkeys.
     public static let ui = Logger(subsystem: subsystem, category: "ui")
+    /// Keychain reads that failed for a reason other than a missing key.
+    public static let secrets = Logger(subsystem: subsystem, category: "secrets")
 }

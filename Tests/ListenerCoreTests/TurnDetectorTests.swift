@@ -64,8 +64,10 @@ private struct Harness {
         apply(detector.speechEvent(event, speaker: speaker))
     }
 
-    mutating func interim(_ speaker: Speaker, _ text: String) {
-        apply(detector.speechEvent(SpeechEvent(kind: .interim, text: text), speaker: speaker))
+    mutating func interim(_ speaker: Speaker, _ text: String, _ range: ClosedRange<Double>? = nil) {
+        let event = SpeechEvent(
+            kind: .interim, text: text, audioStart: range?.lowerBound, audioEnd: range?.upperBound)
+        apply(detector.speechEvent(event, speaker: speaker))
     }
 
     mutating func finish() {
@@ -143,6 +145,8 @@ struct TurnDetectorTests {
 
     @Test func someoneElseSpeakingInTheGapKeepsTurnsApart() {
         var harness = Harness()
+        harness.speech(.them, 0.0...1.0)
+        harness.speech(.me, 1.1...1.3)
         harness.play(to: 1.5)
         harness.final(.them, "So the price", 0.0...1.0)
         harness.final(.me, "Yeah.", 1.1...1.3)
@@ -153,6 +157,7 @@ struct TurnDetectorTests {
 
     @Test func voiceActivityAloneIsEnoughToKeepTurnsApart() {
         var harness = Harness()
+        harness.speech(.them, 0.0...1.0)
         harness.play(to: 1.5)
         harness.final(.them, "So the price", 0.0...1.0)
         // Me's final has not arrived yet, but its voice activity has.
@@ -161,11 +166,51 @@ struct TurnDetectorTests {
         #expect(harness.turns.map(\.text) == ["So the price", "was off."])
 
         var talking = Harness()
+        talking.speech(.them, 0.0...1.0)
         talking.play(to: 1.5)
         talking.final(.them, "So the price", 0.0...1.0)
         talking.started(.me, at: 1.2)
         talking.final(.them, "was off.", 1.4...2.0)
         #expect(talking.turns.count == 2)
+    }
+
+    @Test func aFillerMadeUpInSilenceIsDropped() {
+        var harness = Harness()
+        harness.speech(.me, 0.5...1.5)
+        harness.play(to: 5)
+        harness.final(.me, "Hi, go ahead.", 0.4...1.6)
+        harness.interim(.me, "Yeah", 1.6...3.8)
+        #expect(harness.detector.snapshot.interim.isEmpty)
+        harness.final(.me, "Yeah.", 1.6...4.4)
+        #expect(harness.turns.map(\.text) == ["Hi, go ahead."])
+        #expect(harness.detector.revision == 1)
+    }
+
+    @Test func textWithoutWordsIsIgnored() {
+        var harness = Harness()
+        harness.interim(.me, ".")
+        harness.final(.me, "…", nil)
+        #expect(harness.detector.snapshot.interim.isEmpty)
+        #expect(harness.turns.isEmpty)
+        #expect(harness.changes == 0)
+    }
+
+    @Test func longerTextWithNoSpeechUnderItIsKept() {
+        // More likely someone too quiet for the voice activity detector than made up.
+        var harness = Harness()
+        harness.play(to: 4)
+        harness.final(.them, "I'll send the report this afternoon.", 1.0...3.0)
+        #expect(harness.turns.map(\.text) == ["I'll send the report this afternoon."])
+    }
+
+    @Test func aFinalOlderThanTheSpeechKeptIsNeverTakenForMadeUp() {
+        var harness = Harness()
+        for second in 0..<70 {
+            harness.speech(.them, Double(second) + 10...Double(second) + 10.5)
+        }
+        harness.play(to: 90)
+        harness.final(.them, "Yes.", 1...2)
+        #expect(harness.turns.map(\.text) == ["Yes."])
     }
 
     /// A channel behind the other has only said it was speaking up to the audio it has
@@ -185,6 +230,9 @@ struct TurnDetectorTests {
 
     @Test func lateFinalsAreOrderedByStartWithStableIDs() {
         var harness = Harness()
+        harness.speech(.them, 5...6)
+        harness.speech(.me, 3...4)
+        harness.speech(.me, 4.2...4.5)
         harness.play(.them, to: 7)
         harness.play(.me, to: 4.6)
         harness.final(.them, "Later words", 5...6)
@@ -308,6 +356,7 @@ struct TurnDetectorTests {
 
     @Test func aTurnStaysOpenWhileItsSpeakerTalksButNotForever() {
         var harness = Harness()
+        harness.speech(.them, 0...1)
         harness.play(.them, to: 1)
         harness.final(.them, "Words.", 0...1)
         harness.started(.them, at: 1.2)
@@ -357,7 +406,7 @@ struct TurnDetectorTests {
         _ = detector.audioProgress(.me, frame: 0..<0.1, capturedAt: 0.1)
         // Half a second of audio went missing before the next frame.
         _ = detector.audioProgress(.me, frame: 0.1..<0.2, capturedAt: 0.7)
-        _ = detector.audioProgress(.me, frame: 0.2..<0.3, capturedAt: 0.8)
+        _ = detector.audioProgress(.me, frame: 0.2..<0.3, capturedAt: 0.8, activity: [.speechStarted(at: 0.25)])
         _ = detector.speechEvent(SpeechEvent(kind: .final, text: "x", audioStart: 0.25, audioEnd: 0.3), speaker: .me)
         #expect(near(detector.snapshot.turns.first?.start, 0.75))
         #expect(near(detector.snapshot.turns.first?.end, 0.8))
@@ -370,6 +419,8 @@ struct TurnDetectorTests {
             let frame = Double(index) / 10..<Double(index + 1) / 10
             _ = detector.audioProgress(.them, frame: frame, capturedAt: 2 + frame.upperBound / 4)
         }
+        _ = detector.voiceActivity(.speechStarted(at: 0.33), speaker: .them)
+        _ = detector.voiceActivity(.speechEnded(at: 0.47), speaker: .them)
         _ = detector.speechEvent(SpeechEvent(kind: .final, text: "x", audioStart: 0.33, audioEnd: 0.47), speaker: .them)
         #expect(near(detector.snapshot.turns.first?.start, 2.0825))
         #expect(near(detector.snapshot.turns.first?.end, 2.1175))

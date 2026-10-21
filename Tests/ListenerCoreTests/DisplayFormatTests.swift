@@ -13,6 +13,15 @@ struct DisplayFormatTests {
         #expect(DisplayFormat.clock(.nan) == "0:00")
     }
 
+    @Test func tokenCounts() {
+        #expect(DisplayFormat.tokens(0) == "0")
+        #expect(DisplayFormat.tokens(850) == "850")
+        #expect(DisplayFormat.tokens(1_000) == "1k")
+        #expect(DisplayFormat.tokens(1_249) == "1.2k")
+        #expect(DisplayFormat.tokens(9_960) == "10k")
+        #expect(DisplayFormat.tokens(20_000) == "20k")
+    }
+
     @Test func runningCost() {
         #expect(DisplayFormat.cost(0) == "$0.00")
         #expect(DisplayFormat.cost(0.004) == "<$0.01")
@@ -89,6 +98,13 @@ struct ReadinessTests {
         #expect(Readiness.check(input)[1].status == .ready)
         input.screenRecording = .denied
         #expect(Readiness.check(input)[1].fix == .openPrivacySettings(.screenAndSystemAudioRecording))
+    }
+
+    @Test func systemAudioIsAllowedOnceTheTapHasHeardSpeech() {
+        var input = ready
+        input.systemAudioHeard = true
+        let item = Readiness.check(input)[1]
+        #expect(item.status == .ready && item.summary == "Allowed" && item.fix == nil)
     }
 
     @Test func speechNeedsAProjectAndCredentials() {

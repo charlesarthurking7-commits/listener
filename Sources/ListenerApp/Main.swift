@@ -20,6 +20,9 @@ enum Main {
         if let app = command as? ListenerCommand {
             app.launchApp()
         }
+        if let demo = command as? DemoCommand {
+            demo.launchApp()
+        }
 
         Task {
             await ListenerCommand.main(Array(arguments))

@@ -51,6 +51,23 @@ enum SessionFactory {
         return Replay(components: components, sources: [meSource, themSource])
     }
 
+    /// A recorded call played into the app as if it were live. Its script stands in for
+    /// speech-to-text, and canned answers can stand in for Claude.
+    static func demo(_ demo: DemoCall, settings: Settings, secrets: any SecretStore, callbacks: SessionCallbacks)
+        throws -> SessionComponents
+    {
+        let script = try ConversationScript.load(from: demo.folder.appendingPathComponent("script.json"))
+        var components = try replay(
+            settings: settings, secrets: demo.scriptedAnswers ? ChainedSecretStore([]) : secrets,
+            callbacks: callbacks, me: demo.folder.appendingPathComponent("me.wav"),
+            them: demo.folder.appendingPathComponent("them.wav"), script: script, speed: 1
+        ).components
+        if demo.scriptedAnswers {
+            components.languageModel = ScriptedLanguageModel(reply: DemoAnswers.reply)
+        }
+        return components
+    }
+
     static func speech(_ settings: Settings, callbacks: SessionCallbacks) throws -> any SpeechToTextProvider {
         do {
             switch settings.speech.provider {
@@ -77,6 +94,25 @@ enum SessionFactory {
             return nil
         }
         return ClaudeClient(apiKey: key, transport: transport)
+    }
+
+    /// A web page as Markdown for a call's background, tidied by the quick model.
+    static func importWebPage(_ url: URL, settings: Settings, secrets: any SecretStore) async throws -> String {
+        guard let model = languageModel(secrets) else {
+            throw FactoryError(
+                "Reading a link needs an Anthropic API key. Copy the text from the page and press Paste instead.")
+        }
+        let importer = WebPageImporter(fetch: fetchPage, model: model, settings: settings.answers.webPageImport)
+        return try await importer.importPage(url)
+    }
+
+    private static func fetchPage(_ url: URL) async throws -> WebPageImporter.Response {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue("text/html,application/xhtml+xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+        request.setValue("en-GB,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        let (body, response) = try await URLSession.shared.data(for: request)
+        return WebPageImporter.Response(
+            body: body, status: (response as? HTTPURLResponse)?.statusCode ?? 200, mimeType: response.mimeType)
     }
 
     /// The Google project and credentials a call would use. Reads the credentials

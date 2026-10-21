@@ -8,12 +8,16 @@ call ends it writes a summary with action items.
 - **Quick answer** (Control-Option-A): Claude Haiku 5.5, short and speakable, first
   words in well under a second.
 - **Deep answer** (Control-Option-Shift-A): Claude Sonnet 5.5 for harder questions.
+- **Recap so far** (Control-Option-S): what the call has covered, what is still open for
+  you and what was agreed, from the whole call.
+- **Call types**: pick Work call or Meeting before Start, and drop in files, paste a page
+  or its link, or write a brief.
 - **Grounded**: answers may use general knowledge but never invent call-specific facts
   (amounts, account or ticket numbers, dates, names); they say what to check instead.
 - **Speech-to-text**: Apple's on-device recognition by default where the Mac supports it
   (macOS 26 and later, free, nothing leaves the Mac), otherwise Google Cloud
   Speech-to-Text v2 in the EU (about $1.92 per call-hour for both channels).
-- **Visible**: a pulsing red indicator in the window and a red menu bar icon while
+- **Visible**: a pulsing red indicator in the window and a filled menu bar icon while
   listening. Nothing is recorded until you press Start.
 - **Measured**: every answer logs end-of-speech, hotkey, first-token and done times; the
   running cost is in the window and saved with each call.
@@ -50,7 +54,8 @@ icon and set `{ "speech": { "provider": "google", "googleProjectID": "your-proje
 Add a line about yourself to `answers.context` so answers fit your role
 (see [`settings.example.json`](settings.example.json)). Press **Start** in the window.
 
-Try it without a call by replaying a fixture through the full pipeline:
+Try the window without a call with `listener demo`, which plays a recorded call into it,
+or replay a fixture through the full pipeline in the terminal:
 
 ```sh
 listener replay Fixtures/delayed-executions/me.wav Fixtures/delayed-executions/them.wav \
@@ -100,18 +105,25 @@ command run straight from Terminal gets its permissions through your terminal ap
 ```sh
 swift build                 # everything (the macOS targets build only on macOS)
 swift test                  # ListenerCore, GoogleSpeech and ClaudeAPI tests, also on Linux
+scripts/build-app.sh        # release app bundle
 swift format lint --strict --recursive Sources Tests Package.swift
 swift format --in-place --recursive Sources Tests Package.swift
 scripts/generate-protos.sh  # regenerate the Speech-to-Text gRPC client
 ```
 
+Build release binaries with `scripts/build-app.sh` rather than `swift build -c release`.
+It compiles the dependencies for the same macOS version as Listener; without that the
+optimised app crashes in `Task.sleep` (see the comment in the script).
+
 ```
 Sources/ListenerCore   platform independent: audio framing, VAD, resampling, turn detection,
-                       the call session, prompts, cost, settings, storage, replay, fakes
+                       the call session, prompts, call types, web pages, cost, settings,
+                       storage, replay, fakes
 Sources/GoogleSpeech   Speech-to-Text v2 streaming over gRPC, Google credentials
 Sources/ClaudeAPI      Anthropic Messages API client with streaming
 Sources/ListenerMac    capture (Core Audio tap, AVAudioEngine, ScreenCaptureKit), on-device
-                       speech, hotkeys, Keychain, the floating window and menu bar item
+                       speech, reading PDF and Word files, hotkeys, Keychain, the floating
+                       window and menu bar item
 Sources/ListenerApp    the `listener` executable: the app and its subcommands
 Tests/                 swift-testing suites, including end-to-end runs on the fixtures
 Fixtures/              three mock broker calls (two channels plus script) for replay;

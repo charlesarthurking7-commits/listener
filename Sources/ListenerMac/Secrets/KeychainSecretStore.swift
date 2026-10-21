@@ -15,7 +15,12 @@ public struct KeychainSecretStore: SecretStore {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else {
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else {
+            if status != errSecItemNotFound {
+                let error = KeychainError(status: status).description
+                Log.secrets.error("Reading \(name.rawValue, privacy: .public) failed: \(error, privacy: .public)")
+            }
             return nil
         }
         let value = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)

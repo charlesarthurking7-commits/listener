@@ -24,6 +24,9 @@ enum Theme {
     static let fill = Color.adaptive(light: NSColor(white: 0, alpha: 0.045), dark: NSColor(white: 1, alpha: 0.07))
     static let strongFill = Color.adaptive(light: NSColor(white: 0, alpha: 0.075), dark: NSColor(white: 1, alpha: 0.11))
     static let keycapFill = Color.adaptive(light: NSColor(white: 1, alpha: 0.9), dark: NSColor(white: 1, alpha: 0.08))
+    /// Clear's whole background: dark enough under light text to read over video or a
+    /// busy desktop, light enough to see through.
+    static let clearTint = Color.black.opacity(0.42)
     static let keycapEdge = Color.adaptive(light: NSColor(white: 0, alpha: 0.13), dark: NSColor(white: 1, alpha: 0.14))
 
     /// Notes meant only for the user: a sticky-note yellow in light mode, a neutral
@@ -73,6 +76,16 @@ extension AnswerTier {
         switch self {
         case .quick: "Quick"
         case .deep: "Deep"
+        case .recap: "Recap"
+        }
+    }
+
+    /// What the card holds, for help text and VoiceOver, e.g. "quick answer".
+    var noun: String {
+        switch self {
+        case .quick: "quick answer"
+        case .deep: "deep answer"
+        case .recap: "recap"
         }
     }
 
@@ -80,6 +93,7 @@ extension AnswerTier {
         switch self {
         case .quick: "bolt.fill"
         case .deep: "sparkles"
+        case .recap: "list.bullet"
         }
     }
 
@@ -87,6 +101,7 @@ extension AnswerTier {
         switch self {
         case .quick: .accentColor
         case .deep: .purple
+        case .recap: .teal
         }
     }
 
@@ -94,6 +109,7 @@ extension AnswerTier {
         switch self {
         case .quick: .quickAnswer
         case .deep: .deepAnswer
+        case .recap: .recap
         }
     }
 }
@@ -164,7 +180,7 @@ struct TierBadge: View {
             .padding(.trailing, 8)
             .frame(height: 20)
             .background(tier.tint.opacity(0.16), in: Capsule())
-            .accessibilityLabel("\(tier.title) answer")
+            .accessibilityLabel(tier.hotkeyAction.title)
     }
 }
 
@@ -238,14 +254,44 @@ private struct HoverCircle: View {
     let configuration: ButtonStyleConfiguration
     let size: CGFloat
     @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         configuration.label
             .font(.system(size: size > 24 ? 11 : 12, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(width: size, height: size)
-            .background(Theme.strongFill.opacity(hovering || configuration.isPressed ? 1 : 0), in: Circle())
+            .background(
+                Theme.strongFill.opacity(isEnabled && (hovering || configuration.isPressed) ? 1 : 0), in: Circle()
+            )
             .contentShape(Circle())
+            .opacity(isEnabled ? 1 : 0.4)
+            .onHover { hovering = $0 }
+    }
+}
+
+/// Quiet text in a soft rounded fill on hover, for the footer's answer buttons.
+struct FooterButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HoverRoundedRect(configuration: configuration)
+    }
+}
+
+private struct HoverRoundedRect: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+            .background(
+                Theme.strongFill.opacity(isEnabled && (hovering || configuration.isPressed) ? 1 : 0),
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.55)
             .onHover { hovering = $0 }
     }
 }

@@ -405,8 +405,9 @@ SDKs but has not been linked or run, because this was built without a Mac.
    short, AssemblyAI or Soniox stream for roughly 25 to 30 cents per call-hour, much less
    than Google; either needs an account, so I'm asking before adding one.
 4. Default hotkeys: Control-Option-A (quick), Control-Option-Shift-A (deep),
-   Control-Option-L (start/stop). Control-Option-Space was dropped because macOS uses it
-   to switch input sources. Any clashes with your setup (Rectangle, for example)?
+   Control-Option-S (recap), Control-Option-L (start/stop). Control-Option-Space was
+   dropped because macOS uses it to switch input sources. Checked against Rectangle on
+   your Mac: no clashes.
 
 ## 7. First run on your Mac
 

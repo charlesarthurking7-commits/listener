@@ -2,7 +2,8 @@ import ListenerCore
 import SwiftUI
 
 /// After Stop: progress while the call is saved and summarised, then the saved call
-/// with its length, turns and cost and a way to open the summary.
+/// with its length, turns and cost, a way to open the summary, and New Call to go back
+/// to the start screen.
 struct CallOutcomeCard: View {
     let model: CallModel
 
@@ -22,12 +23,11 @@ struct CallOutcomeCard: View {
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 4)
                 if model.outcome != nil {
-                    Button(action: model.dismissOutcome) {
-                        Image(systemName: "xmark")
+                    Button(action: model.newCall) {
+                        Label("New Call", systemImage: "plus")
                     }
-                    .buttonStyle(IconButtonStyle(size: 24))
-                    .help("Dismiss")
-                    .accessibilityLabel("Dismiss")
+                    .buttonStyle(SoftButtonStyle(small: true))
+                    .help("Back to the start screen to set up the next call")
                 }
             }
             if let outcome = model.outcome, let directory = outcome.directory {

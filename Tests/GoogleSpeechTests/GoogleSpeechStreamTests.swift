@@ -142,20 +142,22 @@ struct GoogleSpeechStreamTests {
             await call.drain()
             try await call.respond(Response.final("Hi.", end: 0.4))
         }
+        // The limit also counts time since the stream started. It is long enough that
+        // the audio, sent at once, reaches it first even on a busy machine.
         let tuning = StreamTuning.forTests().with {
-            $0.hardLimit = .seconds(1)
+            $0.hardLimit = .seconds(5)
             $0.idleReplay = .milliseconds(250)
         }
         try await withFakeSpeech(scripts: [{ await $0.drain() }, second], tuning: tuning) { provider, recorder in
             let stream = try await provider.openStream(for: .them)
             await recorder.waitForCalls(1)
-            try await Audio.send(stream, from: 0, to: 1.2)
+            try await Audio.send(stream, from: 0, to: 5.2)
             await stream.finish()
 
-            #expect(try await stream.events.collect() == [.final("Hi.", 0.75, 1.15)])
+            #expect(try await stream.events.collect() == [.final("Hi.", 4.75, 5.15)])
             let calls = await recorder.calls
             try #require(calls.count == 2)
-            #expect(calls[1].samples == Audio.samples(from: 0.75, to: 1.2))
+            #expect(calls[1].samples == Audio.samples(from: 4.75, to: 5.2))
         }
     }
 

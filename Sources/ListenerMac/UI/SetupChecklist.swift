@@ -217,16 +217,30 @@ struct ReadinessIcon: View {
     }
 }
 
+/// The call setup on top, then the hotkeys and the status list. Scrolls once a long list
+/// of files leaves too little room.
 private struct ReadyView: View {
     let model: CallModel
 
     var body: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                content
+                    .frame(minHeight: proxy.size.height)
+            }
+            .scrollIndicators(.automatic)
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
+            CallSetupCard(model: model)
+                .padding([.horizontal, .top], Theme.gutter)
             Spacer(minLength: 16)
             Hero(
                 symbol: "waveform", tint: .accentColor, title: "Ready when you are",
                 message: "Press Start when the call begins.\nNothing is recorded until then.")
-            ShortcutTable(model: model, actions: [.toggleListening, .quickAnswer, .deepAnswer])
+            ShortcutTable(model: model, actions: [.toggleListening, .quickAnswer, .deepAnswer, .recap])
                 .padding(.top, 22)
             Spacer(minLength: 16)
             VStack(spacing: 0) {
@@ -276,7 +290,7 @@ struct EmptyStateView: View {
                 HearingChips(hearing: hearing)
                     .padding(.top, 16)
             }
-            ShortcutTable(model: model, actions: [.quickAnswer, .deepAnswer])
+            ShortcutTable(model: model, actions: [.quickAnswer, .deepAnswer, .recap])
                 .padding(.top, 22)
         }
         .padding(.horizontal, 32)
@@ -363,8 +377,10 @@ private struct ShortcutTable: View {
     private func label(_ action: HotkeyAction) -> String {
         switch action {
         case .toggleListening: "Start or stop"
+        case .toggleWindow: "Show or hide"
         case .quickAnswer: "Quick answer"
         case .deepAnswer: "Deep answer"
+        case .recap: "Recap so far"
         }
     }
 }

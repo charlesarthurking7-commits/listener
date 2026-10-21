@@ -114,6 +114,23 @@ struct SessionStoreTests {
         #expect(files == ["answers.jsonl", "transcript.jsonl"])
     }
 
+    @Test func theCallTypeIsSavedForWritingTheSummaryAgain() throws {
+        let root = try temporaryDirectory("store")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try SessionStore(root: root)
+        #expect(SessionStore.readCall(in: store.directory) == .none)
+        let call = CallContext(
+            callType: "Work call", instructions: "Keep answers short.",
+            documents: [CallContext.Document(name: "runbook.pdf", text: "Restart the bridge before the open.")])
+        try store.write(call)
+        try store.write(
+            SessionRecord(startedAt: Date(), channels: [], speechProvider: "x", settings: Settings(), call: call))
+        try store.close()
+        #expect(SessionStore.readCall(in: store.directory) == call)
+        let record = try SessionStore.readRecord(in: store.directory)
+        #expect(record.callType == "Work call" && record.documents == ["runbook.pdf"])
+    }
+
     @Test func sessionsStartedInTheSameSecondGetTheirOwnDirectories() throws {
         let root = try temporaryDirectory("store")
         defer { try? FileManager.default.removeItem(at: root) }

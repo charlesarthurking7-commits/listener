@@ -11,7 +11,14 @@ final class FloatingPanel: NSPanel {
     /// Narrow enough to sit beside a call, tall enough for an answer and the last
     /// minute of conversation.
     private static let defaultSize = NSSize(width: 400, height: 720)
+    private static let minimumSize = NSSize(width: 320, height: 360)
     private static let margin: CGFloat = 24
+
+    private let background = NSVisualEffectView()
+    /// The size to go back to when a call's compact bar gives way to the full window.
+    private var expandedFrame: NSRect?
+    /// The latest height asked for, applied once SwiftUI has finished laying out.
+    private var pendingFit: CGFloat??
 
     init(rootView: some View, window: WindowSettings) {
         super.init(
@@ -32,7 +39,7 @@ final class FloatingPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         alphaValue = window.opacity
-        minSize = NSSize(width: 320, height: 360)
+        minSize = Self.minimumSize
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             standardWindowButton(button)?.isHidden = true
         }
@@ -41,7 +48,6 @@ final class FloatingPanel: NSPanel {
         // own blur. The popover material follows light and dark mode and is dense
         // enough to read text over any background, and macOS makes it opaque with
         // Reduce Transparency.
-        let background = NSVisualEffectView()
         background.material = .popover
         background.blendingMode = .behindWindow
         // Listener is never the active app, and inactive windows lose their vibrancy
@@ -50,15 +56,22 @@ final class FloatingPanel: NSPanel {
 
         let host = FirstClickHostingView(rootView: AnyView(rootView))
         host.sizingOptions = [.minSize]
-        host.translatesAutoresizingMaskIntoConstraints = false
-        background.addSubview(host)
-        NSLayoutConstraint.activate([
-            host.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-            host.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            host.topAnchor.constraint(equalTo: background.topAnchor),
-            host.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-        ])
-        contentView = background
+        // The header draws where the hidden title bar would be, so the content has no
+        // safe area to keep clear, and its size must not count one.
+        host.safeAreaRegions = []
+        // Side by side rather than nested, so Clear can turn the blur off and keep the content.
+        let container = NSView()
+        for view in [background, host] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                view.topAnchor.constraint(equalTo: container.topAnchor),
+                view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            ])
+        }
+        contentView = container
 
         if !setFrameUsingName(Self.frameName) {
             placeForFirstLaunch()
@@ -74,6 +87,73 @@ final class FloatingPanel: NSPanel {
     /// Shows the panel without activating Listener.
     func show() {
         orderFrontRegardless()
+    }
+
+    /// Sizes the window to the compact bar and its card, keeping the top edge where it
+    /// is so an answer grows downwards. Nil goes back to the full window. The compact
+    /// size is never saved, so the next launch opens full size.
+    ///
+    /// SwiftUI asks for this while it lays the window out, and resizing the window there
+    /// leaves the content a different size from it, so the change waits for the next
+    /// turn of the run loop.
+    func fitContent(height: CGFloat?) {
+        let scheduled = pendingFit != nil
+        pendingFit = .some(height)
+        if !scheduled {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let height = pendingFit else {
+                    return
+                }
+                pendingFit = nil
+                applyFit(height: height)
+            }
+        }
+    }
+
+    private func applyFit(height: CGFloat?) {
+        if let height {
+            if expandedFrame == nil {
+                expandedFrame = frame
+                setFrameAutosaveName("")
+                minSize = NSSize(width: Self.minimumSize.width, height: 1)
+            }
+            setFrame(topAnchored(height: height), display: true)
+        } else if let expanded = expandedFrame {
+            expandedFrame = nil
+            minSize = Self.minimumSize
+            setFrame(constrainFrameRect(topAnchored(height: expanded.height), to: screen), display: true)
+            setFrameAutosaveName(Self.frameName)
+        }
+    }
+
+    /// Solid uses the material's opaque form, which is also what macOS shows with Reduce
+    /// Transparency. Clear drops the blur for a dark tint (drawn by the content) with light
+    /// text, which reads over anything, in Light Mode too. Hiding from screen sharing
+    /// leaves the window out of every capture, screenshots included.
+    func apply(transparency: WindowTransparency, opacity: Double, hiddenFromSharing: Bool) {
+        background.state = transparency == .solid ? .inactive : .active
+        background.isHidden = transparency == .clear
+        appearance = transparency == .clear ? NSAppearance(named: .darkAqua) : nil
+        if abs(alphaValue - opacity) > 0.001 {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                animator().alphaValue = opacity
+            }
+        }
+        sharingType = hiddenFromSharing ? .none : .readOnly
+    }
+
+    /// Just under the menu bar in the middle of the screen, close to the camera.
+    func moveToTopCentre() {
+        guard let visible = (screen ?? NSScreen.main)?.visibleFrame else {
+            return
+        }
+        let origin = NSPoint(x: visible.midX - frame.width / 2, y: visible.maxY - frame.height - 8)
+        setFrameOrigin(origin)
+    }
+
+    private func topAnchored(height: CGFloat) -> NSRect {
+        NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height)
     }
 
     /// The window is meant to sit beside the call on a second display, so it starts on

@@ -77,6 +77,8 @@ public struct SettingsLoader: Sendable {
         EnvironmentOverride(
             variable: "LISTENER_DEEP_MODEL", setting: "answers.deep.model", kind: .text(\.answers.deep.model)),
         EnvironmentOverride(
+            variable: "LISTENER_RECAP_MODEL", setting: "answers.recap.model", kind: .text(\.answers.recap.model)),
+        EnvironmentOverride(
             variable: "LISTENER_SYSTEM_AUDIO", setting: "capture.systemAudioBackend",
             kind: .text(\.capture.systemAudioBackend)),
         EnvironmentOverride(
@@ -166,7 +168,9 @@ public struct SettingsLoader: Sendable {
             "hotkeys": .object([
                 "quickAnswer": .string(defaults.hotkeys.quickAnswer),
                 "deepAnswer": .string(defaults.hotkeys.deepAnswer),
+                "recap": .string(defaults.hotkeys.recap),
                 "toggleListening": .string(defaults.hotkeys.toggleListening),
+                "toggleWindow": .string(defaults.hotkeys.toggleWindow),
             ]),
             "storage": .object([
                 "retentionDays": .integer(defaults.storage.retentionDays),
@@ -262,6 +266,7 @@ public struct SettingsLoader: Sendable {
         require(settings.turns.minSpeechMs >= 0, "turns.minSpeechMs", "must not be negative")
         require(settings.answers.quick.maxTokens > 0, "answers.quick.maxTokens", "must be more than 0")
         require(settings.answers.deep.maxTokens > 0, "answers.deep.maxTokens", "must be more than 0")
+        require(settings.answers.recap.maxTokens > 0, "answers.recap.maxTokens", "must be more than 0")
         require(settings.summary.model.maxTokens > 0, "summary.model.maxTokens", "must be more than 0")
         require(
             settings.answers.transcriptBudgetTokens > 0, "answers.transcriptBudgetTokens", "must be more than 0")

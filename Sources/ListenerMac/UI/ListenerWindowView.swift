@@ -4,7 +4,49 @@ import SwiftUI
 /// The floating window, top to bottom: listening state and Start/Stop, banners, the
 /// answer card (or how the last call ended), the transcript or what to do before a
 /// call, and the cost and hotkeys.
+///
+/// During a call it is only the bar and the answer card, sized to fit, unless the
+/// transcript is turned on: on a single screen anything more is in the way.
 struct ListenerWindowView: View {
+    let model: CallModel
+    let hide: @MainActor () -> Void
+    /// The height the compact window needs, or nil for the full window.
+    let fitHeight: @MainActor (CGFloat?) -> Void
+
+    var body: some View {
+        Group {
+            if model.isCompact {
+                CompactCallView(model: model, hide: hide)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        fitHeight(height)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                VStack(spacing: 0) {
+                    HeaderBar(model: model, hide: hide)
+                    NoticeStack(model: model)
+                    Hairline()
+                    WindowContent(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Hairline()
+                    FooterBar(model: model)
+                }
+                .frame(minWidth: 320, minHeight: 360)
+                .onAppear {
+                    fitHeight(nil)
+                }
+            }
+        }
+        .background(model.transparency == .clear ? Theme.clearTint : .clear)
+        .onHover { model.pointerMoved(over: $0) }
+    }
+}
+
+/// The bar and, when there is one, the answer card under it.
+private struct CompactCallView: View {
     let model: CallModel
     let hide: @MainActor () -> Void
 
@@ -12,16 +54,13 @@ struct ListenerWindowView: View {
         VStack(spacing: 0) {
             HeaderBar(model: model, hide: hide)
             NoticeStack(model: model)
-            Hairline()
-            WindowContent(model: model)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Hairline()
-            FooterBar(model: model)
+            if let id = model.answerID {
+                AnswerCardView(model: model, maxTextHeight: 320)
+                    .id(id)
+                    .padding(.horizontal, Theme.cardInset)
+                    .padding(.bottom, Theme.cardInset)
+            }
         }
-        .frame(minWidth: 320, minHeight: 360)
-        // The title bar is transparent and its buttons hidden, so the header uses
-        // that space instead of sitting below an empty band.
-        .ignoresSafeArea()
     }
 }
 
@@ -104,11 +143,25 @@ private struct MainContent: View {
                     title: "Starting", message: "Connecting to the microphone and system audio.", model: model)
             case .listening:
                 EmptyStateView(
-                    title: "Listening", message: "The transcript appears here as people speak.", model: model,
-                    showsHearing: true)
+                    title: "Listening", message: "The transcript appears here as people speak.\(callLine)",
+                    model: model, showsHearing: true)
             case .stopping, .summarizing:
                 EmptyStateView(title: "Nothing was said", message: "Saving the call.", model: model)
             }
+        }
+    }
+}
+
+extension MainContent {
+    /// Which call type and background the call started with, e.g. "Work call, with 2 documents".
+    fileprivate var callLine: String {
+        guard let call = model.activeCall, !call.callType.isEmpty else {
+            return ""
+        }
+        switch call.documents.count {
+        case 0: return "\n\(call.callType)."
+        case 1: return "\n\(call.callType), with 1 document."
+        default: return "\n\(call.callType), with \(call.documents.count) documents."
         }
     }
 }
@@ -121,6 +174,18 @@ private struct HeaderBar: View {
         HStack(spacing: 8) {
             ListeningStatus(model: model)
             Spacer(minLength: 8)
+            if model.isInCall {
+                ViewThatFits(in: .horizontal) {
+                    AnswerButtons(model: model)
+                    Color.clear.frame(width: 0, height: 0)
+                }
+                Button(action: model.toggleTranscriptInCall) {
+                    Image(systemName: model.showsTranscriptInCall ? "text.bubble.fill" : "text.bubble")
+                }
+                .buttonStyle(IconButtonStyle())
+                .help(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
+                .accessibilityLabel(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
+            }
             StartStopButton(model: model)
             Button(action: hide) {
                 Image(systemName: "xmark")
@@ -136,8 +201,33 @@ private struct HeaderBar: View {
     }
 }
 
+/// Quick, Deep and Recap as icons, for the bar during a call. Left out when the window
+/// is too narrow; the hotkeys and the menu still work.
+private struct AnswerButtons: View {
+    let model: CallModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(AnswerTier.allCases, id: \.self) { tier in
+                let hotkey = model.activeHotkeys[tier.hotkeyAction]
+                let name = tier.hotkeyAction.title
+                Button {
+                    model.ask(tier)
+                } label: {
+                    Image(systemName: tier.symbol)
+                }
+                .buttonStyle(IconButtonStyle())
+                .disabled(!model.canAsk)
+                .help(hotkey.map { "\(name): \($0.displayString)" } ?? name)
+                .accessibilityLabel(name)
+            }
+        }
+    }
+}
+
 /// Whether audio is being captured, which must be obvious at a glance: a red pill with
-/// a pulsing dot and the call's length while listening, grey text otherwise.
+/// a pulsing dot and the call's length while listening, grey text otherwise. The header
+/// of a call also holds the answer buttons, so the pill makes its point without a word.
 private struct ListeningStatus: View {
     let model: CallModel
 
@@ -148,14 +238,10 @@ private struct ListeningStatus: View {
                 // Room for the halo at its widest, so it is never clipped.
                 ListeningPulse()
                     .frame(width: 20, height: 20)
-                HStack(spacing: 7) {
-                    Text("Listening")
-                    if let since = model.listeningSince {
-                        TimelineView(.periodic(from: since, by: 1)) { context in
-                            Text(DisplayFormat.clock(context.date.timeIntervalSince(since)))
-                                .font(.system(size: 13, weight: .medium).monospacedDigit())
-                                .opacity(0.8)
-                        }
+                if let since = model.listeningSince {
+                    TimelineView(.periodic(from: since, by: 1)) { context in
+                        Text(DisplayFormat.clock(context.date.timeIntervalSince(since)))
+                            .monospacedDigit()
                     }
                 }
             }
@@ -361,7 +447,8 @@ private struct FooterBar: View {
         .foregroundStyle(.secondary)
         .lineLimit(1)
         .padding(.leading, Theme.gutter)
-        .padding(.trailing, 14)
+        // The buttons' hover fill reaches 6 points past their text.
+        .padding(.trailing, 8)
         .frame(height: Theme.footerHeight)
         .background(WindowDragArea())
     }
@@ -373,24 +460,32 @@ private struct FooterBar: View {
     }
 
     private func hotkeyHints(titled: Bool) -> some View {
-        HStack(spacing: 12) {
-            hint(.quick, titled: titled)
-            hint(.deep, titled: titled)
+        HStack(spacing: 0) {
+            ForEach(AnswerTier.allCases, id: \.self) { tier in
+                hint(tier, titled: titled)
+            }
         }
     }
 
-    @ViewBuilder
+    /// A button for each tier, with its hotkey when it is registered.
     private func hint(_ tier: AnswerTier, titled: Bool) -> some View {
-        if let hotkey = model.activeHotkeys[tier.hotkeyAction] {
+        let hotkey = model.activeHotkeys[tier.hotkeyAction]
+        let name = tier.hotkeyAction.title
+        return Button {
+            model.ask(tier)
+        } label: {
             HStack(spacing: 6) {
-                HotkeyKeycaps(hotkey: hotkey)
-                if titled {
+                if let hotkey {
+                    HotkeyKeycaps(hotkey: hotkey)
+                }
+                if titled || hotkey == nil {
                     Text(tier.title)
                 }
             }
-            .help("\(tier.title) answer: \(hotkey.displayString)")
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(tier.title) answer: \(hotkey.spokenName)")
         }
+        .buttonStyle(FooterButtonStyle())
+        .disabled(!model.canAsk)
+        .help(hotkey.map { "\(name): \($0.displayString)" } ?? name)
+        .accessibilityLabel(hotkey.map { "\(name): \($0.spokenName)" } ?? name)
     }
 }

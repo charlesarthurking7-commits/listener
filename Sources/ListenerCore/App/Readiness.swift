@@ -24,6 +24,9 @@ public struct ReadinessInput: Sendable, Equatable {
     /// Only checked for the ScreenCaptureKit backend; nil for the Core Audio tap,
     /// whose permission macOS does not let apps query.
     public var screenRecording: Permission?
+    /// The tap has delivered speech on an earlier call, which it only does once System
+    /// Audio Recording is allowed.
+    public var systemAudioHeard: Bool
     public var speechProvider: String
     /// The Google Cloud project that will be billed: speech.googleProjectID, or the
     /// quota project in the credentials file.
@@ -37,6 +40,7 @@ public struct ReadinessInput: Sendable, Equatable {
     public init(
         microphone: Permission,
         screenRecording: Permission? = nil,
+        systemAudioHeard: Bool = false,
         speechProvider: String,
         googleProjectID: String? = nil,
         googleCredentialsProblem: String? = nil,
@@ -45,6 +49,7 @@ public struct ReadinessInput: Sendable, Equatable {
     ) {
         self.microphone = microphone
         self.screenRecording = screenRecording
+        self.systemAudioHeard = systemAudioHeard
         self.speechProvider = speechProvider
         self.googleProjectID = googleProjectID
         self.googleCredentialsProblem = googleCredentialsProblem
@@ -101,7 +106,10 @@ public struct ReadinessProgress: Sendable, Equatable {
 
 public enum Readiness {
     public static func check(_ input: ReadinessInput) -> [ReadinessItem] {
-        [microphone(input.microphone), systemAudio(input.screenRecording), speech(input), answers(input)]
+        [
+            microphone(input.microphone), systemAudio(input.screenRecording, heard: input.systemAudioHeard),
+            speech(input), answers(input),
+        ]
     }
 
     public static func blocksStart(_ items: [ReadinessItem]) -> Bool {
@@ -139,8 +147,12 @@ public enum Readiness {
         }
     }
 
-    private static func systemAudio(_ screenRecording: ReadinessInput.Permission?) -> ReadinessItem {
+    private static func systemAudio(_ screenRecording: ReadinessInput.Permission?, heard: Bool) -> ReadinessItem {
         switch screenRecording {
+        case nil where heard:
+            ReadinessItem(
+                id: "systemAudio", title: "System audio", detail: "Allowed. The Mac's audio is the \"Them\" channel.",
+                status: .ready, fix: nil, summary: "Allowed")
         case nil:
             ReadinessItem(
                 id: "systemAudio", title: "System audio",

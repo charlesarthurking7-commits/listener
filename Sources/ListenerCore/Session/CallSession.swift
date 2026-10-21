@@ -38,16 +38,26 @@ public actor CallSession {
     static let finalsTimeout = Duration.seconds(3)
     /// Cost events are at most this frequent; speech cost changes every 100 ms.
     static let costInterval = Duration.milliseconds(500)
+    /// Claude keeps a cached prompt for five minutes after its last use. A tier's is
+    /// refreshed once it has gone this long unused, checked this often.
+    static let cacheRefreshAfter = Duration.seconds(240)
+    static let cacheCheckInterval = Duration.seconds(15)
+    /// The tiers whose speed matters most; a recap can wait the extra moment.
+    static let warmTiers: [AnswerTier] = [.quick, .deep]
 
     public nonisolated let events: AsyncStream<SessionEvent>
     private let continuation: AsyncStream<SessionEvent>.Continuation
     private let settings: Settings
     private let components: SessionComponents
+    private let call: CallContext
 
-    public init(settings: Settings, components: SessionComponents) {
+    /// `call` is the call type and its documents, fixed for the whole call so that its
+    /// place in the prompt stays cached.
+    public init(settings: Settings, components: SessionComponents, call: CallContext = .none) {
         (events, continuation) = AsyncStream.makeStream(of: SessionEvent.self, bufferingPolicy: .unbounded)
         self.settings = settings
         self.components = components
+        self.call = call
         detector = TurnDetector(settings: settings.turns)
         costTracker = CostTracker(prices: settings.prices, speechProvider: settings.speech.provider)
     }
@@ -91,6 +101,10 @@ public actor CallSession {
     private var costTracker: CostTracker
     private var lastCostEvent: ContinuousClock.Instant?
     private var costFlush: Task<Void, Never>?
+
+    /// When each tier's system prompt last went to the model, for keeping it cached.
+    private var promptSentAt: [AnswerTier: ContinuousClock.Instant] = [:]
+    private var cacheWarmer: Task<Void, Never>?
 
     private var visible: Generation?
     private var draft: Generation?
@@ -151,8 +165,44 @@ public actor CallSession {
         }
         if let model = components.languageModel {
             Task { await model.warmUp() }
+            keepPromptsCached(model)
         }
         writeRecord()
+    }
+
+    /// With documents, the system prompt is long enough that reading it from the cache
+    /// saves time on every answer. It is written at Start and refreshed through quiet
+    /// stretches, so the first answer, and one after a long silence, are as quick as the rest.
+    private func keepPromptsCached(_ model: any LanguageModelProvider) {
+        guard !call.documents.isEmpty else {
+            return
+        }
+        cacheWarmer = Task {
+            while !Task.isCancelled && phase == .running {
+                for tier in Self.warmTiers where Self.needsCaching(sentAt: promptSentAt[tier], now: .now) {
+                    warmCache(for: tier, with: model)
+                }
+                try? await Task.sleep(for: Self.cacheCheckInterval)
+            }
+        }
+    }
+
+    static func needsCaching(sentAt: ContinuousClock.Instant?, now: ContinuousClock.Instant) -> Bool {
+        sentAt.map { now - $0 >= cacheRefreshAfter } ?? true
+    }
+
+    private func warmCache(for tier: AnswerTier, with model: any LanguageModelProvider) {
+        promptSentAt[tier] = .now
+        let request = PromptBuilder(answers: settings.answers, call: call).cacheWarmUpRequest(tier: tier)
+        Task {
+            // A warm-up that fails only means the next answer writes the cache itself.
+            for try await event in model.stream(request) {
+                if case .finished(let usage, _) = event {
+                    costTracker.addModelUsage(usage, model: request.settings.model)
+                    costChanged()
+                }
+            }
+        }
     }
 
     private func openStore() {
@@ -162,6 +212,9 @@ public actor CallSession {
             let store = try SessionStore(root: root, startedAt: startedAt, saveAudio: settings.storage.saveAudio)
             self.store = store
             directory = store.directory
+            if call != .none {
+                save { try $0.write(call) }
+            }
         } catch {
             emit(.warning("This call will not be saved: \(error.localizedDescription)"))
         }
@@ -316,7 +369,7 @@ public actor CallSession {
             show(drafted, hotkey: hotkey, speech: speech)
             return
         }
-        let request = PromptBuilder(answers: settings.answers)
+        let request = PromptBuilder(answers: settings.answers, call: call)
             .answerRequest(tier: tier, transcript: detector.snapshot, now: hotkey)
         show(startGeneration(request, tier: tier, isDraft: false), hotkey: hotkey, speech: speech)
     }
@@ -350,6 +403,7 @@ public actor CallSession {
     private func startGeneration(_ request: ModelRequest, tier: AnswerTier, isDraft: Bool) -> Generation {
         let key = nextGenerationKey
         nextGenerationKey += 1
+        promptSentAt[tier] = .now
         var generation = Generation(
             key: key, tier: tier, model: request.settings.model, isDraft: isDraft, revision: detector.revision,
             requestSentAt: sessionTime(.now))
@@ -551,7 +605,7 @@ public actor CallSession {
         if let draft {
             cancel(draft)
         }
-        let request = PromptBuilder(answers: settings.answers)
+        let request = PromptBuilder(answers: settings.answers, call: call)
             .answerRequest(tier: .quick, transcript: detector.snapshot, now: sessionTime(.now))
         draft = startGeneration(request, tier: .quick, isDraft: true)
     }
@@ -606,6 +660,8 @@ public actor CallSession {
         acceptingSpeech = false
         apply(detector.finish())
 
+        cacheWarmer?.cancel()
+        cacheWarmer = nil
         costFlush?.cancel()
         costFlush = nil
         emitCost()
@@ -631,7 +687,7 @@ public actor CallSession {
         var file: String?
         do {
             let summary = try await SessionSummarizer.generate(
-                turns: detector.snapshot.turns, settings: settings, model: model, startedAt: startedAt,
+                turns: detector.snapshot.turns, settings: settings, call: call, model: model, startedAt: startedAt,
                 duration: endedAt?.timeIntervalSince(startedAt))
             if let usage = summary.usage {
                 costTracker.addModelUsage(usage, model: summary.model)
@@ -653,7 +709,7 @@ public actor CallSession {
             startedAt: startedAt, endedAt: endedAt, channels: channels,
             speechProvider: components.speech.displayName, settings: settings,
             turnCount: detector.snapshot.turns.count, answers: answers, cost: costTracker.summary,
-            summaryFile: summaryFile)
+            summaryFile: summaryFile, call: call)
         save { try $0.write(record) }
     }
 

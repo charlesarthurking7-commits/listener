@@ -30,7 +30,17 @@ import Speech
         private let input: AsyncStream<AnalyzerInput>.Continuation
         private let audio: AnalyzerAudio
 
+        /// SpeechAnalyzer traps ("Unexpected processing state", SpeechRecognizerWorker.swift:441)
+        /// when two start at once while a model from an earlier call still lingers, as both
+        /// channels' would at the start of every call after the first. So sessions start one
+        /// at a time; the audio that arrives meanwhile is held by the stream.
+        private static let starts = SerialGate()
+
         static func start(model: InstalledModel) async throws -> AppleRecognizerSession {
+            try await starts.run { try await startNow(model: model) }
+        }
+
+        private static func startNow(model: InstalledModel) async throws -> AppleRecognizerSession {
             let transcriber = SpeechTranscriber.live(locale: model.locale)
             let analyzer = SpeechAnalyzer(
                 modules: [transcriber],

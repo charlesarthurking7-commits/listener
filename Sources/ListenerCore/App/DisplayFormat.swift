@@ -25,6 +25,18 @@ public enum DisplayFormat {
         return String(format: "$%.2f", dollars)
     }
 
+    /// A token count at a glance: "850", "1.2k", "20k".
+    public static func tokens(_ count: Int) -> String {
+        if count < 1_000 {
+            return "\(max(0, count))"
+        }
+        if count < 10_000 {
+            let tenths = (Double(count) / 100).rounded() / 10
+            return tenths == tenths.rounded() ? "\(Int(tenths))k" : String(format: "%.1fk", tenths)
+        }
+        return "\(Int((Double(count) / 1_000).rounded()))k"
+    }
+
     /// One answer's cost, which is usually a fraction of a cent: "$0.0006".
     public static func preciseCost(_ dollars: Double) -> String {
         if dollars >= 1 {

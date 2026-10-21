@@ -183,8 +183,8 @@ struct CallViewStateTests {
         #expect(state.outcome?.details == "12:05 · 2 turns · $0.12")
         #expect(state.rows.map(\.text) == ["Hello.", "Hi."])
 
-        state.dismissOutcome()
-        #expect(state.outcome == nil)
+        state.clearFinishedCall()
+        #expect(state.phase == .idle && state.outcome == nil && state.rows.isEmpty)
     }
 
     @Test func aSummaryAfterStoppingReachesTheOutcome() {

@@ -17,8 +17,15 @@ fi
 identity="${identity:--}"
 app="build/Listener.app"
 
-swift build --configuration "$configuration" --product listener
-binary="$(swift build --configuration "$configuration" --show-bin-path)/listener"
+# Dependencies that declare no platforms are compiled for macOS 10.13, the rest for 15.
+# Optimised builds then link differently laid out copies of the same inlined async
+# specialisation, such as Clock.sleep(for:), and the app aborts with "freed pointer was
+# not the last allocation". Compiling every module for the package's minimum (15.0 in
+# Package.swift) keeps the copies identical.
+target=(-Xswiftc -target -Xswiftc "$(uname -m)-apple-macosx15.0")
+
+swift build --configuration "$configuration" --product listener "${target[@]}"
+binary="$(swift build --configuration "$configuration" --show-bin-path "${target[@]}")/listener"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"

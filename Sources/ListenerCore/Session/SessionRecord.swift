@@ -41,6 +41,10 @@ public struct SessionRecord: Sendable, Codable, Equatable {
     public var cost: CostSummary
     /// File name of the summary within the session directory, once written.
     public var summaryFile: String?
+    /// The call type picked before Start, and the names of its documents. The documents
+    /// themselves are in context.json.
+    public var callType: String?
+    public var documents: [String]?
 
     public init(
         startedAt: Date,
@@ -51,7 +55,8 @@ public struct SessionRecord: Sendable, Codable, Equatable {
         turnCount: Int = 0,
         answers: [AnswerRecord] = [],
         cost: CostSummary = CostSummary(),
-        summaryFile: String? = nil
+        summaryFile: String? = nil,
+        call: CallContext = .none
     ) {
         self.startedAt = startedAt
         self.endedAt = endedAt
@@ -63,6 +68,10 @@ public struct SessionRecord: Sendable, Codable, Equatable {
         latency = LatencyStats(answers.filter { $0.error == nil }.map(\.latency))
         self.cost = cost
         self.summaryFile = summaryFile
+        if call != .none {
+            callType = call.callType
+            documents = call.documents.map(\.name)
+        }
     }
 
     /// Seconds from start to end, once the session has ended.

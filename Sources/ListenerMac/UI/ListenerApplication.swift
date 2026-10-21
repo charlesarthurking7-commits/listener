@@ -37,15 +37,23 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = environment.launchSettings.settings
-        let rootView = ListenerWindowView(model: model) { [weak self] in
-            self?.panel?.orderOut(nil)
-        }
+        let rootView = ListenerWindowView(
+            model: model,
+            hide: { [weak self] in self?.panel?.orderOut(nil) },
+            fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
         panel = FloatingPanel(rootView: rootView, window: settings.window)
+        followWindowState()
 
         statusItem = StatusItemController(
             model: model,
             actions: .init(
                 showWindow: { [weak self] in self?.showWindow() },
+                toggleWindow: { [weak self] in self?.toggleWindow() },
+                isWindowVisible: { [weak self] in self?.panel?.isVisible ?? false },
+                moveWindowToTopCentre: { [weak self] in
+                    self?.showWindow()
+                    self?.panel?.moveToTopCentre()
+                },
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
@@ -136,8 +144,31 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showWindow() {
         if !model.state.isListening {
             model.refreshReadiness()
+            model.refreshCallTypes()
         }
         panel?.show()
+    }
+
+    private func toggleWindow() {
+        if panel?.isVisible == true {
+            panel?.orderOut(nil)
+        } else {
+            showWindow()
+        }
+    }
+
+    /// Keeps the panel's transparency and screen sharing in step with the model, which
+    /// changes them as calls start and stop, answers come and go, and the pointer moves.
+    private func followWindowState() {
+        withObservationTracking {
+            panel?.apply(
+                transparency: model.transparency, opacity: model.windowOpacity,
+                hiddenFromSharing: model.hidesFromScreenSharing)
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.followWindowState()
+            }
+        }
     }
 
     private func handle(_ action: HotkeyAction) {
@@ -148,6 +179,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         case .deepAnswer:
             panel?.show()
             model.ask(.deep)
+        case .recap:
+            panel?.show()
+            model.ask(.recap)
+        case .toggleWindow:
+            toggleWindow()
         case .toggleListening:
             // Start checks the setup itself.
             model.toggleListening()

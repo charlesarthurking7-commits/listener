@@ -10,12 +10,13 @@ struct LiveCommand: AsyncParsableCommand {
         discussion: """
             Captures your microphone as "Me" and system audio as "Them" and prints the
             transcript as it settles, with what is being said right now on a line that
-            updates in place. Press Enter for a quick answer, d and Enter for a deep one.
-            Ctrl-C stops, saves the call and writes the summary.
+            updates in place. Press Enter for a quick answer, d and Enter for a deep one,
+            r and Enter for a recap. Ctrl-C stops, saves the call and writes the summary.
             """
     )
 
     @OptionGroup var options: GlobalOptions
+    @OptionGroup var callType: CallTypeOptions
 
     @Flag(help: "Show the transcript in this terminal. (For the window, run listener without arguments.)")
     var terminal = false
@@ -36,7 +37,7 @@ struct LiveCommand: AsyncParsableCommand {
                 "No Anthropic API key, so answers and the summary are off. Run: listener secrets set anthropic")
         }
 
-        let session = CallSession(settings: settings, components: components)
+        let session = CallSession(settings: settings, components: components, call: try callType.load())
         Console.write("Starting. The first time, macOS asks for microphone and system audio access.\n")
         try await session.start()
         Console.write(TerminalSession.keyHint)

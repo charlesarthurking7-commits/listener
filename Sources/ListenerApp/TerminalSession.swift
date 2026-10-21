@@ -43,7 +43,8 @@ extension SessionCallbacks {
 /// replay triggers all arrive through one loop, which is the only thing that
 /// writes to the terminal, so the live line and streaming answers never collide.
 struct TerminalSession {
-    static let keyHint = "Enter: quick answer.  d + Enter: deep answer.  Ctrl-C: stop and save.\n\n"
+    static let keyHint =
+        "Enter: quick answer.  d + Enter: deep answer.  r + Enter: recap so far.  Ctrl-C: stop and save.\n\n"
 
     let session: CallSession
     let style: TerminalStyle
@@ -122,6 +123,11 @@ struct TerminalSession {
                     if !stopping {
                         let pressedAt = ContinuousClock.now
                         Task { await session.requestAnswer(.deep, pressedAt: pressedAt) }
+                    }
+                case "r", "recap":
+                    if !stopping {
+                        let pressedAt = ContinuousClock.now
+                        Task { await session.requestAnswer(.recap, pressedAt: pressedAt) }
                     }
                 case "q", "quit", "stop":
                     stopOnce()

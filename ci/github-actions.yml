@@ -36,4 +36,6 @@ jobs:
       - name: Bundle
         run: scripts/build-app.sh
       - name: Smoke test
-        run: build/Listener.app/Contents/MacOS/listener spike --help
+        run: |
+          build/Listener.app/Contents/MacOS/listener replay Fixtures/delayed-executions/me.wav \
+            Fixtures/delayed-executions/them.wav --script Fixtures/delayed-executions/script.json --speed 8

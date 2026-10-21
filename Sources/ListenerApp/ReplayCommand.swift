@@ -10,13 +10,14 @@ struct ReplayCommand: AsyncParsableCommand {
         discussion: """
             The recordings play at real time (or --speed times faster) into the same
             speech-to-text, transcript, answer and saving code a live call uses. With
-            --script the transcript comes from the script instead of Google, so no
-            speech-to-text account is needed. --ask-at asks for answers at those points
-            in the recording and prints a latency table at the end.
+            --script the transcript comes from the script instead of the configured
+            speech-to-text, so the run is fast and repeatable. --ask-at asks for answers
+            at those points in the recording and prints a latency table at the end.
             """
     )
 
     @OptionGroup var options: GlobalOptions
+    @OptionGroup var callType: CallTypeOptions
 
     @Argument(help: "Recording of your side (\"Me\"), a 16-bit WAV file.")
     var me: String
@@ -24,7 +25,7 @@ struct ReplayCommand: AsyncParsableCommand {
     @Argument(help: "Recording of the other side (\"Them\"), a 16-bit WAV file.")
     var them: String
 
-    @Option(help: "Conversation script (JSON) to use instead of Google speech-to-text.")
+    @Option(help: "Conversation script (JSON) to use instead of speech-to-text.")
     var script: String?
 
     @Option(help: "Playback speed. 1 is real time.")
@@ -33,7 +34,7 @@ struct ReplayCommand: AsyncParsableCommand {
     @Option(name: .customLong("ask-at"), help: "Ask for answers at these times in the recording, e.g. 12.5,30,1:05.")
     var askAt: String?
 
-    @Option(help: "Answer tier for --ask-at: quick or deep.")
+    @Option(help: "What --ask-at asks for: quick, deep or recap.")
     var tier: TierOption = .quick
 
     func validate() throws {
@@ -59,22 +60,25 @@ struct ReplayCommand: AsyncParsableCommand {
             // The scripted recogniser keeps time by counting the samples it is sent.
             settings.speech.skipSilence = false
         }
+        let askTimes = try askAt.map(AskSchedule.parse) ?? []
+        // Reading the Keychain can bring up a prompt, so a replay that asks Claude
+        // nothing leaves it alone.
+        let usesClaude = !askTimes.isEmpty || settings.summary.enabled
         let (notices, noticeContinuation) = AsyncStream.makeStream(of: TerminalInput.self)
         let replay = try SessionFactory.replay(
             settings: settings,
-            secrets: StandardSecrets.chain(),
+            secrets: usesClaude ? StandardSecrets.chain() : ChainedSecretStore([]),
             callbacks: .terminal(noticeContinuation),
             me: URL(fileURLWithPath: expand(me)),
             them: URL(fileURLWithPath: expand(them)),
             script: conversation,
             speed: speed
         )
-        let askTimes = try askAt.map(AskSchedule.parse) ?? []
         if replay.components.languageModel == nil && !askTimes.isEmpty {
             Console.error("No Anthropic API key, so --ask-at answers will fail. Run: listener secrets set anthropic")
         }
 
-        let session = CallSession(settings: settings, components: replay.components)
+        let session = CallSession(settings: settings, components: replay.components, call: try callType.load())
         Console.write("Replaying at \(speed)x speed. Ctrl-C stops early and saves.\n\n")
         try await session.start()
 
@@ -123,11 +127,13 @@ struct ReplayCommand: AsyncParsableCommand {
 enum TierOption: String, ExpressibleByArgument, CaseIterable {
     case quick
     case deep
+    case recap
 
     var answerTier: AnswerTier {
         switch self {
         case .quick: .quick
         case .deep: .deep
+        case .recap: .recap
         }
     }
 }

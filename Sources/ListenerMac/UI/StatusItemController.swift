@@ -1,14 +1,17 @@
 import AppKit
 import ListenerCore
 
-/// The menu bar icon and its menu. Idle, the icon is a template waveform like any other
-/// menu bar extra; while listening it becomes a red capsule that cannot be missed.
+/// The menu bar icon and its menu. The icon is a template waveform like any other menu
+/// bar extra, filled while listening.
 /// Hotkeys show right-aligned in the titles rather than as key equivalents, so pressing
 /// one while the menu is open cannot fire twice.
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
     struct Actions {
         var showWindow: () -> Void
+        var toggleWindow: () -> Void
+        var isWindowVisible: () -> Bool
+        var moveWindowToTopCentre: () -> Void
         var quit: () -> Void
     }
 
@@ -28,39 +31,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         update(listening: false)
     }
 
+    /// Monochrome like the menu bar's other icons, and filled while listening, so a call
+    /// in progress shows without colour. macOS's orange dot shows the microphone is on.
     func update(listening: Bool) {
         guard let button = statusItem.button else {
             return
         }
-        if listening {
-            button.image = Self.listeningImage
-            button.toolTip = "Listener is listening"
-        } else {
-            let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Listener, not listening")
-            image?.isTemplate = true
-            button.image = image
-            button.toolTip = "Listener: not listening"
-        }
+        let symbol = listening ? "waveform.circle.fill" : "waveform"
+        let description = listening ? "Listener, listening" : "Listener, not listening"
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+        image?.isTemplate = true
+        button.image = image
+        button.toolTip = listening ? "Listener is listening" : "Listener: not listening"
     }
-
-    /// A red capsule with white bars, drawn rather than tinted so it stays red on any
-    /// menu bar, light, dark or tinted by the wallpaper.
-    private static let listeningImage: NSImage = {
-        let image = NSImage(size: NSSize(width: 26, height: 16), flipped: false) { rect in
-            NSColor.systemRed.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
-            NSColor.white.setFill()
-            let bars: [(x: CGFloat, height: CGFloat)] = [(6, 4), (10, 9), (14, 12), (18, 6)]
-            for bar in bars {
-                let barRect = NSRect(x: bar.x, y: (rect.height - bar.height) / 2, width: 2, height: bar.height)
-                NSBezierPath(roundedRect: barRect, xRadius: 1, yRadius: 1).fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        image.accessibilityDescription = "Listener is listening"
-        return image
-    }()
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
@@ -83,13 +66,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 $0.model.ask(.quick)
             },
             Entry("Deep Answer", AnswerTier.deep.symbol, .deepAnswer, enabled: state.canAsk) { $0.model.ask(.deep) },
+            Entry("Recap So Far", AnswerTier.recap.symbol, .recap, enabled: state.canAsk) { $0.model.ask(.recap) },
         ]
         let tabStop = shortcutTabStop(for: entries)
         for entry in entries {
             menu.addItem(item(entry, tabStop: tabStop))
         }
         menu.addItem(.separator())
-        menu.addItem(item(Entry("Show Window", "macwindow") { $0.actions.showWindow() }))
+        menu.addItem(callTypeItem(enabled: state.canStart))
+        let windowEntry = Entry(
+            actions.isWindowVisible() ? "Hide Window" : "Show Window", "macwindow", .toggleWindow
+        ) { $0.actions.toggleWindow() }
+        menu.addItem(item(windowEntry, tabStop: shortcutTabStop(for: [windowEntry])))
+        menu.addItem(windowSettingsItem())
         if let summary = model.lastSummaryFile {
             menu.addItem(item(Entry("Open Last Summary", "doc.text") { $0.model.perform(.openFile(path: summary)) }))
         }
@@ -107,6 +96,61 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             return "Listening"
         }
         return "Listening · \(DisplayFormat.clock(Date().timeIntervalSince(since)))"
+    }
+
+    /// Where the window sits and how it looks during a call.
+    private func windowSettingsItem() -> NSMenuItem {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        submenu.addItem(item(Entry("Move to Top Centre", "arrow.up.to.line") { $0.actions.moveWindowToTopCentre() }))
+        submenu.addItem(.separator())
+        submenu.addItem(NSMenuItem.sectionHeader(title: "Transparency"))
+        for transparency in WindowTransparency.allCases {
+            let entry = ClosureMenuItem(title: transparency.title) { [weak self] in
+                self?.model.setTransparency(transparency)
+            }
+            entry.state = model.transparency == transparency ? .on : .off
+            submenu.addItem(entry)
+        }
+        submenu.addItem(.separator())
+        let transcript = ClosureMenuItem(title: "Show Transcript During Calls") { [weak self] in
+            self?.model.toggleTranscriptInCall()
+        }
+        transcript.state = model.showsTranscriptInCall ? .on : .off
+        submenu.addItem(transcript)
+        let sharing = ClosureMenuItem(title: "Hide During Screen Sharing") { [weak self] in
+            self?.model.toggleHidingFromScreenSharing()
+        }
+        sharing.state = model.hidesFromScreenSharing ? .on : .off
+        sharing.toolTip = "Sharing your whole screen leaves the window out. Screenshots do too."
+        submenu.addItem(sharing)
+
+        let item = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        if #available(macOS 26.0, *) {
+            item.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: nil)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    /// The call types, the picked one ticked. A call keeps the type it started with.
+    private func callTypeItem(enabled: Bool) -> NSMenuItem {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        for name in model.callTypes {
+            let entry = ClosureMenuItem(title: name) { [weak self] in
+                self?.model.selectCallType(name)
+            }
+            entry.state = name == model.callType ? .on : .off
+            entry.isEnabled = enabled
+            submenu.addItem(entry)
+        }
+        let item = NSMenuItem(title: "Call Type", action: nil, keyEquivalent: "")
+        if #available(macOS 26.0, *) {
+            item.image = NSImage(systemSymbolName: "person.2", accessibilityDescription: nil)
+        }
+        item.submenu = submenu
+        return item
     }
 
     private struct Entry {

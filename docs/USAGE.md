@@ -72,7 +72,9 @@ summary when you stop.
 
    Accessibility is not needed: the hotkeys use `RegisterEventHotKey`, which macOS
    allows without it. If "Them" stays silent, the window warns you; it almost always
-   means System Audio Recording is off for Listener.
+   means System Audio Recording is off for Listener. macOS gives apps no way to check
+   that permission up front, so the checklist shows System audio as allowed once a call
+   has heard the other side.
 
 ### Running the command line
 
@@ -94,40 +96,103 @@ Meet or Teams, and never takes keyboard focus from them: clicking its buttons le
 your call app active. Drag it by the empty part of its top or bottom bar and resize it
 from any edge; it reopens where you left it, on the same display if it is still there.
 
-From top to bottom:
+During a call it shrinks to a slim bar: a red pill with a pulsing dot and the call's
+time, **Quick**, **Deep** and **Recap** buttons, the transcript button, **Stop** and the
+button that hides the window. An answer opens as a card under the bar and stays until
+you close it or ask for another, and the window shrinks back after. The transcript is
+still recorded and saved, and answers, recaps and the summary use it; the speech-bubble
+button shows it.
 
-- **Header.** While recording, a red "Listening" pill with a pulsing dot and the
-  call's elapsed time; a grey dot and "Not listening" otherwise. **Start** and **Stop**
-  sit on the right, next to the button that hides the window (show it again from the
-  menu bar).
+Before and after a call, from top to bottom:
+
+- **Header.** A grey dot and "Not listening", **Start**, and the button that hides the
+  window (show it again from the menu bar, or with Control-Option-H).
 - **Banners.** Warnings during the call, such as a silent channel or a capture restart.
-- **Answer card.** Appears at the top when you press an answer hotkey: a **Quick** or
-  **Deep** badge, the model, the time from the hotkey to the first word, a copy button
-  and a close button. A placeholder shimmers until the first word arrives; words then
+- **Answer card.** Appears at the top when you press an answer hotkey: a **Quick**,
+  **Deep** or **Recap** badge, the model, the time from the hotkey to the first word, a
+  copy button and a close button. When nothing has been asked of you, an answer starts
+  with a note saying so and what is being discussed, then at most one line you could
+  add. A **Recap** reads the whole call so far, not just the recent part, and gives the
+  gist, the main points, anything asked of you that is still open, and anything agreed. A placeholder shimmers until the first word arrives; words then
   appear as they stream, without moving. Lists and **bold** are formatted, and notes in
   square brackets, which are for you and not to be said, are shown apart under
   "For you". Copy leaves those notes out. A failed answer offers **Try Again**. Closing
   a card that is still streaming cancels it.
 - **Transcript.** Turns are grouped by speaker under "Me" (teal) or "Them" (amber) with
-  the time they started. Text still being recognised is dimmed until it settles. The
+  the time they started. Text still being recognised is dimmed until it settles. Short
+  fillers that speech recognition makes up in near silence ("Yeah.", "Okay.") are
+  dropped when Listener heard no speech under them. The
   transcript follows the newest line; scroll up to read back and it stays where you
   are, with a **Jump to latest** button to return.
 - **After Stop.** A card shows the call being saved and summarised, then "Call saved"
-  with its length, turns and cost, and **Open Summary** and **Show in Finder**.
+  with its length, turns and cost, **Open Summary**, **Show in Finder**, and **New Call**
+  to go back to the start screen and set up the next call.
 - **Footer.** The call's running cost (hover for the split between speech-to-text and
-  Claude), the first-word time of the last answer, and the answer hotkeys.
+  Claude), the first-word time of the last answer, and **Quick**, **Deep** and **Recap**
+  buttons with their hotkeys. Clicking one does the same as pressing its hotkey.
 
 The window follows Light and Dark Mode. With Reduce Motion on, the dot and the answer
 placeholder stay still and cards appear without sliding; with Reduce Transparency the
 background is solid.
 
+### Window options
+
+Under **Window** in the menu bar:
+
+- **Move to Top Centre** puts the window just under the menu bar, near the camera, so
+  reading an answer looks like looking at the person.
+- **Transparency.** **Glass** (the default) blurs what is behind. **Clear** doesn't: it
+  tints the background dark under light text, which reads over video or a busy desktop,
+  and during a call it fades between answers until an answer arrives or the pointer is
+  over it. **Solid** shows nothing behind.
+- **Show Transcript During Calls** keeps the full window, transcript included, in a call.
+- **Hide During Screen Sharing**, on by default, leaves the window out when you share
+  your whole screen in Meet, Zoom or Teams, and out of screenshots and recordings. It
+  can't hide it from a display mirrored to a TV or projector, or from a camera pointed at
+  the screen. Turn it off to take a screenshot of the window.
+
 ### Menu bar
 
-The icon becomes a red capsule while Listener is listening. Its menu shows whether
-Listener is listening and for how long, then Start/Stop Listening, Quick Answer and Deep
-Answer with their hotkeys, Show Window, Open Last Summary (after a call), Open Sessions
-Folder, Open Settings File and Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
+The waveform icon is filled while Listener is listening. Its menu shows whether
+Listener is listening and for how long, then Start/Stop Listening, Quick Answer, Deep
+Answer and Recap So Far with their hotkeys, Call Type, Show or Hide Window, Window, Open
+Last Summary (after a call), Open Sessions Folder, Open Settings File and Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
 Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without waiting).
+
+## Call types
+
+Before Start, the **This call** card at the top of the window says what kind of call is
+next and what Claude should know about it. Everything there goes with every answer,
+recap and summary of the call. None of it needs the keyboard, so the window never
+takes focus from Meet or Teams.
+
+- **Call type.** Work call or Meeting, picked from the menu on the card or under Call
+  Type in the menu bar. Each changes how answers go: Work call keeps to the general rules,
+  and Meeting gives only a note when nothing has been asked of you. A call keeps the type
+  it started with.
+- **Files.** Drop a CV or other files onto the card: PDF, Word, RTF, HTML and text. A
+  scanned PDF has no text and shows "No text found". The x moves a file to the Bin.
+- **Paste.** Copy a job description, or its link, and press **Paste**. A link is read
+  once, tidied by the quick model into the posting alone and saved as a file, with where
+  it came from; check it before the call. Sites that need a sign-in, LinkedIn among them,
+  can't be read; copy the text instead. `listener read-page <url>` shows what Paste would
+  save.
+- **Brief.** **Edit Brief** opens `brief.md` in TextEdit for your own notes: who the call
+  is with and what it is for.
+- **Instructions.** Each type's `instructions.md` says how answers should go, and wins
+  over Listener's general rules where they differ. Open it with **Edit Instructions** in
+  the card's menu. For a new type, copy a folder in Finder (**Show in Finder**) and rename
+  it.
+
+Each type is a folder under `~/Library/Application Support/Listener/Call Types/`, read
+again at every Start, so changes in Finder or TextEdit count from the next call. Up to 20k
+tokens of files go with each request. Listener writes them to Claude's prompt cache when
+the call starts and refreshes it through quiet stretches, so even the first answer reads
+them from there: a CV and a job description cost about $0.0001 per quick answer and add
+no noticeable time. Text in `<!-- comments -->` is left out.
+
+When nothing has been asked of you, an answer opens with a note saying so, and any line
+after it is labelled "If you want to chip in".
 
 ## Hotkeys
 
@@ -135,7 +200,9 @@ Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without 
 | --- | --- |
 | Quick answer (Haiku 5.5) | Control-Option-A (`ctrl+option+a`) |
 | Deep answer (Sonnet 5.5) | Control-Option-Shift-A (`ctrl+option+shift+a`) |
+| Recap so far (Haiku 5.5) | Control-Option-S (`ctrl+option+s`) |
 | Start or stop listening | Control-Option-L (`ctrl+option+l`) |
+| Show or hide the window | Control-Option-H (`ctrl+option+h`) |
 
 Change them in `settings.json` under `hotkeys`, then restart Listener. A hotkey is
 modifiers and one key joined by `+`:
@@ -163,12 +230,25 @@ sits on the last line and updates in place.
 | --- | --- |
 | Enter | Quick answer |
 | d, then Enter | Deep answer |
+| r, then Enter | Recap so far |
 | q, then Enter | Stop and save |
 | Ctrl-C | Stop and save. Press it again to quit without waiting. |
 
 The answer streams below the transcript, followed by its first-token time and cost.
 Capture restarts (for example after switching headsets) and on-device model downloads
 show as dimmed lines.
+
+## Demo
+
+```sh
+listener demo                                  # a recorded call in the window, answers from Claude
+listener demo --scripted-answers               # canned answers: no API key, Keychain or network
+listener demo --call Fixtures/leverage-mirroring
+```
+
+Opens the app with a recorded call in place of your microphone and system audio. Press
+**Start** and it plays into the window as if it were live, so every part of the window
+can be tried without a call. Nothing on the Mac is captured.
 
 ## Replay
 
@@ -179,12 +259,13 @@ to try the app without a call, compare settings, and measure latency.
 listener replay me.wav them.wav
 listener replay me.wav them.wav --script call.json --speed 4
 listener replay me.wav them.wav --ask-at 12.5,30,1:05 --tier quick
+listener replay me.wav them.wav --ask-at 0:24 --call-type Meeting
 ```
 
 - The recordings are 16-bit PCM WAV files, such as the `me.wav` and `them.wav` that the
   spike or `storage.saveAudio` write.
-- `--script call.json` takes the words from a script instead of Google, so no
-  speech-to-text account or network is needed for the transcript. The format:
+- `--script call.json` takes the words from a script instead of speech-to-text, so the
+  transcript is fast and the same every time. The format:
 
   ```json
   {
@@ -198,7 +279,11 @@ listener replay me.wav them.wav --ask-at 12.5,30,1:05 --tier quick
 
 - `--speed N` plays N times faster than real time (up to 20).
 - `--ask-at` asks for an answer at each time in the recording (seconds, or
-  minutes:seconds), as if you had pressed the hotkey. `--tier deep` uses the deep model.
+  minutes:seconds), as if you had pressed the hotkey. `--tier deep` uses the deep model
+  and `--tier recap` asks for recaps.
+- `--call-type Meeting` uses that call type's instructions and files, as Start does with
+  the one picked in the window. A path to a folder laid out the same way works too.
+  `listener live --terminal` takes it as well.
   At the end a table shows, per answer, the time from the end of speech and from the
   hotkey to the first token and to the end, the cost, and the medians against the 1.5 s
   target.
@@ -215,6 +300,7 @@ Each call is saved in its own folder under
 | `transcript.jsonl` | One settled turn per line |
 | `session.json` | Settings used, answers with their latency and cost, total cost |
 | `summary.md` | Summary and action items, written when the call stops |
+| `context.json` | The call type and documents the call started with |
 | `me.wav`, `them.wav` | Only with `storage.saveAudio` on |
 
 ```sh
@@ -238,11 +324,11 @@ want to change: anything left out keeps its default, at every level.
 | --- | --- |
 | `speech` | Provider (`auto` by default: on-device where supported, else Google; or `google`, `apple`, or `fake` for scripted replays), Google project, location, endpoint, model (`chirp_3`), language (`en-GB`), endpointing sensitivity, credentials file, stream rotation, silence skipping |
 | `turns` | When a pause ends a turn: `silenceMs`, the voice activity threshold, minimum speech length |
-| `answers` | The `quick` and `deep` models (model, effort, thinking, max tokens), transcript budget, and `context`: who you are and what your calls are about |
+| `answers` | The `quick`, `deep` and `recap` models (model, effort, thinking, max tokens), transcript budget, and `context`: who you are and what your calls are about |
 | `summary` | Whether to write a summary, and its model |
 | `capture` | System audio backend (`tap` or `sck`), echo cancellation for calls on speakers |
 | `storage` | Sessions folder, retention in days, whether to keep the audio |
-| `hotkeys` | The three hotkeys |
+| `hotkeys` | The five hotkeys |
 | `window` | Always on top, opacity, Dock icon |
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
@@ -267,6 +353,7 @@ These override the settings file, for one-off runs and scripts. Empty values are
 | `LISTENER_LANGUAGE` | `speech.languageCode` |
 | `LISTENER_QUICK_MODEL` | `answers.quick.model` |
 | `LISTENER_DEEP_MODEL` | `answers.deep.model` |
+| `LISTENER_RECAP_MODEL` | `answers.recap.model` |
 | `LISTENER_SYSTEM_AUDIO` | `capture.systemAudioBackend` |
 | `LISTENER_STORAGE_DIR` | `storage.directory` |
 | `LISTENER_RETENTION_DAYS` | `storage.retentionDays` |
@@ -286,8 +373,11 @@ Listener looks for `ANTHROPIC_API_KEY` in this order and uses the first it finds
 `listener secrets status` shows where the key was found without printing it. Keys are
 never written to logs.
 
-After a rebuild with an ad hoc signature, macOS may ask whether Listener can read its
-Keychain item. Choose Always Allow, or sign with a stable identity (README).
+After a rebuild, macOS asks once whether Listener can read its Keychain item: type your
+login password, then choose Always Allow. The `Listener Dev` identity keeps Microphone and
+System Audio Recording across rebuilds, but not this: the Keychain only trusts an app
+across builds when Apple issued its certificate. To avoid the prompt while developing,
+keep the key in `~/Library/Application Support/Listener/.env` instead.
 
 ## Where files go
 
@@ -296,6 +386,7 @@ Keychain item. Choose Always Allow, or sign with a stable identity (README).
 | `~/Library/Application Support/Listener/settings.json` | Settings |
 | `~/Library/Application Support/Listener/.env` | Optional API keys |
 | `~/Library/Application Support/Listener/sessions/` | Saved calls |
+| `~/Library/Application Support/Listener/Call Types/` | Call types: instructions, files and briefs |
 | `~/Library/Application Support/Listener/spike/` | Audio spike recordings |
 | Keychain, service `Listener` | Anthropic API key |
 | `~/.config/gcloud/application_default_credentials.json` | Google credentials from `gcloud` |

@@ -2,13 +2,17 @@
 public enum HotkeyAction: String, Sendable, CaseIterable {
     case quickAnswer
     case deepAnswer
+    case recap
     case toggleListening
+    case toggleWindow
 
     public var title: String {
         switch self {
         case .quickAnswer: "Quick answer"
         case .deepAnswer: "Deep answer"
+        case .recap: "Recap so far"
         case .toggleListening: "Start or stop listening"
+        case .toggleWindow: "Show or hide the window"
         }
     }
 
@@ -210,7 +214,9 @@ extension HotkeySettings {
         switch action {
         case .quickAnswer: quickAnswer
         case .deepAnswer: deepAnswer
+        case .recap: recap
         case .toggleListening: toggleListening
+        case .toggleWindow: toggleWindow
         }
     }
 

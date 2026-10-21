@@ -29,6 +29,12 @@
       "thinking": "adaptive",
       "maxTokens": 4000
     },
+    "recap": {
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "thinking": "off",
+      "maxTokens": 1000
+    },
     "transcriptBudgetTokens": 8000,
     "transcriptHardCapTokens": 60000,
     "context": "I am a Trading Operations Engineer at Pelican, an FCA-regulated copy-trading SaaS platform. On these calls I speak with our brokers and liquidity providers about trade execution: fills, rejections, requotes and slippage, price feed gaps, FIX and API connectivity, symbol mappings, trading hours, margin, leverage and swap settings, and follow-ups to incidents. 'Them' is usually the broker's dealing desk, support or integration team. Suggest short answers I can say out loud. Never invent order IDs, account numbers, amounts or timestamps; if they are missing, suggest asking for them. Timestamps are UTC. For anything that could affect client funds or regulatory reporting, suggest confirming in writing and raising a ticket. Use British English.",
@@ -55,7 +61,9 @@
   "hotkeys": {
     "quickAnswer": "ctrl+option+a",
     "deepAnswer": "ctrl+option+shift+a",
-    "toggleListening": "ctrl+option+l"
+    "recap": "ctrl+option+s",
+    "toggleListening": "ctrl+option+l",
+    "toggleWindow": "ctrl+option+h"
   },
   "window": {
     "alwaysOnTop": true,

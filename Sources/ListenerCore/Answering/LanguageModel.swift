@@ -4,6 +4,8 @@ public enum AnswerTier: String, Sendable, Codable, CaseIterable {
     case quick
     /// Stronger model for harder questions: the escalation hotkey.
     case deep
+    /// What the call has covered so far, for reading rather than saying.
+    case recap
 }
 
 public enum ThinkingMode: String, Sendable, Codable {
