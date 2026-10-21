@@ -134,13 +134,8 @@ App/                   Info.plist (bundle metadata, permission prompts) and the 
 
 ### CI
 
-`ci/github-actions.yml` lints and tests on Linux and builds, tests and bundles the app
-on a macOS runner. GitHub only accepts workflow files from tokens with the `workflow`
-scope, which this repository's automation token lacks, so enable it from your machine:
-
-```sh
-mkdir -p .github/workflows && git mv ci/github-actions.yml .github/workflows/ci.yml
-git commit -m "Enable CI" && git push
-```
-
-macOS runner minutes count ten times against a private repository's Actions quota.
+`.github/workflows/ci.yml` lints and runs the tests on Linux for every push, and on a
+macOS runner builds and tests the package, bundles the app and replays a fixture call
+through it. macOS runner minutes count ten times against a private repository's Actions
+quota, so that job runs for pushes to `main`, pull requests, and by hand from the
+Actions tab (Run workflow).

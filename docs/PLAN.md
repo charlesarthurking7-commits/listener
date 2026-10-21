@@ -175,15 +175,16 @@ them needs an account, so none is added without your go-ahead. The comparison sh
 on recordings of your own calls (`storage.saveAudio`), not only on the fixtures, which
 are clean synthetic speech and flatter every engine.
 
-### 3.8 "Hide from screen sharing" does not work reliably any more
-Apple's current documentation calls `NSWindow.SharingType.none` "a legacy constant that
-macOS no longer uses" and says not to rely on it to keep content out of captures. Apple
-DTS: "there are no public APIs for preventing screen capture". ScreenCaptureKit ignores
-the setting, and Chrome (so Google Meet) shares screens through ScreenCaptureKit on
-macOS 14.4 and later. Chromium hides its own windows with a private API instead. A toggle
-would seem to work in some apps and silently fail in Meet, which is worse than no
-toggle, so I have not built it. What works: keep the window on your second monitor and
-share a window or a tab rather than the whole screen.
+### 3.8 "Hide from screen sharing": measured, and built
+Apple's documentation calls `NSWindow.SharingType.none` a legacy constant and says not to
+rely on it, and on some macOS 15 releases ScreenCaptureKit was reported to ignore it, so
+this section first advised against it. Measured on macOS 26.3.1 instead: a window marked
+`.none` is left out of ScreenCaptureKit display captures, both screenshots and the live
+stream that Chrome, and so Google Meet, shares screens with, while the same window marked
+`.readOnly` shows. So Listener hides its window from whole-screen shares and screenshots
+while Window > Hide During Screen Sharing is on (the default). It cannot hide a display
+mirrored to a TV or projector. Because Apple does not promise this behaviour, check it
+again after macOS updates: share the whole screen in Meet and look at its preview.
 
 ### 3.9 Your hardware setup matters more than any code
 - **Clamshell mode**: the built-in mics are off with the lid closed. You need an external
@@ -201,11 +202,10 @@ Core Audio taps need 14.2, grpc-swift 2 needs 15. macOS 26 and 27 are supported;
 optional on-device speech provider needs 26.
 
 ### 3.11 Pushing and CI
-The spec says not to push or create remotes. This repository already has a GitHub remote
-and this session is set up to push to `claude/exciting-mayer-txjtxk`, so I push there
-and nowhere else. I wrote a CI workflow (lint and Linux tests, macOS build and bundle),
-but GitHub refuses workflow files from this session's token, so it sits in `ci/` until
-you move it (README, "CI").
+The first sessions pushed only to `claude/exciting-mayer-txjtxk`; the work now lives on
+`main`. CI (`.github/workflows/ci.yml`) lints and tests on Linux for every push, and builds,
+tests, bundles and smoke-tests the app on macOS for `main`, pull requests and manual runs,
+since macOS minutes count ten times against a private repository's quota.
 
 ### 3.12 On-device speech recognition as an option
 macOS 26 added `SpeechAnalyzer`/`SpeechTranscriber`: on-device, long-form, streaming
@@ -396,6 +396,24 @@ Everything outside ListenerMac and ListenerApp is covered by tests that run on L
 including end-to-end runs of the fixture calls through the real pipeline with scripted
 speech-to-text and model. The macOS code type-checks against the macOS 15.5 and 26.5
 SDKs but has not been linked or run, because this was built without a Mac.
+
+### Next
+
+Agreed after the first week of use, in this order:
+
+1. **Echo warning.** When the mic hears the call (speakers instead of headphones), the
+   same words land on both channels and every "Them" line comes back as "Me" too. Spot
+   matching text on both channels within a second or two and say so.
+2. **Memory across calls.** Include the last summary with the same contact, so answers
+   know what was promised and what is still open.
+3. **Bookmark hotkey.** Mark a moment mid-call; the summary puts marked moments first.
+4. **Setup from the calendar.** Call type, attendees and agenda from the meeting invite.
+5. **Answers without the hotkey**, opt-in: show the draft when a question is aimed at Me.
+
+Also considered: **vision**, a hotkey that sends what is on screen (say, a customer
+complaint someone is sharing) to Claude with the transcript. ScreenCaptureKit is already
+in the project, Claude reads images, and Listener's own window is left out of captures.
+It needs Screen Recording permission, which macOS re-confirms from time to time.
 
 ## 6. Open questions for you
 
