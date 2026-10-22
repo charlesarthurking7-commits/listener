@@ -9,6 +9,7 @@ enum Theme {
     static let headerHeight: CGFloat = 52
     static let footerHeight: CGFloat = 36
     static let cardRadius: CGFloat = 12
+    static let windowRadius: CGFloat = 20
     static let bannerRadius: CGFloat = 10
     static let cardInset: CGFloat = 12
 
@@ -27,6 +28,10 @@ enum Theme {
     /// Clear's whole background: dark enough under light text to read over video or a
     /// busy desktop, light enough to see through.
     static let clearTint = Color.black.opacity(0.42)
+    /// The window's own edge: enough to separate it from a page of the same colour, never
+    /// a dark outline.
+    static let windowEdge = Color.adaptive(
+        light: NSColor(white: 0, alpha: 0.12), dark: NSColor(white: 1, alpha: 0.16))
     static let keycapEdge = Color.adaptive(light: NSColor(white: 0, alpha: 0.13), dark: NSColor(white: 1, alpha: 0.14))
 
     /// Notes meant only for the user: a sticky-note yellow in light mode, a neutral

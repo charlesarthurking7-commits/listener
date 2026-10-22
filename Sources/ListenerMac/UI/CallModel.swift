@@ -59,9 +59,6 @@ public final class CallModel {
     /// the menu reads this when it opens.
     @ObservationIgnored public private(set) var state = CallViewState()
 
-    /// Called whenever listening starts or stops, for the menu bar icon.
-    @ObservationIgnored public var onListeningChange: ((Bool) -> Void)?
-
     @ObservationIgnored private let environment: AppEnvironment
     @ObservationIgnored private var session: CallSession?
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
@@ -246,9 +243,12 @@ public final class CallModel {
         phase == .listening
     }
 
-    /// Clear also fades the window between answers during a call, and brings it back when
-    /// an answer arrives or the pointer is over it.
+    /// Solid is fully opaque. Clear also fades the window between answers during a call,
+    /// and brings it back when an answer arrives or the pointer is over it.
     public var windowOpacity: Double {
+        if transparency == .solid {
+            return 1
+        }
         if transparency == .clear && isInCall && answer == nil && !isPointerOver {
             return WindowTransparency.clearIdleOpacity
         }
@@ -662,7 +662,6 @@ public final class CallModel {
     /// Copies whatever changed in `state` into the observed slices.
     private func publish() {
         throttle.didUpdate(at: ProcessInfo.processInfo.systemUptime)
-        let wasListening = isListening
         update(\.phase, state.phase)
         update(\.listeningSince, state.listeningSince)
         if state.settledRows != settledRows || state.liveRows != liveRows {
@@ -684,9 +683,6 @@ public final class CallModel {
         update(\.lastLatencyMs, state.lastLatencyMs)
         update(\.outcome, state.outcome)
         update(\.hearing, state.hearing)
-        if isListening != wasListening {
-            onListeningChange?(isListening)
-        }
     }
 
     private func update<Value: Equatable>(_ slice: ReferenceWritableKeyPath<CallModel, Value>, _ value: Value) {

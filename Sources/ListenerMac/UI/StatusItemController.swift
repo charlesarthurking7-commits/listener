@@ -28,21 +28,37 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
-        update(listening: false)
+        update(listening: false, hiddenFromSharing: false)
     }
 
     /// Monochrome like the menu bar's other icons, and filled while listening, so a call
-    /// in progress shows without colour. macOS's orange dot shows the microphone is on.
-    func update(listening: Bool) {
-        guard let button = statusItem.button else {
+    /// in progress shows without colour; macOS's orange dot shows the microphone is on. A
+    /// small dot beside it says the window is hidden from screen sharing.
+    func update(listening: Bool, hiddenFromSharing: Bool) {
+        guard let button = statusItem.button,
+            let glyph = NSImage(
+                systemSymbolName: listening ? "waveform.circle.fill" : "waveform", accessibilityDescription: nil)
+        else {
             return
         }
-        let symbol = listening ? "waveform.circle.fill" : "waveform"
-        let description = listening ? "Listener, listening" : "Listener, not listening"
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
-        image?.isTemplate = true
+        let image = hiddenFromSharing ? Self.withDot(glyph) : glyph
+        image.isTemplate = true
+        let state = [listening ? "listening" : "not listening", hiddenFromSharing ? "hidden from screen sharing" : nil]
+            .compactMap { $0 }.joined(separator: ", ")
+        image.accessibilityDescription = "Listener, \(state)"
         button.image = image
-        button.toolTip = listening ? "Listener is listening" : "Listener: not listening"
+        button.toolTip = "Listener: \(state)"
+    }
+
+    /// The glyph with a small dot at its bottom right.
+    private static func withDot(_ glyph: NSImage) -> NSImage {
+        let dot: CGFloat = 3
+        let size = NSSize(width: glyph.size.width + 2 + dot, height: glyph.size.height)
+        return NSImage(size: size, flipped: false) { rect in
+            glyph.draw(in: NSRect(origin: .zero, size: glyph.size))
+            NSBezierPath(ovalIn: NSRect(x: rect.maxX - dot, y: 1, width: dot, height: dot)).fill()
+            return true
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

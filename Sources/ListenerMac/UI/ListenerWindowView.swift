@@ -40,8 +40,28 @@ struct ListenerWindowView: View {
                 }
             }
         }
-        .background(model.transparency == .clear ? Theme.clearTint : .clear)
+        .background { WindowBackground(transparency: model.transparency) }
         .onHover { model.pointerMoved(over: $0) }
+    }
+}
+
+/// What the window draws behind its content: Solid's fill and Clear's tint, and the edge
+/// that keeps Solid and Glass apart from a page of the same colour. The glass itself is
+/// AppKit's.
+private struct WindowBackground: View {
+    let transparency: WindowTransparency
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.windowRadius, style: .continuous)
+        switch transparency {
+        case .solid:
+            shape.fill(Color(nsColor: .windowBackgroundColor))
+                .overlay { shape.strokeBorder(Theme.windowEdge, lineWidth: 1) }
+        case .glass:
+            shape.strokeBorder(Theme.windowEdge, lineWidth: 1)
+        case .clear:
+            shape.fill(Theme.clearTint)
+        }
     }
 }
 

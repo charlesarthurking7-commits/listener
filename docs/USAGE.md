@@ -141,19 +141,22 @@ Under **Window** in the menu bar:
 
 - **Move to Top Centre** puts the window just under the menu bar, near the camera, so
   reading an answer looks like looking at the person.
-- **Transparency.** **Glass** (the default) blurs what is behind. **Clear** doesn't: it
-  tints the background dark under light text, which reads over video or a busy desktop,
-  and during a call it fades between answers until an answer arrives or the pointer is
-  over it. **Solid** shows nothing behind.
+- **Transparency.** **Glass** (the default) is macOS's Liquid Glass, which frosts what is
+  behind; over a plain white page it looks much like Solid, since there is nothing to
+  blur. **Clear** doesn't blur: it tints the background dark under light text, which reads
+  over video or a busy desktop, and during a call it fades between answers until an
+  answer arrives or the pointer is over it. **Solid** shows nothing behind.
 - **Show Transcript During Calls** keeps the full window, transcript included, in a call.
 - **Hide During Screen Sharing**, on by default, leaves the window out when you share
-  your whole screen in Meet, Zoom or Teams, and out of screenshots and recordings. It
-  can't hide it from a display mirrored to a TV or projector, or from a camera pointed at
-  the screen. Turn it off to take a screenshot of the window.
+  your whole screen in Meet, Zoom or Teams, and out of screenshots and recordings. A small
+  dot beside the menu bar icon shows it is on. It can't hide the window from a display
+  mirrored to a TV or projector, or from a camera pointed at the screen. Turn it off to
+  take a screenshot of the window.
 
 ### Menu bar
 
-The waveform icon is filled while Listener is listening. Its menu shows whether
+The waveform icon is filled while Listener is listening, with a small dot beside it
+while the window is hidden from screen sharing. Its menu shows whether
 Listener is listening and for how long, then Start/Stop Listening, Quick Answer, Deep
 Answer and Recap So Far with their hotkeys, Call Type, Show or Hide Window, Window, Open
 Last Summary (after a call), Open Sessions Folder, Open Settings File and Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
@@ -214,8 +217,10 @@ modifiers and one key joined by `+`:
 - Every hotkey needs `ctrl`, `option` or `cmd`, except function keys. macOS 15 ignores
   hotkeys that use only `option` or `option+shift`, so Listener refuses those.
 
-If another app already owns a combination, the window says so and that hotkey is left
-out; the menu still works.
+If another app already holds a combination, macOS refuses it and the window says so;
+the menu still works. macOS's own shortcuts, and apps that watch the keyboard directly
+rather than registering hotkeys, are not reported, so if a hotkey does nothing, pick
+another.
 
 ## Live in the terminal
 

@@ -42,7 +42,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             hide: { [weak self] in self?.panel?.orderOut(nil) },
             fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
         panel = FloatingPanel(rootView: rootView, window: settings.window)
-        followWindowState()
 
         statusItem = StatusItemController(
             model: model,
@@ -57,9 +56,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
-        model.onListeningChange = { [weak self] listening in
-            self?.statusItem?.update(listening: listening)
-        }
+        followWindowState()
 
         let hotkeys = HotkeyCenter { [weak self] action in
             self?.handle(action)
@@ -157,13 +154,14 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Keeps the panel's transparency and screen sharing in step with the model, which
-    /// changes them as calls start and stop, answers come and go, and the pointer moves.
+    /// Keeps the panel and the menu bar icon in step with the model, which changes them as
+    /// calls start and stop, answers come and go, and the pointer moves.
     private func followWindowState() {
         withObservationTracking {
             panel?.apply(
                 transparency: model.transparency, opacity: model.windowOpacity,
                 hiddenFromSharing: model.hidesFromScreenSharing)
+            statusItem?.update(listening: model.isListening, hiddenFromSharing: model.hidesFromScreenSharing)
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.followWindowState()

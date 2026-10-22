@@ -6,6 +6,9 @@ import SwiftUI
 /// it never takes focus away from Meet or Teams, so typing still goes to the call.
 /// It shows on every Space and over full-screen apps, and it remembers where it was
 /// and how big it was.
+///
+/// It is borderless and draws its own corners and edge: macOS draws a window's edge as
+/// part of its shadow, and over a light page that reads as a heavy outline.
 final class FloatingPanel: NSPanel {
     private static let frameName = "ListenerWindow"
     /// Narrow enough to sit beside a call, tall enough for an answer and the last
@@ -14,7 +17,7 @@ final class FloatingPanel: NSPanel {
     private static let minimumSize = NSSize(width: 320, height: 360)
     private static let margin: CGFloat = 24
 
-    private let background = NSVisualEffectView()
+    private let glass = FloatingPanel.makeGlass()
     /// The size to go back to when a call's compact bar gives way to the full window.
     private var expandedFrame: NSRect?
     /// The latest height asked for, applied once SwiftUI has finished laying out.
@@ -23,7 +26,7 @@ final class FloatingPanel: NSPanel {
     init(rootView: some View, window: WindowSettings) {
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
-            styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.borderless, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -33,35 +36,24 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .utilityWindow
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
         isMovableByWindowBackground = true
         isOpaque = false
         backgroundColor = .clear
         alphaValue = window.opacity
         minSize = Self.minimumSize
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            standardWindowButton(button)?.isHidden = true
-        }
-
-        // One material for the whole window, behind everything; nothing inside adds its
-        // own blur. The popover material follows light and dark mode and is dense
-        // enough to read text over any background, and macOS makes it opaque with
-        // Reduce Transparency.
-        background.material = .popover
-        background.blendingMode = .behindWindow
-        // Listener is never the active app, and inactive windows lose their vibrancy
-        // unless the effect is forced on.
-        background.state = .active
+        hasShadow = false
 
         let host = FirstClickHostingView(rootView: AnyView(rootView))
         host.sizingOptions = [.minSize]
-        // The header draws where the hidden title bar would be, so the content has no
-        // safe area to keep clear, and its size must not count one.
         host.safeAreaRegions = []
-        // Side by side rather than nested, so Clear can turn the blur off and keep the content.
+        // Side by side rather than nested, so Solid and Clear can drop the glass and keep
+        // the content, which draws their backgrounds and the edge itself.
         let container = NSView()
-        for view in [background, host] {
+        container.wantsLayer = true
+        container.layer?.cornerRadius = Theme.windowRadius
+        container.layer?.cornerCurve = .continuous
+        container.layer?.masksToBounds = true
+        for view in [glass, host] {
             view.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(view)
             NSLayoutConstraint.activate([
@@ -126,13 +118,12 @@ final class FloatingPanel: NSPanel {
         }
     }
 
-    /// Solid uses the material's opaque form, which is also what macOS shows with Reduce
-    /// Transparency. Clear drops the blur for a dark tint (drawn by the content) with light
-    /// text, which reads over anything, in Light Mode too. Hiding from screen sharing
-    /// leaves the window out of every capture, screenshots included.
+    /// Glass is drawn here; Solid's fill and Clear's dark tint are drawn by the content.
+    /// Clear has light text, which reads over anything, so it is dark in Light Mode too.
+    /// Hiding from screen sharing leaves the window out of every capture, screenshots
+    /// included.
     func apply(transparency: WindowTransparency, opacity: Double, hiddenFromSharing: Bool) {
-        background.state = transparency == .solid ? .inactive : .active
-        background.isHidden = transparency == .clear
+        glass.isHidden = transparency != .glass
         appearance = transparency == .clear ? NSAppearance(named: .darkAqua) : nil
         if abs(alphaValue - opacity) > 0.001 {
             NSAnimationContext.runAnimationGroup { context in
@@ -141,6 +132,39 @@ final class FloatingPanel: NSPanel {
             }
         }
         sharingType = hiddenFromSharing ? .none : .readOnly
+    }
+
+    /// Liquid Glass where macOS has it. Before macOS 26, the popover material, which
+    /// follows light and dark mode and turns opaque with Reduce Transparency.
+    private static func makeGlass() -> NSView {
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                let glass = NSGlassEffectView()
+                glass.cornerRadius = Theme.windowRadius
+                return glass
+            }
+        #endif
+        let effect = NSVisualEffectView()
+        effect.material = .popover
+        effect.blendingMode = .behindWindow
+        // Listener is never the active app, and inactive windows lose their vibrancy
+        // unless the effect is forced on.
+        effect.state = .active
+        // A blur of what is behind the window ignores the layer's rounded corners.
+        effect.maskImage = cornerMask(radius: Theme.windowRadius)
+        return effect
+    }
+
+    private static func cornerMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 
     /// Just under the menu bar in the middle of the screen, close to the camera.
