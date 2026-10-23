@@ -86,9 +86,13 @@ private final class PendingInput: @unchecked Sendable {
 }
 
 enum AudioFormatText {
+    /// For the log, where a format may not make a valid AVAudioFormat.
+    static func describe(_ description: AudioStreamBasicDescription) -> String {
+        "\(rate(description.mSampleRate)) kHz, \(description.mChannelsPerFrame) ch"
+    }
+
     static func describe(_ format: AVAudioFormat) -> String {
-        let kHz = format.sampleRate / 1000
-        let rate = kHz == kHz.rounded() ? String(format: "%.0f", kHz) : String(format: "%.1f", kHz)
+        let rate = rate(format.sampleRate)
         let sampleType: String
         switch format.commonFormat {
         case .pcmFormatFloat32: sampleType = "float32"
@@ -99,5 +103,10 @@ enum AudioFormatText {
         }
         let layout = format.isInterleaved ? "interleaved" : "planar"
         return "\(rate) kHz, \(format.channelCount) ch, \(sampleType) \(layout)"
+    }
+
+    private static func rate(_ sampleRate: Double) -> String {
+        let kHz = sampleRate / 1000
+        return kHz == kHz.rounded() ? String(format: "%.0f", kHz) : String(format: "%.1f", kHz)
     }
 }

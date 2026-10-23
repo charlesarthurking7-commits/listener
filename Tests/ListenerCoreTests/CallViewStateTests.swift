@@ -242,7 +242,8 @@ struct CallViewStateTests {
         var state = listening()
         state.apply(.restarted(.them, reason: .outputDeviceChanged))
         state.apply(.stoppedByUser(.them))
-        #expect(state.notices.map(\.kind) == [.info, .warning])
+        state.apply(.rateCorrected(.them, from: 48_000, to: 24_000))
+        #expect(state.notices.map(\.kind) == [.info, .warning, .info])
         #expect(state.notices[0].message == "Them: capture restarted (output device changed).")
     }
 

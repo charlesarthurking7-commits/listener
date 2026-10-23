@@ -79,6 +79,15 @@ Known tap pitfalls, all handled in the capture layer:
 - If the output device also has inputs (a headset), their buffers arrive in front of the
   tap's. Reading them as tap audio would put your voice on the "Them" channel, so only
   the tap's trailing buffers are read.
+- With AirPods in call mode the tap and its stream report 48 kHz but the frames arrive
+  at 24 kHz, the rate of the aggregate device's clock. Read at 48 kHz, "Them" played at
+  double speed and an octave up, and the first two real calls came out as nonsense
+  ("to, to, to", 95 s turns of a dozen words). The tap now reads at the aggregate's
+  nominal rate, and for as long as it runs counts the frames that arrive against the
+  host clock, switching to another standard rate when two one-second spans in a row
+  agree on it (`DeliveredRateMonitor`). That also covers pressing Start before joining,
+  when the AirPods only switch to call mode mid-recording. Every build logs the formats
+  Core Audio reports.
 
 The spike measures both backends on your Mac (continuity, gaps, CPU, separation). Those
 numbers are the evidence that settles it.

@@ -244,7 +244,7 @@ public struct CallViewState: Sendable, Equatable {
     /// anything that leaves a channel silent is a warning.
     public mutating func apply(_ event: CaptureEvent) {
         switch event {
-        case .restarted:
+        case .restarted, .rateCorrected:
             addNotice(.info, event.description)
         case .restartFailed, .voiceProcessingUnavailable, .stoppedByUser:
             addNotice(.warning, event.description)

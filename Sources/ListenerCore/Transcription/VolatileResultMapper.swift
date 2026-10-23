@@ -9,6 +9,8 @@ import Foundation
 ///   Its words are promoted once the recognizer reports it has settled past them, and
 ///   when the session ends.
 /// - A forced final can come back as punctuation only ("......."). That is dropped.
+/// - Some fillers come marked with a "#" ("#um", "#ah"). The mark is dropped, so they
+///   read like any other filler.
 ///
 /// One mapper serves a channel across several recognizer sessions, one after another.
 public struct VolatileResultMapper: Sendable {
@@ -125,6 +127,24 @@ public struct VolatileResultMapper: Sendable {
     }
 
     private static func joined(_ words: [Word]) -> String {
-        words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        withoutFillerMarks(words.map(\.text).joined()).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Drops a "#" at the start of a word ("#um"), leaving any other "#" ("#1", "C#").
+    static func withoutFillerMarks(_ text: String) -> String {
+        guard text.contains("#") else {
+            return text
+        }
+        let characters = Array(text)
+        var result = ""
+        result.reserveCapacity(characters.count)
+        for (index, character) in characters.enumerated() {
+            let startsWord = index == 0 || !(characters[index - 1].isLetter || characters[index - 1].isNumber)
+            if character == "#", startsWord, index + 1 < characters.count, characters[index + 1].isLetter {
+                continue
+            }
+            result.append(character)
+        }
+        return result
     }
 }

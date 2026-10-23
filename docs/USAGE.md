@@ -416,6 +416,10 @@ keep the key in `~/Library/Application Support/Listener/.env` instead.
   macOS no longer applies it to the new build; run `tccutil reset All local.listener`
   and press Start again so macOS asks afresh (this resets Listener's microphone access
   too).
+- **"Them" is gibberish while "Me" is fine.** Check the log for "audio arrives at":
+  Listener measures the rate the Mac's audio really arrives at and corrects it when Core
+  Audio misreports it, as it does for AirPods in call mode. "Them formats" lines show
+  what Core Audio reported at each start.
 - **"Me" picks up the other side.** You are on speakers. Use headphones, or set
   `capture.voiceProcessing` to `true`.
 - **No microphone with the lid closed.** The built-in mics are off in clamshell mode;

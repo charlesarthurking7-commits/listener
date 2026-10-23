@@ -54,6 +54,15 @@ struct CaptureEventTests {
             CaptureEvent.restarted(.them, reason: .digitalSilence(seconds: 10)).description
                 == "Them: capture restarted (10 s of digital silence while another app was playing audio).")
         #expect(CaptureEvent.stoppedByUser(.them).description == "Them: capture was stopped from outside Listener.")
+        #expect(
+            CaptureEvent.rateCorrected(.them, from: 48_000, to: 24_000).description
+                == "Them: audio arrives at 24 kHz, not 48 kHz, so Listener now reads it at 24 kHz.")
+    }
+
+    @Test func ratesReadAsTheyAreUsuallyWritten() {
+        #expect(CaptureEvent.kHz(44_100) == "44.1 kHz")
+        #expect(CaptureEvent.kHz(11_025) == "11.025 kHz")
+        #expect(CaptureEvent.kHz(16_000) == "16 kHz")
     }
 
     @Test func wholeSecondsHaveNoDecimals() {

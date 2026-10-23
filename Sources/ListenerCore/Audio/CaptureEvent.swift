@@ -10,6 +10,9 @@ public enum CaptureEvent: Sendable, Equatable, CustomStringConvertible {
     /// The user ended the capture from outside the app (for example "Stop Sharing" in the
     /// menu bar). The channel stays silent until the next Start.
     case stoppedByUser(Speaker)
+    /// Audio arrives at another sample rate than the one it was read at, so the source
+    /// reads it at the rate it arrives at from now on (see DeliveredRateMonitor).
+    case rateCorrected(Speaker, from: Double, to: Double)
 
     public var description: String {
         switch self {
@@ -23,7 +26,24 @@ public enum CaptureEvent: Sendable, Equatable, CustomStringConvertible {
                 + "so the mic runs without it."
         case .stoppedByUser(let speaker):
             "\(speaker.rawValue): capture was stopped from outside Listener."
+        case .rateCorrected(let speaker, let from, let to):
+            "\(speaker.rawValue): audio arrives at \(Self.kHz(to)), not \(Self.kHz(from)), so Listener now reads it "
+                + "at \(Self.kHz(to))."
         }
+    }
+
+    /// "24 kHz", "44.1 kHz", "11.025 kHz".
+    static func kHz(_ rate: Double) -> String {
+        let hertz = Int(rate.rounded())
+        guard hertz % 1000 != 0 else {
+            return "\(hertz / 1000) kHz"
+        }
+        var fraction = String(hertz % 1000)
+        fraction = String(repeating: "0", count: 3 - fraction.count) + fraction
+        while fraction.hasSuffix("0") {
+            fraction.removeLast()
+        }
+        return "\(hertz / 1000).\(fraction) kHz"
     }
 
     private static func seconds(_ duration: Duration) -> String {

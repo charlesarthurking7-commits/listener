@@ -13,6 +13,19 @@ struct VolatileResultMapperTests {
         #expect(mapper.finalizedThrough == 1.0)
     }
 
+    @Test func fillersLoseTheirHashMark() {
+        var mapper = VolatileResultMapper()
+        let interim = mapper.map(volatileResult(("#Ah,", 0.0, 0.3), (" so", 0.4, 0.6)))
+        #expect(interim.map(\.text) == ["Ah, so"])
+
+        let pieces = [
+            RecognizerResult.Piece(text: "Yes", start: 0.0, end: 0.3), RecognizerResult.Piece(text: ", #"),
+            RecognizerResult.Piece(text: "um, fix #1 in C#.", start: 0.4, end: 1.2),
+        ]
+        let final = mapper.map(RecognizerResult(isFinal: true, start: 0.0, end: 1.2, pieces: pieces))
+        #expect(final.map(\.text) == ["Yes, um, fix #1 in C#."])
+    }
+
     @Test func timesAreShiftedOntoTheChannelTimeline() {
         var mapper = VolatileResultMapper()
         mapper.beginSession(at: 12.5)
