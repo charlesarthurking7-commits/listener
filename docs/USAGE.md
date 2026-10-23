@@ -295,6 +295,14 @@ listener replay me.wav them.wav --ask-at 0:24 --call-type Meeting
 
 Replays are saved like any other call.
 
+### Comparing speech engines
+
+`Tools/SpeechBench` runs one side of a saved call through Apple's on-device model and
+the open Whisper and Parakeet models, on the Mac, and reports words caught, repeated
+words, the time each engine adds after a pause and, given a typed reference, the word
+error rate. Turn on `storage.saveAudio` for the call first. See
+[Tools/SpeechBench/README.md](../Tools/SpeechBench/README.md).
+
 ## Saved calls
 
 Each call is saved in its own folder under

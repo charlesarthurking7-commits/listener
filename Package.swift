@@ -4,7 +4,7 @@ import PackageDescription
 // ListenerCore, GoogleSpeech and ClaudeAPI use no Apple-only frameworks, so they
 // build and test on Linux too. Everything that touches AppKit, AVFoundation or
 // Core Audio lives in ListenerMac and the app target.
-var products: [Product] = []
+var products: [Product] = [.library(name: "ListenerCore", targets: ["ListenerCore"])]
 var targets: [Target] = [
     .target(name: "ListenerCore"),
     .target(

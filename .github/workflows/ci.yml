@@ -23,7 +23,7 @@ jobs:
           path: .build
           key: linux-${{ hashFiles('Package.resolved') }}
       - name: Lint
-        run: swift format lint --strict --recursive Sources Tests Package.swift
+        run: swift format lint --strict --recursive Sources Tests Package.swift Tools/SpeechBench/Sources Tools/SpeechBench/Package.swift
       - name: Test
         run: swift test
 
