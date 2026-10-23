@@ -480,6 +480,14 @@ public final class CallModel {
         }
     }
 
+    public func editStories() {
+        do {
+            Self.openTextFile(try library.createStoriesIfMissing(for: callType))
+        } catch {
+            appNotices.add(.error, "Could not create the stories file: \(ErrorText.describe(error))")
+        }
+    }
+
     public func editCallTypeInstructions() {
         Self.openTextFile(library.folder(for: callType).appendingPathComponent(CallTypeLibrary.instructionsFile))
     }

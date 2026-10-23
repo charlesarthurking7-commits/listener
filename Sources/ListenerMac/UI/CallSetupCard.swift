@@ -4,7 +4,7 @@ import SwiftUI
 /// Before a call: what kind of call it is, and the background Claude reads with every
 /// answer. Nothing here needs the keyboard, so the window never takes it: a menu for the
 /// call type, files dropped onto the card, Paste for copied text or a link, and the
-/// brief in TextEdit.
+/// brief and stories in TextEdit.
 struct CallSetupCard: View {
     let model: CallModel
     @State private var isTargeted = false
@@ -67,6 +67,7 @@ struct CallSetupCard: View {
                 }
                 Divider()
                 Button("Edit Instructions", action: model.editCallTypeInstructions)
+                Button("Edit Stories", action: model.editStories)
                 Button("Show in Finder", action: model.revealCallTypes)
             } label: {
                 Text(model.callType)
@@ -141,8 +142,10 @@ private struct FileRow: View {
     }
 
     private var symbol: String {
-        if file.name == "Brief" {
-            return "note.text"
+        switch file.url.lastPathComponent {
+        case CallTypeLibrary.briefFile: return "note.text"
+        case CallTypeLibrary.storiesFile: return "text.book.closed"
+        default: break
         }
         return switch file.url.pathExtension.lowercased() {
         case "pdf", "doc", "docx", "rtf", "rtfd", "odt": "doc.richtext"

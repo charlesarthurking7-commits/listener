@@ -2,11 +2,13 @@ import Foundation
 
 /// The kinds of call to pick from before Start, one folder each under Call Types.
 /// instructions.md says how answers should go on that kind of call, and every other file
-/// in the folder (a CV, a job description, brief.md) is background that Claude reads with
-/// each answer. They are plain files, editable in any app, and read again at every Start.
+/// in the folder (a CV, a job description, brief.md, stories.md) is background that Claude
+/// reads with each answer. They are plain files, editable in any app, and read again at every Start.
 public struct CallTypeLibrary: Sendable {
     public static let instructionsFile = "instructions.md"
     public static let briefFile = "brief.md"
+    /// The user's STAR stories, for "tell me about a time" questions.
+    public static let storiesFile = "stories.md"
     public static let defaultType = "Work call"
     /// Background past this is cut, so one long PDF cannot make every answer slow and costly.
     public static let documentBudgetTokens = 20_000
@@ -50,15 +52,25 @@ public struct CallTypeLibrary: Sendable {
         folder(for: name).appendingPathComponent(Self.briefFile)
     }
 
+    public func storiesFile(for name: String) -> URL {
+        folder(for: name).appendingPathComponent(Self.storiesFile)
+    }
+
     /// A call type's background files: everything but instructions.md, folders and hidden
-    /// files, the brief first and the rest by name.
+    /// files. The brief and the stories come first, so a long PDF is what gets cut.
     public func documentFiles(of name: String) -> [URL] {
-        contents(of: folder(for: name))
+        func rank(_ url: URL) -> Int {
+            switch url.lastPathComponent {
+            case Self.briefFile: 0
+            case Self.storiesFile: 1
+            default: 2
+            }
+        }
+        return contents(of: folder(for: name))
             .filter { $0.lastPathComponent != Self.instructionsFile && !Self.isDirectory($0) }
             .sorted { first, second in
-                let firstIsBrief = first.lastPathComponent == Self.briefFile
-                if firstIsBrief != (second.lastPathComponent == Self.briefFile) {
-                    return firstIsBrief
+                if rank(first) != rank(second) {
+                    return rank(first) < rank(second)
                 }
                 return first.lastPathComponent.localizedStandardCompare(second.lastPathComponent) == .orderedAscending
             }
@@ -73,8 +85,8 @@ public struct CallTypeLibrary: Sendable {
         var files: [LoadedCallType.File] = []
         var budget = Self.documentBudgetTokens
         for url in documentFiles(of: name) {
-            let isBrief = url.lastPathComponent == Self.briefFile
-            let title = isBrief ? "Brief" : url.lastPathComponent
+            let ownNotes = Self.ownNotesTitles[url.lastPathComponent]
+            let title = ownNotes ?? url.lastPathComponent
             guard let read = try? readText(url) else {
                 files.append(LoadedCallType.File(url: url, name: title, tokens: 0, problem: "Can't be read"))
                 continue
@@ -82,7 +94,8 @@ public struct CallTypeLibrary: Sendable {
             var text = Self.withoutComments(read)
             guard !text.isEmpty else {
                 files.append(
-                    LoadedCallType.File(url: url, name: title, tokens: 0, problem: isBrief ? "Empty" : "No text found"))
+                    LoadedCallType.File(
+                        url: url, name: title, tokens: 0, problem: ownNotes != nil ? "Empty" : "No text found"))
                 continue
             }
             var tokens = TokenEstimate.tokens(in: text)
@@ -133,10 +146,20 @@ public struct CallTypeLibrary: Sendable {
     /// Creates brief.md with a note on what to put in it, unless it exists.
     @discardableResult
     public func createBriefIfMissing(for name: String) throws -> URL {
-        let url = briefFile(for: name)
+        try createIfMissing(briefFile(for: name), template: Self.briefTemplate)
+    }
+
+    /// Creates stories.md with a note and an example layout, unless it exists.
+    @discardableResult
+    public func createStoriesIfMissing(for name: String) throws -> URL {
+        try createIfMissing(storiesFile(for: name), template: Self.storiesTemplate)
+    }
+
+    private func createIfMissing(_ url: URL, template: String) throws -> URL {
         if !FileManager.default.fileExists(atPath: url.path) {
-            try FileManager.default.createDirectory(at: folder(for: name), withIntermediateDirectories: true)
-            try Data(Self.briefTemplate.utf8).write(to: url, options: .withoutOverwriting)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(template.utf8).write(to: url, options: .withoutOverwriting)
         }
         return url
     }
@@ -166,6 +189,9 @@ public struct CallTypeLibrary: Sendable {
             in: .whitespaces.union(CharacterSet(charactersIn: ".,;-")))
         return name.isEmpty ? "Pasted text" : name
     }
+
+    /// The files Listener creates for the user's own notes, and the names they go by.
+    private static let ownNotesTitles = [briefFile: "Brief", storiesFile: "Stories"]
 
     private static let commentPattern = try! NSRegularExpression(pattern: "<!--[\\s\\S]*?-->")
 
@@ -220,7 +246,8 @@ extension CallTypeLibrary {
         to Claude with every answer, recap and summary, and wins over Listener's general rules
         where they differ. The other files in this folder are background for the call: drop a
         CV or other files onto the Listener window, or copy a job description or its link and
-        press Paste. brief.md is for your own notes.
+        press Paste. brief.md is for your own notes, and stories.md (Edit Stories in the card's
+        menu) for your stories for "tell me about a time" questions.
         -->
 
         """
@@ -230,6 +257,24 @@ extension CallTypeLibrary {
         Notes for your next call of this kind: who it is with, what it is for, and anything
         Listener should know. Everything outside these comment marks goes to Claude with every
         answer. Save the file and Listener picks it up.
+        -->
+
+        """
+
+    static let storiesTemplate = """
+        <!--
+        Your stories for "tell me about a time" questions, one block per story: a heading with
+        a short name, a "Good for:" line with the kinds of question it answers, then the four
+        points. The "Good for:" line is what picks the right story mid-call, and only real
+        numbers belong here. Everything outside these comment marks goes to Claude with every
+        answer. Save the file and Listener picks it up at the next Start.
+
+        ## A short name for the story
+        Good for: incidents, working under pressure, problem solving
+        - Situation: what was going on
+        - Task: what you had to do
+        - Action: what you did
+        - Result: what changed, with the numbers
         -->
 
         """

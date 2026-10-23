@@ -26,7 +26,7 @@ struct CallTypeLibraryTests {
         #expect(library.names() == ["Work call"])
     }
 
-    @Test func documentsComeBriefFirstWithoutTheirComments() throws {
+    @Test func documentsComeBriefAndStoriesFirstWithoutTheirComments() throws {
         let library = try library()
         defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         try library.createIfMissing()
@@ -34,13 +34,26 @@ struct CallTypeLibraryTests {
         try write("Acme runs three MT5 servers.", to: folder.appendingPathComponent("acme servers.md"))
         try write("Restart the bridge before the open.", to: folder.appendingPathComponent("Runbook.txt"))
         try write("<!-- a note to myself -->\nThe call is with Sam and Priya.", to: library.briefFile(for: "Work call"))
+        try write("## The late fills\nGood for: incidents", to: library.storiesFile(for: "Work call"))
         try write("hidden", to: folder.appendingPathComponent(".DS_Store"))
 
         let loaded = library.load("Work call")
         #expect(loaded.context.callType == "Work call")
-        #expect(loaded.context.documents.map(\.name) == ["Brief", "acme servers.md", "Runbook.txt"])
+        #expect(loaded.context.documents.map(\.name) == ["Brief", "Stories", "acme servers.md", "Runbook.txt"])
         #expect(loaded.context.documents[0].text == "The call is with Sam and Priya.")
         #expect(loaded.files.allSatisfy { $0.problem == nil && $0.tokens > 0 })
+    }
+
+    @Test func aNewStoriesFileIsOnlyItsNoteUntilFilledIn() throws {
+        let library = try library()
+        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
+        let url = try library.createStoriesIfMissing(for: "Work call")
+        #expect(try CallTypeLibrary.readPlainText(url).contains("Good for:"))
+        #expect(library.load("Work call").files.map(\.problem) == ["Empty"])
+
+        try write("## The late fills\nGood for: incidents", to: url)
+        try library.createStoriesIfMissing(for: "Work call")
+        #expect(library.load("Work call").context.documents.map(\.text) == ["## The late fills\nGood for: incidents"])
     }
 
     @Test func emptyAndUnreadableFilesAreShownButNotSent() throws {

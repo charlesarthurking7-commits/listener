@@ -182,6 +182,10 @@ takes focus from Meet or Teams.
   save.
 - **Brief.** **Edit Brief** opens `brief.md` in TextEdit for your own notes: who the call
   is with and what it is for.
+- **Stories.** **Edit Stories** in the card's menu opens `stories.md`, for your answers to
+  "tell me about a time" questions: one block per story, with a short name, a "Good for:"
+  line listing the kinds of question it answers, and its situation, task, action and
+  result. The "Good for:" line is what picks the right story mid-call.
 - **Instructions.** Each type's `instructions.md` says how answers should go, and wins
   over Listener's general rules where they differ. Open it with **Edit Instructions** in
   the card's menu. For a new type, copy a folder in Finder (**Show in Finder**) and rename
