@@ -78,36 +78,3 @@ enum TextInserter {
         }
     }
 }
-
-/// The app and window in front, which is where dictated text goes.
-@MainActor
-enum DictationTargets {
-    /// How long to wait on an app that is slow to answer about its window.
-    private static let timeout: Float = 0.2
-
-    static func current() -> DictationTarget {
-        guard let app = NSWorkspace.shared.frontmostApplication else {
-            return DictationTarget()
-        }
-        return DictationTarget(
-            appName: app.localizedName, bundleID: app.bundleIdentifier,
-            windowTitle: windowTitle(of: app.processIdentifier))
-    }
-
-    private static func windowTitle(of pid: pid_t) -> String? {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, timeout)
-        var window: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &window) == .success,
-            let window, CFGetTypeID(window) == AXUIElementGetTypeID()
-        else {
-            return nil
-        }
-        var title: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &title) == .success
-        else {
-            return nil
-        }
-        return title as? String
-    }
-}

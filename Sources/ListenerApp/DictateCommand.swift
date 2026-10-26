@@ -27,6 +27,15 @@ struct DictateCommand: AsyncParsableCommand {
     @Option(help: "The title of the window it is going into.")
     var window: String?
 
+    @Option(help: "Text before the cursor, as the app would show it.")
+    var before: String?
+
+    @Option(help: "Text after the cursor.")
+    var after: String?
+
+    @Option(help: "Playback speed for --file. 1 is real time.")
+    var speed = 1.0
+
     func validate() throws {
         if file != nil && text != nil {
             throw ValidationError("Give --file or --text, not both.")
@@ -47,9 +56,11 @@ struct DictateCommand: AsyncParsableCommand {
             model: SessionFactory.languageModel(StandardSecrets.chain()), settings: settings.dictation,
             aboutMe: settings.answers.context)
         let started = ContinuousClock.now
-        let result = await tidier.tidy(heard, for: DictationTarget(appName: app, windowTitle: window))
+        let target = DictationTarget(
+            appName: app, windowTitle: window, textBeforeCursor: before, textAfterCursor: after)
+        let result = await tidier.tidy(heard, for: target)
         let elapsed = (ContinuousClock.now - started).inSeconds * 1000
-        Console.write("Typed:\n\(result.text)\n\n")
+        Console.write("Typed:\n\(before ?? "")\(result.text)\(after ?? "")\n\n")
         if let problem = result.problem {
             Console.error("Typed what was heard: \(problem)")
         }
@@ -66,17 +77,18 @@ struct DictateCommand: AsyncParsableCommand {
         var length: Duration?
         if let file {
             let replay = try ReplaySource(
-                url: URL(fileURLWithPath: ListenerPaths.current.expandingTilde(file)), speaker: .me, speed: 1)
+                url: URL(fileURLWithPath: ListenerPaths.current.expandingTilde(file)), speaker: .me, speed: speed)
             source = replay
-            length = .seconds(Double(replay.audio.frameCount) / Double(replay.audio.sampleRate))
+            length = .seconds(Double(replay.audio.frameCount) / Double(replay.audio.sampleRate) / speed)
         } else {
             source = LiveAudioSources.dictationMicrophone(settings: settings.dictation)
         }
-        let speech = try AppleSpeech.makeProvider(settings: settings) { state in
-            if case .downloading(let fraction) = state {
-                Console.error("Downloading the speech model: \(Int(fraction * 100))%")
-            }
+        let parakeet = ParakeetSpeechProvider()
+        if settings.dictation.recognizer == "parakeet" {
+            Console.error("Loading Parakeet Ultra…")
+            try await parakeet.prepare()
         }
+        let speech = try DictationSpeech.provider(settings: settings, parakeet: parakeet)
         let recorder = DictationRecorder(source: source, speech: speech)
         let info = try await recorder.start { _ in }
         if let length {

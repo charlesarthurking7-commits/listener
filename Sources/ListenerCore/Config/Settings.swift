@@ -134,9 +134,15 @@ public struct DictationSettings: Sendable, Codable, Equatable {
     /// "built-in" (the Mac's own microphone, so AirPods keep playing in high quality
     /// instead of dropping to their call mode) or "default" (the system's input).
     public var microphone = "built-in"
+    /// "parakeet" (Parakeet Ultra, more accurate, a 600 MB download) or "apple" (Apple's
+    /// on-device recognizer). Both run on the Mac for free; Apple stands in for Parakeet
+    /// while its model downloads or loads, and for languages other than English.
+    public var recognizer = "parakeet"
     /// Tidy the words with Claude before typing them. Off types what was heard.
     public var tidy = true
-    public var model = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 4000)
+    /// Sonnet, not Haiku: Haiku keeps the sentences a speaker abandons and restarts, and
+    /// once filled one in with words never said. Sonnet is as quick here.
+    public var model = ModelSettings(model: "claude-sonnet-5-5", effort: "low", thinking: .off, maxTokens: 4000)
     /// Names and terms to spell exactly like this, e.g. colleagues and products.
     public var vocabulary: [String] = []
     /// A soft sound when dictation starts and stops.

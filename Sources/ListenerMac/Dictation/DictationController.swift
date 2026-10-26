@@ -33,14 +33,15 @@ final class DictationController {
     @ObservationIgnored private var monitor: FnKeyMonitor?
     @ObservationIgnored private var settings: Settings
     @ObservationIgnored private var recorder: DictationRecorder?
-    @ObservationIgnored private var target = DictationTarget()
     @ObservationIgnored private var starting: Task<Void, Never>?
     @ObservationIgnored private var work: Task<Void, Never>?
     @ObservationIgnored private var lengthLimit: Task<Void, Never>?
     @ObservationIgnored private var noteTimer: Task<Void, Never>?
     /// Bumped by every start and cancel, so work for an earlier dictation stops short.
     @ObservationIgnored private var generation = 0
-    @ObservationIgnored private var speech: (language: String, provider: any SpeechToTextProvider)?
+    @ObservationIgnored private var speech: (key: String, provider: any SpeechToTextProvider)?
+    /// Loaded at launch and kept, so dictation never waits for its model.
+    @ObservationIgnored private let parakeet = ParakeetSpeechProvider()
     @ObservationIgnored private var model: (any LanguageModelProvider)?
 
     init(environment: AppEnvironment, isCallRunning: @escaping () -> Bool) {
@@ -58,6 +59,15 @@ final class DictationController {
         }
         monitor.start()
         self.monitor = monitor
+        if settings.dictation.recognizer == "parakeet" {
+            Task.detached(priority: .utility) { [parakeet] in
+                do {
+                    try await parakeet.prepare()
+                } catch {
+                    Log.dictation.error("Parakeet could not load: \(ErrorText.describe(error), privacy: .public)")
+                }
+            }
+        }
     }
 
     /// dictation.enabled was on at launch.
@@ -107,7 +117,6 @@ final class DictationController {
             show(ErrorText.describe(error))
             return
         }
-        target = DictationTargets.current()
         generation += 1
         let generation = generation
         noteTimer?.cancel()
@@ -159,8 +168,12 @@ final class DictationController {
         level = 0
         lengthLimit?.cancel()
         play("Pop")
-        let (starting, target, settings) = (starting, target, settings)
         let stoppedAt = ContinuousClock.now
+        // Read now, where the text will be pasted, not where the cursor was at the start.
+        let target = DictationTargets.current()
+        let readMs = Int((ContinuousClock.now - stoppedAt).inSeconds * 1000)
+        Log.dictation.debug("Read the cursor's surroundings in \(readMs) ms")
+        let (starting, settings) = (starting, settings)
         work = Task {
             await starting?.value
             let heard = await recorder.finish()
@@ -268,14 +281,14 @@ final class DictationController {
         sound.play()
     }
 
-    /// One provider per language, so its model loads once and stays loaded.
+    /// One provider per language and recognizer, so models load once and stay loaded.
     private func speechProvider() throws -> any SpeechToTextProvider {
-        let language = settings.speech.languageCode
-        if let speech, speech.language == language {
+        let key = settings.speech.languageCode + " " + settings.dictation.recognizer
+        if let speech, speech.key == key {
             return speech.provider
         }
-        let provider = try AppleSpeech.makeProvider(settings: settings) { _ in }
-        speech = (language, provider)
+        let provider = try DictationSpeech.provider(settings: settings, parakeet: parakeet)
+        speech = (key, provider)
         return provider
     }
 

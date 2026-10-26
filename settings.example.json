@@ -73,9 +73,10 @@
   "dictation": {
     "enabled": true,
     "microphone": "built-in",
+    "recognizer": "parakeet",
     "tidy": true,
     "model": {
-      "model": "claude-haiku-5-5",
+      "model": "claude-sonnet-5-5",
       "effort": "low",
       "thinking": "off",
       "maxTokens": 4000

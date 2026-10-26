@@ -239,18 +239,27 @@ you said is tidied up and typed where the cursor is. **Escape** while dictating,
 it is being tidied, throws it away. A small capsule at the bottom of the screen shows the
 microphone level while it listens, then ripples while it works.
 
-- **Speech** is recognised on the Mac by Apple's on-device model, from the Mac's own
-  microphone (`dictation.microphone`), so AirPods keep playing in high quality instead
-  of dropping into their call mode. The audio never leaves the Mac.
-- **Tidying** is done by Claude Haiku 5.5, for about $0.0001 a dictation and about a
+- **Speech** is recognised on the Mac by Parakeet Ultra, an open model that runs on the
+  Neural Engine and made about a third fewer word errors than Apple's on the test calls.
+  It downloads once (about 600 MB, into `Models/` in Listener's folder) and loads at
+  launch; until it is ready, and for languages other than English, Apple's on-device
+  recognizer stands in (`dictation.recognizer` picks one for good). Audio comes from the
+  Mac's own microphone (`dictation.microphone`), so AirPods keep playing in high quality
+  instead of dropping into their call mode. The audio never leaves the Mac.
+- **Tidying** is done by Claude Sonnet 5.5, for about $0.0025 a dictation and about a
   second after you stop. It drops fillers ("um", "you know") and stutters, keeps only
-  your correction when you change your mind ("at 3, no, 4"), punctuates, writes numbers
+  your correction when you change your mind ("at 3, no, 4") and only the finished
+  version of a sentence you started again, punctuates, writes numbers
   and times the usual way, and lays the text out for the app in front: an email gets its
   greeting, paragraphs and sign-off on their own lines, a chat message stays short, and
   things said as a list become one. Spoken "new paragraph", "full stop" and "bullet point"
-  work too. It keeps your words and never answers a question you dictate. Only the words
-  and the app's name and window title are sent; without an API key, or if Claude is slow
-  or fails, the words are typed as heard.
+  work too, as do "scratch that", "never mind" and "I mean". It keeps your words and never
+  answers a question you dictate. Without an API key, or if Claude is slow or fails, the
+  words are typed as heard.
+- **Context**: Claude also gets the app's name, its window title and up to 500
+  characters either side of the cursor, where the app shares them. That is how a reply
+  gets the names in the email above it right, and how dictating into the middle of a
+  sentence carries it on rather than starting a new one. Password fields are never read.
 - **Pasting** goes through the clipboard, which is put back a second later. If the text
   went somewhere unexpected, **Copy Last Dictation** in the menu bar menu has it.
 - **Names and terms** that come out wrong can go in `dictation.vocabulary`, for example
@@ -396,7 +405,7 @@ want to change: anything left out keeps its default, at every level.
 | `storage` | Sessions folder, retention in days, whether to keep the audio |
 | `hotkeys` | The five hotkeys |
 | `window` | Always on top, opacity, Dock icon |
-| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), tidying and its model, vocabulary, sounds |
+| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), the recognizer (`parakeet` or `apple`), tidying and its model, vocabulary, sounds |
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
 The window reads the file again on every Start, so changes apply to the next call.

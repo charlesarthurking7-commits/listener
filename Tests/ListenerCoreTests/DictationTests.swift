@@ -106,6 +106,29 @@ struct DictationTidierTests {
         #expect(DictationTidier.typed("<text>Hello.</text>", heard: "hello") == "Hello.")
     }
 
+    @Test func theTextAroundTheCursorGoesWithTheRequest() async throws {
+        let model = ScriptedLanguageModel(answer: "the fills from Tuesday")
+        let target = DictationTarget(
+            appName: "Notes", textBeforeCursor: "Please check ", textAfterCursor: " before the call.")
+        let result = await tidier(model).tidy("the fills from tuesday", for: target)
+        let request = try #require(model.requests.first)
+        #expect(request.userText.contains("<before_cursor>Please check </before_cursor>"))
+        #expect(request.userText.contains("<after_cursor> before the call.</after_cursor>"))
+        #expect(result.text == "the fills from Tuesday")
+    }
+
+    @Test func textIsSpacedAgainstTheWordsEitherSideOfTheCursor() {
+        func fitted(_ text: String, _ before: String?, _ after: String?) -> String {
+            DictationTidier.fitted(text, into: DictationTarget(textBeforeCursor: before, textAfterCursor: after))
+        }
+        #expect(fitted("the fills", "Please check", "before the call") == " the fills ")
+        #expect(fitted("the fills", "Please check ", " before") == "the fills")
+        #expect(fitted("fills", "(", ")") == "fills")
+        #expect(fitted("Hello.", nil, nil) == "Hello.")
+        #expect(fitted("Hello.", "", "") == "Hello.")
+        #expect(fitted("", "word", "word") == "")
+    }
+
     @Test func theTimeLimitGrowsWithTheDictation() {
         #expect(
             DictationTidier.timeLimit(for: "one two")
@@ -141,6 +164,29 @@ struct DictationRecorderTests {
             _ = try await recorder.start { _ in }
         }
         #expect(source.stops == 1)
+    }
+}
+
+struct FallbackSpeechToTextTests {
+    @Test func usesThePrimaryWhenItOpens() async throws {
+        let fallbacks = Collected<String>()
+        let speech = FallbackSpeechToText(primary: CountingSpeech(), fallback: CountingSpeech(opens: false)) {
+            fallbacks.add(ErrorText.describe($0))
+        }
+        _ = try await speech.openStream(for: .me)
+        #expect(fallbacks.all.isEmpty)
+    }
+
+    @Test func usesTheFallbackWhenThePrimaryCannotOpenAndSaysWhy() async throws {
+        let fallbacks = Collected<String>()
+        let speech = FallbackSpeechToText(primary: CountingSpeech(opens: false), fallback: CountingSpeech()) {
+            fallbacks.add(ErrorText.describe($0))
+        }
+        let stream = try await speech.openStream(for: .me)
+        try await stream.send(AudioChunk(speaker: .me, samples: [1], capturedAt: .now))
+        await stream.finish()
+        #expect(try await stream.events.collect().map(\.text) == ["chu", "chunk1"])
+        #expect(fallbacks.all.count == 1)
     }
 }
 

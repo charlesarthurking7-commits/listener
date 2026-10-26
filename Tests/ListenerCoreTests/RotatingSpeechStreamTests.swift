@@ -47,6 +47,22 @@ struct RotatingSpeechStreamTests {
         #expect(second.received.count == seconds(0.5))
     }
 
+    @Test func withoutSplittingOneSessionHearsEverythingAcrossPauses() async throws {
+        let recognizer = FakeRecognizer()
+        let stream = try await RotatingSpeechStream.open(
+            recognizer: recognizer, configuration: RotatingSpeechStream.Configuration(splitsAtPauses: false))
+        let session = try await recognizer.nextSession()
+        session.onFinish = [finalResult(("One. Two.", 0.2, 1.8))]
+
+        let audio = Synth.tone(seconds: 1.0) + Synth.silence(seconds: 0.6) + Synth.tone(seconds: 0.5)
+        try await send(audio, to: stream)
+        await stream.finish()
+
+        #expect(try await stream.events.collect().map(\.text) == ["One. Two."])
+        #expect(session.received.count == audio.count)
+        #expect(session.finishCalls == 1)
+    }
+
     @Test func aWordRightAfterThePauseGoesWholeToTheNextSession() async throws {
         let recognizer = FakeRecognizer()
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)

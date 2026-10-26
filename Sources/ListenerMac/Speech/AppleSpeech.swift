@@ -28,6 +28,22 @@ public enum AppleSpeech {
         return AppleSpeechProvider(settings: settings, onModelState: onModelState)
     }
 
+    /// Apple's recognizer as dictation uses it. Nobody reads its text until dictation
+    /// stops, so it keeps one session throughout rather than ending one at every pause,
+    /// and takes Apple's slower, more careful results. On the six fixture channels read
+    /// as dictations that made 43 word errors in 496, against 50 with fast results and
+    /// 68 ending a session at each pause, which also made up a "Yeah." at some of the
+    /// cuts. Stopping waits about 0.2 s for the last words instead of 0.06 s.
+    public static func makeDictationProvider(settings: Settings) throws -> any SpeechToTextProvider {
+        guard #available(macOS 26.0, *) else {
+            throw AppleSpeechError.requiresMacOS26
+        }
+        guard SpeechTranscriber.isAvailable else {
+            throw AppleSpeechError.unsupportedDevice
+        }
+        return AppleSpeechProvider(settings: settings, splitsAtPauses: false, fastResults: false) { _ in }
+    }
+
     /// Checks the language and downloads its model if needed. Call it when the user picks
     /// this provider, so the first call does not sit waiting on a download.
     public static func installModel(

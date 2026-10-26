@@ -171,6 +171,7 @@ public struct SettingsLoader: Sendable {
         require(settings.answers.recap.maxTokens > 0, "answers.recap.maxTokens", "must be more than 0")
         require(settings.summary.model.maxTokens > 0, "summary.model.maxTokens", "must be more than 0")
         requireOneOf(settings.dictation.microphone, ["built-in", "default"], "dictation.microphone")
+        requireOneOf(settings.dictation.recognizer, ["parakeet", "apple"], "dictation.recognizer")
         require(settings.dictation.model.maxTokens > 0, "dictation.model.maxTokens", "must be more than 0")
         require(
             settings.answers.transcriptBudgetTokens > 0, "answers.transcriptBudgetTokens", "must be more than 0")

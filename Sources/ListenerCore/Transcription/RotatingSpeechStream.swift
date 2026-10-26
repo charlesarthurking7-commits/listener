@@ -13,6 +13,10 @@
 public actor RotatingSpeechStream: SpeechStream {
     public struct Configuration: Sendable {
         public var finalization: FinalizationTrigger.Configuration
+        /// End the session at each pause, for a final at once. Off, one session hears
+        /// everything, as dictation wants: each sentence then has the ones before it as
+        /// context, and only a stopped recognizer starts a new session.
+        public var splitsAtPauses: Bool
         /// Ending a session normally takes about 0.1 s. One that has not ended after this
         /// is cancelled, and one that ignores that too is abandoned. Its volatile words
         /// become final either way.
@@ -24,11 +28,13 @@ public actor RotatingSpeechStream: SpeechStream {
 
         public init(
             finalization: FinalizationTrigger.Configuration = FinalizationTrigger.Configuration(),
+            splitsAtPauses: Bool = true,
             finishTimeout: Duration = .seconds(2),
             maxFailuresInARow: Int = 3,
             retryDelay: Duration = .milliseconds(250)
         ) {
             self.finalization = finalization
+            self.splitsAtPauses = splitsAtPauses
             self.finishTimeout = finishTimeout
             self.maxFailuresInARow = maxFailuresInARow
             self.retryDelay = retryDelay
@@ -90,7 +96,7 @@ public actor RotatingSpeechStream: SpeechStream {
         }
         let chunkStart = unsettled.end
         unsettled.append(chunk.samples, keeping: Self.replayLimit)
-        let pauseEnd = trigger.process(chunk.samples)
+        let pauseEnd = configuration.splitsAtPauses ? trigger.process(chunk.samples) : nil
         guard let current else {
             held.append(chunk.samples)
             return

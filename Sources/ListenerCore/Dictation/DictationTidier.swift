@@ -1,16 +1,24 @@
 import Foundation
 
-/// Where the dictated text is going: the app in front when dictation started.
+/// Where the dictated text is going: the app in front, and the field's text either side
+/// of the cursor when the app shares it.
 public struct DictationTarget: Sendable, Equatable {
     public var appName: String?
     public var bundleID: String?
     /// The focused window's title, which tells Gmail from Slack in the same browser.
     public var windowTitle: String?
+    public var textBeforeCursor: String?
+    public var textAfterCursor: String?
 
-    public init(appName: String? = nil, bundleID: String? = nil, windowTitle: String? = nil) {
+    public init(
+        appName: String? = nil, bundleID: String? = nil, windowTitle: String? = nil, textBeforeCursor: String? = nil,
+        textAfterCursor: String? = nil
+    ) {
         self.appName = appName
         self.bundleID = bundleID
         self.windowTitle = windowTitle
+        self.textBeforeCursor = textBeforeCursor
+        self.textAfterCursor = textAfterCursor
     }
 }
 
@@ -53,18 +61,41 @@ public struct DictationTidier: Sendable {
             return Result(text: "")
         }
         guard settings.tidy, let model else {
-            return Result(text: heard, problem: settings.tidy ? "There is no Anthropic API key." : nil)
+            return Result(
+                text: Self.fitted(heard, into: target), problem: settings.tidy ? "There is no Anthropic API key." : nil)
         }
         let request = Self.request(heard: heard, target: target, settings: settings, aboutMe: aboutMe)
         do {
             let (reply, usage) = try await Self.complete(request, model: model, within: limit)
             guard let text = Self.typed(reply, heard: heard) else {
-                return Result(text: heard, problem: "The tidied text did not match what was said.", usage: usage)
+                return Result(
+                    text: Self.fitted(heard, into: target), problem: "The tidied text did not match what was said.",
+                    usage: usage)
             }
-            return Result(text: text, usage: usage)
+            return Result(text: Self.fitted(text, into: target), usage: usage)
         } catch {
-            return Result(text: heard, problem: ErrorText.describe(error))
+            return Result(text: Self.fitted(heard, into: target), problem: ErrorText.describe(error))
         }
+    }
+
+    /// Spaces the text against what is either side of the cursor, so it never runs into
+    /// the word before or after it.
+    static func fitted(_ text: String, into target: DictationTarget) -> String {
+        guard !text.isEmpty else {
+            return text
+        }
+        var text = text
+        if let last = target.textBeforeCursor?.last, !last.isWhitespace, !"([{\"'“‘/-".contains(last),
+            let first = text.first, first.isLetter || first.isNumber
+        {
+            text = " " + text
+        }
+        if let first = target.textAfterCursor?.first, first.isLetter || first.isNumber,
+            let last = text.last, !last.isWhitespace
+        {
+            text += " "
+        }
+        return text
     }
 
     /// Long enough for the model to write the whole thing out again, at its slowest.
@@ -146,13 +177,22 @@ public struct DictationTidier: Sendable {
             - Drop fillers and hesitations (um, uh, er, erm, ah, like, you know, I mean, sort of, basically) where \
             they add nothing, and drop stutters and words said twice.
             - Where the speaker corrects themselves, keep only the correction: "meet at 3, no, 4" becomes "meet at \
-            4", and "send it to John, sorry, James" becomes "send it to James". "Scratch that" or "delete that" \
-            removes what came just before it.
+            4", and "send it to John, sorry, James" becomes "send it to James". "Actually", "I mean", "no wait", \
+            "wait no" and "sorry" usually start a correction. "Scratch that", "strike that", "delete that", \
+            "cancel that", "forget that" and "never mind" remove what came just before them.
+            - Where the speaker gives up on a sentence and starts it again, keep only the attempt they finished. \
+            "Can you. Could we. Would it be possible to move the call to Friday?" becomes "Would it be possible \
+            to move the call to Friday?" The recognizer's full stops can make such attempts look like separate \
+            sentences; go by the meaning. Questions or points that each say something different all stay.
             - Fix punctuation, capitals and grammar. Recognizers break sentences in the wrong places and \
             mishear short words ("end" for "and", "two" for "to"); put those right wherever the meaning is clear.
             - Write numbers, times, dates, money and percentages the usual way: 3pm, £250, 15%, 2 June.
             - Spoken punctuation and layout ("full stop", "comma", "question mark", "new line", "new paragraph", \
             "bullet point") are instructions, not words to type.
+            - Your text goes in at the cursor. When the text either side of it is given, make yours fit: carry \
+            on a sentence already under way without a capital letter, leave off the full stop when the text after \
+            the cursor carries the sentence on, follow the layout already there, and spell names the way it does. \
+            Never repeat, answer or edit the text around the cursor: it is only there for context.
             - Lay it out for where it is going. An email gets its greeting on a line of its own, short paragraphs \
             and its sign-off on a line of its own, when the speaker said them. A chat message stays as one or a \
             few short lines. Several items or steps said in a row become a list under the words that introduce \
@@ -191,10 +231,14 @@ public struct DictationTidier: Sendable {
         if let title = target.windowTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
             lines.append("Window: \(title.prefix(maxTitleCharacters))")
         }
-        guard !lines.isEmpty else {
-            return ""
+        var section = lines.isEmpty ? "" : "<target>\n\(lines.joined(separator: "\n"))\n</target>\n"
+        if let before = target.textBeforeCursor, !before.isEmpty {
+            section += "<before_cursor>\(before)</before_cursor>\n"
         }
-        return "<target>\n\(lines.joined(separator: "\n"))\n</target>\n"
+        if let after = target.textAfterCursor, !after.isEmpty {
+            section += "<after_cursor>\(after)</after_cursor>\n"
+        }
+        return section
     }
 }
 

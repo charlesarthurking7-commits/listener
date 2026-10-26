@@ -7,10 +7,11 @@ import Speech
 @available(macOS 26.0, *)
 struct AppleRecognizer: SessionRecognizer {
     let model: InstalledModel
+    var fastResults = true
 
     func startSession() async throws -> any RecognizerSession {
         do {
-            return try await AppleRecognizerSession.start(model: model)
+            return try await AppleRecognizerSession.start(model: model, fastResults: fastResults)
         } catch {
             throw AppleSpeechError.from(error, language: model.language)
         }
@@ -35,12 +36,12 @@ final class AppleRecognizerSession: RecognizerSession, @unchecked Sendable {
     /// at a time; the audio that arrives meanwhile is held by the stream.
     private static let starts = SerialGate()
 
-    static func start(model: InstalledModel) async throws -> AppleRecognizerSession {
-        try await starts.run { try await startNow(model: model) }
+    static func start(model: InstalledModel, fastResults: Bool) async throws -> AppleRecognizerSession {
+        try await starts.run { try await startNow(model: model, fastResults: fastResults) }
     }
 
-    private static func startNow(model: InstalledModel) async throws -> AppleRecognizerSession {
-        let transcriber = SpeechTranscriber.live(locale: model.locale)
+    private static func startNow(model: InstalledModel, fastResults: Bool) async throws -> AppleRecognizerSession {
+        let transcriber = SpeechTranscriber.live(locale: model.locale, fastResults: fastResults)
         let analyzer = SpeechAnalyzer(
             modules: [transcriber],
             options: SpeechAnalyzer.Options(priority: .userInitiated, modelRetention: .lingering)

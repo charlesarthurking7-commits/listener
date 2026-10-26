@@ -233,7 +233,8 @@ ClaudeAPI     Anthropic Messages API client with SSE streaming and retries
 ListenerMac   (macOS only)
   Capture/        MicrophoneCapture, SystemAudioTap, ScreenCaptureAudio, PCMConverter,
                   LiveAudioSources, CapturePermissions
-  Speech/         AppleSpeechProvider (SpeechAnalyzer, macOS 26+)
+  Speech/         AppleSpeechProvider (SpeechAnalyzer, macOS 26+), ParakeetSpeechProvider
+                  (FluidAudio, for dictation)
   Network/        URLSessionStreamingTransport for ClaudeAPI
   Hotkeys/        RegisterEventHotKey wrapper
   Dictation/      fn event tap, DictationController, pasting, the capsule on screen
@@ -332,8 +333,9 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
 - Logging through Apple's unified logging (`os.Logger`) with transcript text and secrets
   marked private, so they are redacted from log output. Transcript text only leaves the
   machine to the configured STT and LLM providers.
-- Dictation keeps nothing on disk. Its audio stays on the Mac (Apple's on-device model
-  only); the words, the app's name and its window title go to Claude for tidying. The
+- Dictation keeps nothing on disk. Its audio stays on the Mac (Parakeet or Apple, both
+  on-device); the words, the app's name, its window title and up to 500 characters either
+  side of the cursor go to Claude for tidying. The
   last text typed is kept in memory for **Copy Last Dictation**.
 - Secrets: Anthropic key in the Keychain (`listener secrets set anthropic`) or `.env`
   (gitignored). Google uses Application Default Credentials

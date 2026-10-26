@@ -13,8 +13,9 @@ call ends it writes a summary with action items.
 - **Call types**: pick Work call or Meeting before Start, and drop in files, paste a page
   or its link, or write a brief.
 - **Dictation** (fn twice, in any app): speak, press fn again, and the words are typed
-  at the cursor, tidied by Claude Haiku 5.5: fillers gone, corrections applied, laid out
-  for the email or chat they are going into. Speech is recognised on the Mac.
+  at the cursor, tidied by Claude Sonnet 5.5: fillers gone, corrections applied, laid out
+  for the email or chat they are going into. Speech is recognised on the Mac by
+  Parakeet Ultra.
 - **Grounded**: answers may use general knowledge but never invent call-specific facts
   (amounts, account or ticket numbers, dates, names); they say what to check instead.
 - **Speech-to-text**: Apple's on-device recognition by default where the Mac supports it
@@ -75,6 +76,14 @@ picks it up from then on.
 
 The scripts launch the app through `open` so that macOS asks on behalf of Listener. A
 command run straight from Terminal gets its permissions through your terminal app.
+
+## Credits
+
+Dictation recognises speech with [Parakeet Ultra](https://huggingface.co/moondream/parakeet-ultra)
+by moondream, a post-training of NVIDIA's
+[Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), both under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), run through
+[FluidAudio](https://github.com/FluidInference/FluidAudio) (Apache 2.0).
 
 ## Development
 

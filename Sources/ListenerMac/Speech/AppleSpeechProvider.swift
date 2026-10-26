@@ -7,25 +7,30 @@ import Speech
 final class AppleSpeechProvider: SpeechToTextProvider {
     let displayName: String
     private let configuration: RotatingSpeechStream.Configuration
+    private let fastResults: Bool
     private let loader: ModelLoader
 
     /// Takes the language from the speech settings and what counts as speech from the
     /// turn settings, so pauses mean the same here as in turn detection.
-    init(settings: Settings, onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void) {
+    init(
+        settings: Settings, splitsAtPauses: Bool = true, fastResults: Bool = true,
+        onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
+    ) {
+        self.fastResults = fastResults
         let languageCode = settings.speech.languageCode
         let finalization = FinalizationTrigger.Configuration(
             speechThresholdDBFS: settings.turns.vadThresholdDBFS,
             minSpeechSeconds: Double(settings.turns.minSpeechMs) / 1000
         )
         displayName = "Apple on-device (\(languageCode))"
-        configuration = RotatingSpeechStream.Configuration(finalization: finalization)
+        configuration = RotatingSpeechStream.Configuration(finalization: finalization, splitsAtPauses: splitsAtPauses)
         loader = ModelLoader(languageCode: languageCode, onState: onModelState)
     }
 
     func openStream(for speaker: Speaker) async throws -> any SpeechStream {
         let model = try await loader.model()
         return try await RotatingSpeechStream.open(
-            recognizer: AppleRecognizer(model: model), configuration: configuration)
+            recognizer: AppleRecognizer(model: model, fastResults: fastResults), configuration: configuration)
     }
 }
 
@@ -48,11 +53,12 @@ extension SpeechTranscriber {
     /// Apple calls fast results less accurate, but on the fixture calls replayed through
     /// this pipeline they were better: 54 word errors in 496 against 91 without, as the
     /// slower setting made up a run of "A A A…" in the silence before the first word.
-    static func live(locale: Locale) -> SpeechTranscriber {
+    /// Dictation, in one session, is the other way round (see `makeDictationProvider`).
+    static func live(locale: Locale, fastResults: Bool = true) -> SpeechTranscriber {
         SpeechTranscriber(
             locale: locale,
             transcriptionOptions: [],
-            reportingOptions: [.volatileResults, .fastResults],
+            reportingOptions: fastResults ? [.volatileResults, .fastResults] : [.volatileResults],
             attributeOptions: [.audioTimeRange]
         )
     }
