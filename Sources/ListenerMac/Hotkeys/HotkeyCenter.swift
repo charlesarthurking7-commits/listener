@@ -1,9 +1,9 @@
 import Carbon
 import ListenerCore
 
-public struct HotkeyRegistrationFailure: Sendable {
-    public let action: HotkeyAction
-    public let message: String
+struct HotkeyRegistrationFailure: Sendable {
+    let action: HotkeyAction
+    let message: String
 }
 
 /// Global hotkeys through Carbon's RegisterEventHotKey. Unlike event taps and global
@@ -12,7 +12,7 @@ public struct HotkeyRegistrationFailure: Sendable {
 /// Hotkeys are registered as exclusive, so a combination another app holds
 /// exclusively fails with eventHotKeyExistsErr instead of firing in both apps.
 @MainActor
-public final class HotkeyCenter {
+final class HotkeyCenter {
     /// "LSTN", tags our hotkey IDs.
     private static let signature: OSType = 0x4C53_544E
 
@@ -20,12 +20,12 @@ public final class HotkeyCenter {
     private var registered: [UInt32: (action: HotkeyAction, ref: EventHotKeyRef)] = [:]
     private var eventHandler: EventHandlerRef?
 
-    public init(onPress: @escaping (HotkeyAction) -> Void) {
+    init(onPress: @escaping (HotkeyAction) -> Void) {
         self.onPress = onPress
     }
 
     /// Replaces any earlier registrations. Returns the hotkeys that could not be registered.
-    public func register(_ hotkeys: [HotkeyAction: Hotkey]) -> [HotkeyRegistrationFailure] {
+    func register(_ hotkeys: [HotkeyAction: Hotkey]) -> [HotkeyRegistrationFailure] {
         unregisterAll()
         let handlerStatus = installEventHandler()
         var failures: [HotkeyRegistrationFailure] = []

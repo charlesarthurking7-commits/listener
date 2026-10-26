@@ -2,7 +2,7 @@ import Foundation
 import Speech
 
 /// Why on-device recognition could not start or had to stop, worded for the user.
-public enum AppleSpeechError: Error, CustomStringConvertible {
+enum AppleSpeechError: Error, CustomStringConvertible {
     case requiresMacOS26
     case unsupportedDevice
     case notInThisBuild
@@ -13,7 +13,7 @@ public enum AppleSpeechError: Error, CustomStringConvertible {
     case unsupportedAudioFormat(String)
     case failed(String)
 
-    public var description: String {
+    var description: String {
         switch self {
         case .requiresMacOS26:
             "On-device speech recognition needs macOS 26 or later. Use the Google provider on this Mac."

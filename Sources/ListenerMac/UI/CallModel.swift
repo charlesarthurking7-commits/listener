@@ -12,52 +12,52 @@ import os
 /// hour of transcript above it, and a streaming answer redraws the answer alone.
 @MainActor
 @Observable
-public final class CallModel {
-    public private(set) var phase = CallViewState.Phase.idle
-    public private(set) var listeningSince: Date?
-    public private(set) var settledRows: [TranscriptRow] = []
-    public private(set) var liveRows: [TranscriptRow] = []
+final class CallModel {
+    private(set) var phase = CallViewState.Phase.idle
+    private(set) var listeningSince: Date?
+    private(set) var settledRows: [TranscriptRow] = []
+    private(set) var liveRows: [TranscriptRow] = []
     /// Changes whenever either list of rows does, for following the newest line.
-    public private(set) var transcriptRevision = 0
-    public private(set) var answer: AnswerCard?
+    private(set) var transcriptRevision = 0
+    private(set) var answer: AnswerCard?
     /// The answer on screen, for layout that must not redraw with every word.
-    public private(set) var answerID: Int?
-    public private(set) var answerBlocks: [AnswerBlock] = []
-    public private(set) var callNotices: [Notice] = []
-    public private(set) var cost = CostSummary()
-    public private(set) var lastLatencyMs: Double?
-    public private(set) var outcome: CallOutcome?
+    private(set) var answerID: Int?
+    private(set) var answerBlocks: [AnswerBlock] = []
+    private(set) var callNotices: [Notice] = []
+    private(set) var cost = CostSummary()
+    private(set) var lastLatencyMs: Double?
+    private(set) var outcome: CallOutcome?
     /// Which channels hear speech right now; nil while the session does not report it.
-    public private(set) var hearing: Set<Speaker>?
+    private(set) var hearing: Set<Speaker>?
 
-    public private(set) var readiness: [ReadinessItem] = []
+    private(set) var readiness: [ReadinessItem] = []
     /// Banners about the app rather than the call, e.g. a hotkey that is taken.
-    public private(set) var appNotices = NoticeList()
+    private(set) var appNotices = NoticeList()
     /// Hotkeys that registered, for the footer and the menu.
-    public private(set) var activeHotkeys: [HotkeyAction: Hotkey] = [:]
-    public private(set) var settings: Settings
+    private(set) var activeHotkeys: [HotkeyAction: Hotkey] = [:]
+    private(set) var settings: Settings
     /// The on-device model's state when speech.provider is "apple".
-    public private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
+    private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
 
     /// The kinds of call to pick from before Start, the one picked, and its files.
-    public private(set) var callTypes: [String] = []
-    public private(set) var callType = CallTypeLibrary.defaultType
-    public private(set) var callFiles: [LoadedCallType.File] = []
+    private(set) var callTypes: [String] = []
+    private(set) var callType = CallTypeLibrary.defaultType
+    private(set) var callFiles: [LoadedCallType.File] = []
     /// While a pasted link is being read.
-    public private(set) var isImportingPage = false
+    private(set) var isImportingPage = false
     /// The call type and documents the running call started with.
-    public private(set) var activeCall: CallContext?
+    private(set) var activeCall: CallContext?
 
     /// How the window looks during a call; kept between launches.
-    public private(set) var transparency = WindowTransparency.stored
-    public private(set) var showsTranscriptInCall = UserDefaults.standard.bool(forKey: CallModel.transcriptKey)
-    public private(set) var hidesFromScreenSharing =
+    private(set) var transparency = WindowTransparency.stored
+    private(set) var showsTranscriptInCall = UserDefaults.standard.bool(forKey: CallModel.transcriptKey)
+    private(set) var hidesFromScreenSharing =
         UserDefaults.standard.object(forKey: CallModel.screenSharingKey) as? Bool ?? true
-    public private(set) var isPointerOver = false
+    private(set) var isPointerOver = false
 
     /// Everything about the current call. Not observed: views read the slices above, and
     /// the menu reads this when it opens.
-    @ObservationIgnored public private(set) var state = CallViewState()
+    @ObservationIgnored private(set) var state = CallViewState()
 
     @ObservationIgnored private let environment: AppEnvironment
     @ObservationIgnored private var session: CallSession?
@@ -76,7 +76,7 @@ public final class CallModel {
     @ObservationIgnored private let library: CallTypeLibrary
     @ObservationIgnored private let callTypeWatcher = FolderWatcher()
 
-    public init(environment: AppEnvironment) {
+    init(environment: AppEnvironment) {
         self.environment = environment
         library = CallTypeLibrary(paths: environment.paths)
         settings = environment.launchSettings.settings
@@ -91,11 +91,11 @@ public final class CallModel {
     }
 
     /// A call is running or being saved, or a summary is being written.
-    public var hasWorkToFinish: Bool { session != nil || !summarising.isEmpty }
-    public var hasTranscript: Bool { !settledRows.isEmpty || !liveRows.isEmpty }
+    var hasWorkToFinish: Bool { session != nil || !summarising.isEmpty }
+    var hasTranscript: Bool { !settledRows.isEmpty || !liveRows.isEmpty }
 
     /// Checks permissions, credentials and keys again.
-    public func refreshReadiness() {
+    func refreshReadiness() {
         let google =
             settings.speech.provider == "google"
             ? environment.googleSetup(settings) : GoogleSetup(projectID: nil, credentialsProblem: nil)
@@ -112,7 +112,7 @@ public final class CallModel {
         updateReadiness()
     }
 
-    public func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
+    func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
         activeHotkeys = hotkeys
         for failure in failures {
             Log.ui.error("\(failure.message, privacy: .public)")
@@ -121,7 +121,7 @@ public final class CallModel {
         }
     }
 
-    public func toggleListening() {
+    func toggleListening() {
         if state.canStart {
             start()
         } else if state.canStop {
@@ -132,7 +132,7 @@ public final class CallModel {
     /// Starts a call. Nothing is captured until the user presses Start (or the
     /// toggle hotkey), and nothing starts while the setup checklist shows a blocker.
     /// A failed start leaves the window on the checklist with the reason on top.
-    public func start() {
+    func start() {
         guard state.canStart else {
             return
         }
@@ -210,7 +210,7 @@ public final class CallModel {
         }
     }
 
-    public func stop() {
+    func stop() {
         guard state.canStop, let session else {
             return
         }
@@ -221,7 +221,7 @@ public final class CallModel {
         }
     }
 
-    public func ask(_ tier: AnswerTier) {
+    func ask(_ tier: AnswerTier) {
         guard state.canAsk, let session else {
             state.addNotice(.info, "Answers need a live call. Press Start first.")
             publish()
@@ -237,23 +237,23 @@ public final class CallModel {
 
     /// During a call the window is a slim bar with the answer card under it, unless the
     /// transcript is turned on.
-    public var isCompact: Bool {
+    var isCompact: Bool {
         (phase == .starting || phase == .listening) && !showsTranscriptInCall
     }
 
-    public var isInCall: Bool {
+    var isInCall: Bool {
         phase != .idle && phase != .finished
     }
 
     /// Whether an answer can be asked for now. Reads the observed phase, so views that
     /// use it redraw when a call starts.
-    public var canAsk: Bool {
+    var canAsk: Bool {
         phase == .listening
     }
 
     /// Solid is fully opaque. Clear also fades the window between answers during a call,
     /// and brings it back when an answer arrives or the pointer is over it.
-    public var windowOpacity: Double {
+    var windowOpacity: Double {
         if transparency == .solid {
             return 1
         }
@@ -263,29 +263,29 @@ public final class CallModel {
         return settings.window.opacity
     }
 
-    public func setTransparency(_ transparency: WindowTransparency) {
+    func setTransparency(_ transparency: WindowTransparency) {
         self.transparency = transparency
         UserDefaults.standard.set(transparency.rawValue, forKey: WindowTransparency.key)
     }
 
-    public func toggleTranscriptInCall() {
+    func toggleTranscriptInCall() {
         showsTranscriptInCall.toggle()
         UserDefaults.standard.set(showsTranscriptInCall, forKey: Self.transcriptKey)
     }
 
-    public func toggleHidingFromScreenSharing() {
+    func toggleHidingFromScreenSharing() {
         hidesFromScreenSharing.toggle()
         UserDefaults.standard.set(hidesFromScreenSharing, forKey: Self.screenSharingKey)
     }
 
-    public func pointerMoved(over: Bool) {
+    func pointerMoved(over: Bool) {
         isPointerOver = over
     }
 
     private static let transcriptKey = "showsTranscriptInCall"
     private static let screenSharingKey = "hidesFromScreenSharing"
 
-    public func dismissAnswer() {
+    func dismissAnswer() {
         if state.dismissAnswer() != nil, let session {
             Task {
                 await session.cancelAnswer()
@@ -295,7 +295,7 @@ public final class CallModel {
     }
 
     /// Copies what to say, leaving out the notes in brackets that are only for the user.
-    public func copyAnswer() {
+    func copyAnswer() {
         let text = markup.textToSay
         guard !text.isEmpty else {
             return
@@ -304,13 +304,13 @@ public final class CallModel {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
-    public func dismissNotice(_ notice: Notice) {
+    func dismissNotice(_ notice: Notice) {
         state.dismissNotice(id: notice.id)
         publish()
     }
 
     /// Leaves the finished call for the start screen, to set up the next one.
-    public func newCall() {
+    func newCall() {
         state.clearFinishedCall()
         publish()
         refreshReadiness()
@@ -318,13 +318,13 @@ public final class CallModel {
     }
 
     /// The last call's summary, until the next call starts.
-    public var lastSummaryFile: String? { state.summaryFile }
+    var lastSummaryFile: String? { state.summaryFile }
 
-    public func dismissAppNotice(_ notice: Notice) {
+    func dismissAppNotice(_ notice: Notice) {
         appNotices.dismiss(id: notice.id)
     }
 
-    public func perform(_ action: NoticeAction) {
+    func perform(_ action: NoticeAction) {
         switch action {
         case .revealInFinder(let path):
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
@@ -337,7 +337,7 @@ public final class CallModel {
         }
     }
 
-    public func perform(_ fix: ReadinessFix) {
+    func perform(_ fix: ReadinessFix) {
         switch fix {
         case .openPrivacySettings(let pane):
             if let url = URL(string: pane.url) {
@@ -377,7 +377,7 @@ public final class CallModel {
         return quoted + " " + command.dropFirst(prefix.count)
     }
 
-    public func openSettingsFile() {
+    func openSettingsFile() {
         do {
             let file = try SettingsLoader(paths: environment.paths).createSettingsFileIfMissing()
             Self.openTextFile(file)
@@ -386,7 +386,7 @@ public final class CallModel {
         }
     }
 
-    public func openSessionsFolder() {
+    func openSessionsFolder() {
         let directory = SessionStore.root(for: settings.storage, paths: environment.paths)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -398,7 +398,7 @@ public final class CallModel {
 
     /// Stops a running call and waits until it is saved and every summary being written
     /// is done, for quitting.
-    public func finishForQuit() async {
+    func finishForQuit() async {
         if let session {
             if state.canStop {
                 stop()
@@ -431,7 +431,7 @@ public final class CallModel {
 
     /// Reads the call types again, for when the window shows: files may have changed in
     /// Finder or TextEdit while it was hidden.
-    public func refreshCallTypes() {
+    func refreshCallTypes() {
         do {
             try library.createIfMissing()
         } catch {
@@ -446,7 +446,7 @@ public final class CallModel {
     }
 
     /// The call type for the next call. A running call keeps the one it started with.
-    public func selectCallType(_ name: String) {
+    func selectCallType(_ name: String) {
         guard callTypes.contains(name) else {
             return
         }
@@ -456,7 +456,7 @@ public final class CallModel {
     }
 
     /// Copies files dropped on the window into the call type's folder.
-    public func addFiles(_ urls: [URL]) {
+    func addFiles(_ urls: [URL]) {
         let readable = urls.filter(DocumentText.canRead)
         if readable.count < urls.count {
             appNotices.add(.warning, "Listener reads \(DocumentText.kinds). Other files were left out.")
@@ -473,7 +473,7 @@ public final class CallModel {
     }
 
     /// Adds whatever is on the clipboard: copied files, a link to read, or text.
-    public func pasteFromClipboard() {
+    func pasteFromClipboard() {
         let pasteboard = NSPasteboard.general
         let files = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
         if let files = files as? [URL], !files.isEmpty {
@@ -499,7 +499,7 @@ public final class CallModel {
         reloadCallFiles()
     }
 
-    public func editBrief() {
+    func editBrief() {
         do {
             Self.openTextFile(try library.createBriefIfMissing(for: callType))
         } catch {
@@ -507,7 +507,7 @@ public final class CallModel {
         }
     }
 
-    public func editStories() {
+    func editStories() {
         do {
             Self.openTextFile(try library.createStoriesIfMissing(for: callType))
         } catch {
@@ -515,16 +515,16 @@ public final class CallModel {
         }
     }
 
-    public func editCallTypeInstructions() {
+    func editCallTypeInstructions() {
         Self.openTextFile(library.folder(for: callType).appendingPathComponent(CallTypeLibrary.instructionsFile))
     }
 
-    public func revealCallTypes() {
+    func revealCallTypes() {
         NSWorkspace.shared.activateFileViewerSelecting([library.folder(for: callType)])
     }
 
     /// Moves a file to the Bin, so a mistake can be undone in Finder.
-    public func removeCallFile(_ url: URL) {
+    func removeCallFile(_ url: URL) {
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
         } catch {

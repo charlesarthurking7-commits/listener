@@ -67,10 +67,10 @@ public struct KeychainSecretStore: SecretStore {
     }
 }
 
-public struct KeychainError: Error, CustomStringConvertible {
-    public let status: OSStatus
+struct KeychainError: Error, CustomStringConvertible {
+    let status: OSStatus
 
-    public var description: String {
+    var description: String {
         let message = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
         return "Keychain error \(status): \(message)"
     }

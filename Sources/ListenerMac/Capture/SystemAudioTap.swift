@@ -24,7 +24,7 @@ import Synchronization
 /// the channel carries silence, so the consumer sees one stream with continuous timing.
 ///
 /// Mutable state is only touched on `controlQueue` (and in deinit), hence @unchecked Sendable.
-public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
+final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     private let onEvent: (@Sendable (CaptureEvent) -> Void)?
     private let controlQueue = DispatchQueue(label: "listener.capture.tap.control", qos: .userInitiated)
     // Core Audio runs the IO block on this queue synchronously from its audio thread, so
@@ -42,7 +42,7 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     private var restartPending = false
     private var lastFailure: String?
 
-    public init(onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
+    init(onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
         self.onEvent = onEvent
     }
 
@@ -50,7 +50,7 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         shutDown()
     }
 
-    public func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
+    func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
         try await withCheckedThrowingContinuation { continuation in
             controlQueue.async {
                 continuation.resume(with: Result { try self.startCapture(onChunk: onChunk) })
@@ -60,7 +60,7 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
 
     /// Returns at once. The consumer gets no audio after this returns; the hardware is
     /// released in the background.
-    public func stop() {
+    func stop() {
         delivery.withLock { $0 }?.stop()
         controlQueue.async { self.shutDown() }
     }

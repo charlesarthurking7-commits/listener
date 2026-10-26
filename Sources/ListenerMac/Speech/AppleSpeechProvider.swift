@@ -5,14 +5,14 @@ import Speech
 #if compiler(>=6.2)
     /// Speech-to-text on the Mac itself: free, and call audio never leaves the machine.
     @available(macOS 26.0, *)
-    public final class AppleSpeechProvider: SpeechToTextProvider {
-        public let displayName: String
+    final class AppleSpeechProvider: SpeechToTextProvider {
+        let displayName: String
         private let configuration: RotatingSpeechStream.Configuration
         private let loader: ModelLoader
 
         /// Takes the language from the speech settings and what counts as speech from the
         /// turn settings, so pauses mean the same here as in turn detection.
-        public init(settings: Settings, onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void) {
+        init(settings: Settings, onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void) {
             let languageCode = settings.speech.languageCode
             let finalization = FinalizationTrigger.Configuration(
                 speechThresholdDBFS: settings.turns.vadThresholdDBFS,
@@ -23,7 +23,7 @@ import Speech
             loader = ModelLoader(languageCode: languageCode, onState: onModelState)
         }
 
-        public func openStream(for speaker: Speaker) async throws -> any SpeechStream {
+        func openStream(for speaker: Speaker) async throws -> any SpeechStream {
             let model = try await loader.model()
             return try await RotatingSpeechStream.open(
                 recognizer: AppleRecognizer(model: model), configuration: configuration)

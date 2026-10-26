@@ -1,6 +1,6 @@
 import ListenerCore
 
-public enum CaptureError: Error, CustomStringConvertible {
+enum CaptureError: Error, CustomStringConvertible {
     case microphonePermissionDenied
     case screenRecordingPermissionDenied
     case noInputDevice
@@ -11,7 +11,7 @@ public enum CaptureError: Error, CustomStringConvertible {
     case conversionFailed
     case coreAudio(operation: String, status: Int32)
 
-    public var description: String {
+    var description: String {
         switch self {
         case .microphonePermissionDenied:
             "Microphone access is denied. Allow it in System Settings > Privacy & Security > Microphone."

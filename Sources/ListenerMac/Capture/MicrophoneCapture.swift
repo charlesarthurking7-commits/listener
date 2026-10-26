@@ -12,7 +12,7 @@ import Synchronization
 /// The channel carries silence in between, and while no microphone is present.
 ///
 /// Mutable state is only touched on `controlQueue`, hence @unchecked Sendable.
-public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
+final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     private let wantsVoiceProcessing: Bool
     private let onEvent: (@Sendable (CaptureEvent) -> Void)?
     private let controlQueue = DispatchQueue(label: "listener.capture.microphone", qos: .userInitiated)
@@ -30,7 +30,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     /// - Parameter voiceProcessing: turn on Apple's echo cancellation. Only useful when
     ///   the call plays through speakers instead of headphones. If it cannot run with the
     ///   current devices the mic runs without it and `onEvent` says so.
-    public init(voiceProcessing: Bool, onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
+    init(voiceProcessing: Bool, onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
         wantsVoiceProcessing = voiceProcessing
         self.onEvent = onEvent
     }
@@ -39,7 +39,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         shutDown()
     }
 
-    public func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
+    func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
         try await CapturePermissions.requireMicrophone()
         return try await withCheckedThrowingContinuation { continuation in
             controlQueue.async {
@@ -49,7 +49,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     }
 
     /// Returns at once. The consumer gets no audio after this returns.
-    public func stop() {
+    func stop() {
         delivery.withLock { $0 }?.stop()
         controlQueue.async { self.shutDown() }
     }

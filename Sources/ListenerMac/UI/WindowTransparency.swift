@@ -2,7 +2,7 @@ import Foundation
 
 /// How much of what is behind the window shows through. Glass blurs it; Clear doesn't,
 /// and tints it dark under light text instead, and fades between answers in a call.
-public enum WindowTransparency: String, CaseIterable, Sendable {
+enum WindowTransparency: String, CaseIterable, Sendable {
     case solid
     case glass
     case clear
@@ -15,7 +15,7 @@ public enum WindowTransparency: String, CaseIterable, Sendable {
         UserDefaults.standard.string(forKey: key).flatMap(WindowTransparency.init) ?? .glass
     }
 
-    public var title: String {
+    var title: String {
         switch self {
         case .solid: "Solid"
         case .glass: "Glass"

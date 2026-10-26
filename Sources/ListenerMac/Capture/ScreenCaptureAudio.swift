@@ -13,7 +13,7 @@ import Synchronization
 ///
 /// The converter is only touched on `sampleQueue` and everything else sits behind
 /// `state`, hence @unchecked Sendable.
-public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOutput, SCStreamDelegate,
+final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOutput, SCStreamDelegate,
     @unchecked Sendable
 {
     private struct State {
@@ -29,12 +29,12 @@ public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOut
     private let state = Mutex(State())
     private var converter: PCMConverter?
 
-    public init(onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
+    init(onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
         self.onEvent = onEvent
         super.init()
     }
 
-    public func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
+    func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
         try CapturePermissions.requireScreenRecording()
         let feed = ContinuousAudioFeed(speaker: .them, onChunk: onChunk)
         let claimed = state.withLock { state in
@@ -66,7 +66,7 @@ public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOut
     }
 
     /// Returns at once. The consumer gets no audio after this returns.
-    public func stop() {
+    func stop() {
         let (feed, stream) = state.withLock { state in
             defer {
                 state.feed = nil
@@ -119,7 +119,7 @@ public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOut
         return kept
     }
 
-    public func stream(
+    func stream(
         _ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType
     ) {
         guard type == .audio, sampleBuffer.isValid, let feed = state.withLock({ $0.feed }) else {
@@ -150,7 +150,7 @@ public final class ScreenCaptureAudio: NSObject, AudioCaptureSource, SCStreamOut
         }
     }
 
-    public func stream(_ stream: SCStream, didStopWithError error: any Error) {
+    func stream(_ stream: SCStream, didStopWithError error: any Error) {
         let isCurrent = state.withLock { $0.stream?.stream === stream }
         guard isCurrent else {
             return
