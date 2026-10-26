@@ -6,6 +6,10 @@
 /// words that follow, so ending the session is the only reliable way to hurry a final.
 /// Audio that arrives while one session ends and the next starts is held and replayed,
 /// so nothing is lost, and every session's times are shifted onto the channel timeline.
+///
+/// A session ends at the sample where the pause completed and the next one starts right
+/// there, so the word after the pause reaches the next session whole. A session that
+/// stops by itself is replaced by one that hears everything it had not settled.
 public actor RotatingSpeechStream: SpeechStream {
     public struct Configuration: Sendable {
         public var finalization: FinalizationTrigger.Configuration
@@ -31,12 +35,17 @@ public actor RotatingSpeechStream: SpeechStream {
         }
     }
 
+    /// Most audio kept for a session that has to hear it again, in samples. Only reached
+    /// when nothing has settled for a long time, which in practice means silence.
+    static let replayLimit = 30 * AudioChunk.sampleRate
+
     public nonisolated let events: AsyncThrowingStream<SpeechEvent, any Error>
     private let output: AsyncThrowingStream<SpeechEvent, any Error>.Continuation
     private let recognizer: any SessionRecognizer
     private let configuration: Configuration
     private var trigger: FinalizationTrigger
     private var mapper = VolatileResultMapper()
+    private var unsettled = UnsettledAudio()
 
     private struct ActiveSession {
         let id: Int
@@ -46,9 +55,9 @@ public actor RotatingSpeechStream: SpeechStream {
 
     /// The session taking audio. Nil while it is being replaced; audio is held meanwhile.
     private var current: ActiveSession?
+    /// What the next session hears first, then the audio that arrived while it started.
     private var held: [[Int16]] = []
     private var replacement: Task<Void, Never>?
-    private var samplesSent = 0
     private var lastSessionID = 0
     /// Results from any other session are stale and ignored.
     private var mappedSessionID = 0
@@ -79,19 +88,25 @@ public actor RotatingSpeechStream: SpeechStream {
         if isFinishing || chunk.samples.isEmpty {
             return
         }
-        if let current {
-            do {
-                try current.session.send(chunk.samples)
-            } catch {
-                fail(error)
-                throw error
-            }
-        } else {
+        let chunkStart = unsettled.end
+        unsettled.append(chunk.samples, keeping: Self.replayLimit)
+        let pauseEnd = trigger.process(chunk.samples)
+        guard let current else {
             held.append(chunk.samples)
+            return
         }
-        samplesSent += chunk.samples.count
-        if trigger.process(chunk.samples) {
-            replaceSession()
+        do {
+            try current.session.send(pauseEnd.map { Array(chunk.samples[..<$0]) } ?? chunk.samples)
+        } catch {
+            fail(error)
+            throw error
+        }
+        if let pauseEnd {
+            // The next session starts exactly where the pause completed. Starting it on
+            // the end of the pause instead made Apple's recognizer worse on every fixture.
+            replaceSession(
+                startingAt: chunkStart + pauseEnd, replaying: [Array(chunk.samples[pauseEnd...])],
+                settlingVolatile: true)
         }
     }
 
@@ -158,26 +173,30 @@ public actor RotatingSpeechStream: SpeechStream {
         if failuresInARow >= configuration.maxFailuresInARow {
             fail(error ?? RotatingSpeechStreamError.recognizerStopped)
         } else {
-            replaceSession()
+            // Its volatile words were only a guess at audio it never settled, which the
+            // next session hears again instead.
+            replaceSession(startingAt: unsettled.start, replaying: [Array(unsettled.samples)], settlingVolatile: false)
         }
     }
 
-    private func replaceSession() {
+    /// Starts the next session at stream sample `start`, hearing `audio` first.
+    private func replaceSession(startingAt start: Int, replaying audio: [[Int16]], settlingVolatile: Bool) {
         guard let old = current, replacement == nil, !isFinishing else {
             return
         }
         current = nil
-        let offset = Double(samplesSent) / Double(AudioChunk.sampleRate)
-        replacement = Task { await self.replace(old, startingAt: offset) }
+        held = audio
+        let offset = Double(start) / Double(AudioChunk.sampleRate)
+        replacement = Task { await self.replace(old, startingAt: offset, settlingVolatile: settlingVolatile) }
     }
 
-    private func replace(_ old: ActiveSession, startingAt offset: Double) async {
-        await close(old)
+    private func replace(_ old: ActiveSession, startingAt offset: Double, settlingVolatile: Bool) async {
+        await close(old, settlingVolatile: settlingVolatile)
         await reopen(at: offset)
         replacement = nil
     }
 
-    private func close(_ active: ActiveSession) async {
+    private func close(_ active: ActiveSession, settlingVolatile: Bool = true) async {
         let session = active.session
         Task { await session.finish() }
         if await !waitFor(active.consumer, upTo: configuration.finishTimeout) {
@@ -186,7 +205,7 @@ public actor RotatingSpeechStream: SpeechStream {
                 mappedSessionID = 0
             }
         }
-        emit(mapper.endSession())
+        emit(settlingVolatile ? mapper.endSession() : mapper.discardVolatile())
     }
 
     private func reopen(at offset: Double) async {
@@ -226,6 +245,7 @@ public actor RotatingSpeechStream: SpeechStream {
             output.yield(event)
         }
         trigger.recognizerSettled(through: mapper.finalizedThrough)
+        unsettled.drop(before: Int((mapper.finalizedThrough * Double(AudioChunk.sampleRate)).rounded()))
     }
 
     private func fail(_ error: any Error) {
@@ -259,6 +279,39 @@ public actor RotatingSpeechStream: SpeechStream {
             return completed
         }
         return false
+    }
+}
+
+/// A stream's audio from the first sample its recognizer has not settled. Positions
+/// count samples from the start of the stream. Dropping from the front only moves
+/// `head`; the array is compacted once the dead part outgrows the live one.
+private struct UnsettledAudio {
+    /// Stream position of the oldest sample kept.
+    private(set) var start = 0
+    private var buffer: [Int16] = []
+    private var head = 0
+
+    /// Stream position just past the newest sample.
+    var end: Int { start + buffer.count - head }
+    var samples: ArraySlice<Int16> { buffer[head...] }
+
+    /// Adds the stream's next samples, keeping at most `limit` in all.
+    mutating func append(_ samples: [Int16], keeping limit: Int) {
+        buffer.append(contentsOf: samples)
+        drop(before: end - limit)
+    }
+
+    mutating func drop(before position: Int) {
+        let count = min(position, end) - start
+        guard count > 0 else {
+            return
+        }
+        head += count
+        start += count
+        if head > buffer.count / 2 && head >= AudioChunk.sampleRate {
+            buffer.removeFirst(head)
+            head = 0
+        }
     }
 }
 

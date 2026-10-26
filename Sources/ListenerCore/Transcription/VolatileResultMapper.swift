@@ -70,6 +70,15 @@ public struct VolatileResultMapper: Sendable {
         return events
     }
 
+    /// The session stopped before it settled what is still volatile, and the next one
+    /// hears that audio again, so the volatile words are dropped rather than promoted.
+    public mutating func discardVolatile() -> [SpeechEvent] {
+        var events: [SpeechEvent] = []
+        volatileWords = []
+        showInterim(into: &events)
+        return events
+    }
+
     private struct Word: Sendable {
         var text: String
         var start: Double

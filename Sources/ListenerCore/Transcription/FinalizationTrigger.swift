@@ -46,10 +46,12 @@ public struct FinalizationTrigger: Sendable {
         pauseSamples = Int(configuration.pauseSeconds * Double(sampleRate))
     }
 
-    /// Feeds the channel's next chunk, measured in 20 ms windows. Returns true when the
-    /// recognizer should finalize now.
-    public mutating func process(_ samples: [Int16]) -> Bool {
-        var fire = false
+    /// Feeds the channel's next chunk, measured in 20 ms windows. Returns where in
+    /// `samples` the recognizer should finalize: the end of the window that completed
+    /// the pause, so the speech after it in the same chunk can go to the next session.
+    /// Nil when it should not.
+    public mutating func process(_ samples: [Int16]) -> Int? {
+        var cut: Int?
         var index = samples.startIndex
         while index < samples.endIndex {
             let next = min(index + windowSize, samples.endIndex)
@@ -62,13 +64,13 @@ public struct FinalizationTrigger: Sendable {
                 let speechEndSeconds = Double(speechEnd) / Double(sampleRate)
                 let unsettled = settledThrough < speechEndSeconds - settledTolerance
                 if speechSamples >= minSpeechSamples, unsettled {
-                    fire = true
+                    cut = cut ?? next
                 }
                 speechSamples = 0
             }
             index = next
         }
-        return fire
+        return cut
     }
 
     /// The recognizer settled everything before `time` (channel seconds) by itself.

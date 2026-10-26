@@ -47,6 +47,50 @@ struct RotatingSpeechStreamTests {
         #expect(second.received.count == seconds(0.5))
     }
 
+    @Test func aWordRightAfterThePauseGoesWholeToTheNextSession() async throws {
+        let recognizer = FakeRecognizer()
+        let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
+        let first = try await recognizer.nextSession()
+        first.onFinish = [finalResult(("We need to", 0.1, 1.0))]
+
+        // The pause completes at 1.44 s, 40 ms into a chunk, and the next word starts
+        // 20 ms later in the same chunk.
+        let audio = Synth.tone(seconds: 1.04) + Synth.silence(seconds: 0.42) + Synth.tone(seconds: 0.5)
+        try await send(audio, to: stream)
+        let second = try await recognizer.nextSession()
+        await stream.waitForReplacement()
+        second.emit(finalResult(("reconcile.", 0.02, 0.52)))
+        await stream.finish()
+
+        #expect(first.received.count == seconds(1.44))
+        #expect(first.received.suffix(seconds(0.4)).allSatisfy { $0 == 0 })
+        #expect(second.received.elementsEqual(audio[seconds(1.44)...]))
+        let events = try await stream.events.collect()
+        #expect(events.map(\.text) == ["We need to", "reconcile."])
+        #expect(near(events.last?.audioStart, 1.46) && near(events.last?.audioEnd, 1.96))
+    }
+
+    /// Starting the next session a little earlier, on the end of the pause, made Apple's
+    /// recognizer worse on every fixture call: 59 errors in 494 words with a quarter
+    /// second, against 45 with none.
+    @Test func theNextSessionHearsNothingOfThePauseBeforeTheCut() async throws {
+        let recognizer = FakeRecognizer()
+        let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
+        _ = try await recognizer.nextSession()
+
+        // The pause completes at 0.9 s; the next words start 0.2 s after that.
+        let audio = Synth.tone(seconds: 0.5) + Synth.silence(seconds: 0.6) + Synth.tone(seconds: 0.3)
+        try await send(audio, to: stream)
+        let second = try await recognizer.nextSession()
+        await stream.waitForReplacement()
+        second.emit(finalResult(("Two.", 0.2, 0.5)))
+        await stream.finish()
+
+        #expect(second.received.elementsEqual(audio[seconds(0.9)...]))
+        let last = try await stream.events.collect().last
+        #expect(near(last?.audioStart, 1.1) && near(last?.audioEnd, 1.4))
+    }
+
     @Test func audioThatArrivesWhileASessionEndsIsReplayedIntoTheNextOne() async throws {
         let recognizer = FakeRecognizer()
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
@@ -80,19 +124,34 @@ struct RotatingSpeechStreamTests {
         #expect(recognizer.startedCount == 1)
     }
 
-    @Test func aSessionThatStopsByItselfIsReplaced() async throws {
+    @Test func aSessionThatStopsByItselfIsReplacedByOneThatHearsWhatItHadNotSettled() async throws {
         let recognizer = FakeRecognizer()
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
         let first = try await recognizer.nextSession()
+        var events = stream.events.makeAsyncIterator()
 
-        first.emit(volatileResult(("Still", 0.0, 0.3)))
+        let audio = Synth.tone(seconds: 1.5)
+        try await send(audio, to: stream)
+        first.emit(finalResult(("We need", 0.0, 0.5)))
+        #expect(try await events.next()?.text == "We need")
+        first.emit(volatileResult(("to recon", 0.6, 1.2)))
+        #expect(try await events.next()?.text == "to recon")
         first.fail(FakeError.recognizerCrashed)
         let second = try await recognizer.nextSession()
         await stream.waitForReplacement()
-        second.emit(finalResult(("going.", 0.0, 0.4)))
+        second.emit(finalResult(("to reconcile the", 0.1, 0.9)))
         await stream.finish()
 
-        #expect(try await stream.events.collect().filter { $0.kind == .final }.map(\.text) == ["Still", "going."])
+        // The old session had settled everything before 0.6 s.
+        #expect(second.received.elementsEqual(audio[seconds(0.6)...]))
+        var rest: [SpeechEvent] = []
+        while let event = try await events.next() {
+            rest.append(event)
+        }
+        // The guess on screen goes rather than becoming final.
+        #expect(rest.map(\.kind) == [.interim, .final])
+        #expect(rest.map(\.text) == ["", "to reconcile the"])
+        #expect(near(rest.last?.audioStart, 0.7) && near(rest.last?.audioEnd, 1.5))
     }
 
     @Test func repeatedFailuresEndTheStreamWithTheError() async throws {
