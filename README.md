@@ -57,7 +57,7 @@ listener replay Fixtures/delayed-executions/me.wav Fixtures/delayed-executions/t
 ```
 
 [docs/USAGE.md](docs/USAGE.md) covers everything: the window, hotkeys, terminal mode,
-replay, settings, environment variables, API keys, where files go and troubleshooting.
+replay, settings, API keys, where files go and troubleshooting.
 [docs/PLAN.md](docs/PLAN.md) explains the architecture and the decisions behind it.
 
 ## macOS permissions

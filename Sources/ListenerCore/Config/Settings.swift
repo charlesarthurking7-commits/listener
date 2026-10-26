@@ -1,6 +1,5 @@
-/// Every tunable in one place. Loaded from settings.json, then overridden by
-/// LISTENER_* environment variables (see SettingsLoader). Missing keys keep these
-/// defaults, so a settings file only needs the values you want to change.
+/// Every tunable in one place, loaded from settings.json (see SettingsLoader). Missing
+/// keys keep these defaults, so a settings file only needs the values you want to change.
 public struct Settings: Sendable, Codable, Equatable {
     public var speech = SpeechSettings()
     public var turns = TurnSettings()

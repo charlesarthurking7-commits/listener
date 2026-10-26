@@ -209,7 +209,7 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   Metrics/        PriceTable, CostTracker, LatencyStats
   Session/        CallSession (the actor that wires everything), SessionStore,
                   SessionSummarizer, SessionEvent
-  Config/         Settings, SettingsLoader (JSON + LISTENER_* env), secrets, paths
+  Config/         Settings, SettingsLoader, secrets, paths
   App/            window and terminal state reduced from session events, hotkey parsing,
                   display formatting, the setup checklist logic
   Replay/, Fakes/ ReplaySource, ScriptedSpeechToText, ScriptedLanguageModel

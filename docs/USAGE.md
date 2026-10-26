@@ -358,25 +358,6 @@ Mistakes are reported with the key that is wrong, for example
 a typo, are ignored with a warning. If the file has an error when the app starts, the
 app opens with defaults and shows the error; Start stays blocked until it is fixed.
 
-### Environment variables
-
-These override the settings file, for one-off runs and scripts. Empty values are ignored.
-
-| Variable | Setting |
-| --- | --- |
-| `LISTENER_GOOGLE_PROJECT` | `speech.googleProjectID` |
-| `LISTENER_GOOGLE_CREDENTIALS` | `speech.googleCredentialsFile` |
-| `LISTENER_SPEECH_PROVIDER` | `speech.provider` |
-| `LISTENER_SPEECH_MODEL` | `speech.model` |
-| `LISTENER_LANGUAGE` | `speech.languageCode` |
-| `LISTENER_QUICK_MODEL` | `answers.quick.model` |
-| `LISTENER_DEEP_MODEL` | `answers.deep.model` |
-| `LISTENER_RECAP_MODEL` | `answers.recap.model` |
-| `LISTENER_SYSTEM_AUDIO` | `capture.systemAudioBackend` |
-| `LISTENER_STORAGE_DIR` | `storage.directory` |
-| `LISTENER_RETENTION_DAYS` | `storage.retentionDays` |
-| `LISTENER_SAVE_AUDIO` | `storage.saveAudio` (`true`/`false`, `yes`/`no`, `1`/`0`) |
-
 ## API keys
 
 Listener looks for `ANTHROPIC_API_KEY` in this order and uses the first it finds:

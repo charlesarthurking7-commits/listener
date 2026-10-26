@@ -83,7 +83,7 @@ struct SettingsLoaderTests {
 
     @Test func missingDefaultFileGivesDefaults() throws {
         let home = try makeHome()
-        let loaded = try SettingsLoader(paths: ListenerPaths(home: home), environment: [:]).load()
+        let loaded = try SettingsLoader(paths: ListenerPaths(home: home)).load()
         #expect(loaded.settings == Settings())
         #expect(!loaded.fileExists)
         #expect(loaded.file == home.appendingPathComponent("Library/Application Support/Listener/settings.json"))
@@ -91,7 +91,7 @@ struct SettingsLoaderTests {
 
     @Test func missingExplicitFileIsAnError() throws {
         let home = try makeHome()
-        let loader = SettingsLoader(paths: ListenerPaths(home: home), environment: [:])
+        let loader = SettingsLoader(paths: ListenerPaths(home: home))
         let error = try #require(throws: SettingsError.self) { try loader.load(explicitPath: "~/nope.json") }
         #expect(error.description == "~/nope.json: does not exist")
     }
@@ -103,55 +103,10 @@ struct SettingsLoaderTests {
         try Data(#"{"storage": {"directory": "~/Calls"}, "speech": {"googleCredentialsFile": "~/key.json"}}"#.utf8)
             .write(to: paths.settingsFile)
 
-        let loaded = try SettingsLoader(paths: paths, environment: [:]).load()
+        let loaded = try SettingsLoader(paths: paths).load()
         #expect(loaded.fileExists)
         #expect(loaded.settings.storage.directory == home.appendingPathComponent("Calls").path)
         #expect(loaded.settings.speech.googleCredentialsFile == home.appendingPathComponent("key.json").path)
-    }
-
-    @Test func environmentOverridesTheFile() throws {
-        let environment = [
-            "LISTENER_GOOGLE_PROJECT": "pelican-ops",
-            "LISTENER_SPEECH_PROVIDER": "fake",
-            "LISTENER_LANGUAGE": "en-US",
-            "LISTENER_QUICK_MODEL": "claude-haiku-6",
-            "LISTENER_RETENTION_DAYS": " 7 ",
-            "LISTENER_SAVE_AUDIO": "Yes",
-            "LISTENER_STORAGE_DIR": "~/Calls",
-            "LISTENER_SPEECH_MODEL": "",
-        ]
-        let home = try makeHome()
-        let settings = try SettingsLoader(paths: ListenerPaths(home: home), environment: environment).load().settings
-        #expect(settings.speech.googleProjectID == "pelican-ops")
-        #expect(settings.speech.provider == "fake")
-        #expect(settings.speech.languageCode == "en-US")
-        #expect(settings.speech.model == "chirp_3")
-        #expect(settings.answers.quick.model == "claude-haiku-6")
-        #expect(settings.storage.retentionDays == 7)
-        #expect(settings.storage.saveAudio)
-        #expect(settings.storage.directory == home.appendingPathComponent("Calls").path)
-    }
-
-    @Test func badEnvironmentValuesNameTheVariable() throws {
-        let environment = ["LISTENER_RETENTION_DAYS": "a week", "LISTENER_SAVE_AUDIO": "maybe"]
-        let loader = SettingsLoader(paths: ListenerPaths(home: try makeHome()), environment: environment)
-        let error = try #require(throws: SettingsError.self) { try loader.load() }
-        #expect(error.source == "Environment")
-        #expect(
-            error.problems == [
-                "LISTENER_RETENTION_DAYS should be a whole number, but is \"a week\"",
-                "LISTENER_SAVE_AUDIO should be true or false, but is \"maybe\"",
-            ])
-    }
-
-    @Test func validationNamesTheKeyAndTheVariableThatSetIt() throws {
-        let loader = SettingsLoader(
-            paths: ListenerPaths(home: try makeHome()), environment: ["LISTENER_SPEECH_PROVIDER": "deepgram"])
-        let error = try #require(throws: SettingsError.self) { try loader.load() }
-        #expect(
-            error.problems == [
-                "speech.provider is \"deepgram\", but must be one of \"auto\", \"google\", \"apple\", \"fake\" (set by LISTENER_SPEECH_PROVIDER)"
-            ])
     }
 
     @Test func validationReportsEveryProblem() {
@@ -162,9 +117,8 @@ struct SettingsLoaderTests {
         settings.answers.transcriptBudgetTokens = 100_000
         settings.hotkeys.deepAnswer = "option+d"
         settings.hotkeys.toggleListening = "ctrl+option+a"
-        let messages = SettingsLoader.problems(in: settings).map(\.message)
         #expect(
-            messages == [
+            SettingsLoader.problems(in: settings) == [
                 "capture.systemAudioBackend is \"blackhole\", but must be one of \"tap\", \"sck\"",
                 "answers.transcriptBudgetTokens must not be more than answers.transcriptHardCapTokens",
                 "storage.retentionDays must be 0 (keep forever) or more",
@@ -185,23 +139,13 @@ struct SettingsLoaderTests {
 
     @Test func starterFileNeverReplacesAnExistingFile() throws {
         let paths = ListenerPaths(home: try makeHome())
-        let loader = SettingsLoader(paths: paths, environment: [:])
+        let loader = SettingsLoader(paths: paths)
         let file = try loader.createSettingsFileIfMissing()
         #expect(try Data(contentsOf: file) == SettingsLoader.starterFile())
 
         try Data(#"{"turns": {"silenceMs": 900}}"#.utf8).write(to: file)
         try loader.createSettingsFileIfMissing()
         #expect(try loader.load().settings.turns.silenceMs == 900)
-    }
-
-    @Test func everyEnvironmentOverrideNamesARealSetting() throws {
-        let effective = try JSONValue(encoding: Settings())
-        for override in SettingsLoader.environmentOverrides {
-            let path = override.setting.split(separator: ".").map(String.init)
-            let parent = effective.value(at: Array(path.dropLast()))
-            #expect(parent?.objectValue != nil, "\(override.variable)")
-            #expect(override.variable.hasPrefix("LISTENER_"))
-        }
     }
 
     @Test func exampleSettingsFileDecodesWithoutWarnings() throws {

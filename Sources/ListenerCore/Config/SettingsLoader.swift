@@ -18,7 +18,7 @@ public struct LoadedSettings: Sendable {
 }
 
 public struct SettingsError: Error, Equatable, CustomStringConvertible {
-    /// The file, or "Environment", the problems were found in.
+    /// The file the problems were found in.
     public var source: String
     public var problems: [String]
 
@@ -35,60 +35,14 @@ public struct SettingsError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// A LISTENER_* variable that overrides one setting.
-public struct EnvironmentOverride: Sendable {
-    public enum Kind: Sendable {
-        case text(WritableKeyPath<Settings, String> & Sendable)
-        case optionalText(WritableKeyPath<Settings, String?> & Sendable)
-        case wholeNumber(WritableKeyPath<Settings, Int> & Sendable)
-        case flag(WritableKeyPath<Settings, Bool> & Sendable)
-    }
-
-    public let variable: String
-    public let setting: String
-    public let kind: Kind
-}
-
-/// Reads settings.json, fills everything it leaves out with defaults, applies LISTENER_*
-/// environment overrides and checks the result. Errors name the key that is wrong.
+/// Reads settings.json, fills everything it leaves out with defaults and checks the
+/// result. Errors name the key that is wrong.
 public struct SettingsLoader: Sendable {
     public var paths: ListenerPaths
-    public var environment: [String: String]
 
-    public init(paths: ListenerPaths = .current, environment: [String: String] = ProcessInfo.processInfo.environment) {
+    public init(paths: ListenerPaths = .current) {
         self.paths = paths
-        self.environment = environment
     }
-
-    public static let environmentOverrides: [EnvironmentOverride] = [
-        EnvironmentOverride(
-            variable: "LISTENER_GOOGLE_PROJECT", setting: "speech.googleProjectID",
-            kind: .optionalText(\.speech.googleProjectID)),
-        EnvironmentOverride(
-            variable: "LISTENER_GOOGLE_CREDENTIALS", setting: "speech.googleCredentialsFile",
-            kind: .optionalText(\.speech.googleCredentialsFile)),
-        EnvironmentOverride(
-            variable: "LISTENER_SPEECH_PROVIDER", setting: "speech.provider", kind: .text(\.speech.provider)),
-        EnvironmentOverride(variable: "LISTENER_SPEECH_MODEL", setting: "speech.model", kind: .text(\.speech.model)),
-        EnvironmentOverride(
-            variable: "LISTENER_LANGUAGE", setting: "speech.languageCode", kind: .text(\.speech.languageCode)),
-        EnvironmentOverride(
-            variable: "LISTENER_QUICK_MODEL", setting: "answers.quick.model", kind: .text(\.answers.quick.model)),
-        EnvironmentOverride(
-            variable: "LISTENER_DEEP_MODEL", setting: "answers.deep.model", kind: .text(\.answers.deep.model)),
-        EnvironmentOverride(
-            variable: "LISTENER_RECAP_MODEL", setting: "answers.recap.model", kind: .text(\.answers.recap.model)),
-        EnvironmentOverride(
-            variable: "LISTENER_SYSTEM_AUDIO", setting: "capture.systemAudioBackend",
-            kind: .text(\.capture.systemAudioBackend)),
-        EnvironmentOverride(
-            variable: "LISTENER_STORAGE_DIR", setting: "storage.directory", kind: .optionalText(\.storage.directory)),
-        EnvironmentOverride(
-            variable: "LISTENER_RETENTION_DAYS", setting: "storage.retentionDays",
-            kind: .wholeNumber(\.storage.retentionDays)),
-        EnvironmentOverride(
-            variable: "LISTENER_SAVE_AUDIO", setting: "storage.saveAudio", kind: .flag(\.storage.saveAudio)),
-    ]
 
     /// Loads `explicitPath`, or settings.json in the Application Support folder. A
     /// missing default file just means defaults; a missing explicit file is an error.
@@ -111,16 +65,10 @@ public struct SettingsLoader: Sendable {
             throw SettingsError(source: source, problems: ["does not exist"])
         }
 
-        let overridden = try applyEnvironment(to: &settings)
         settings.storage.directory = settings.storage.directory.map(paths.expandingTilde)
         settings.speech.googleCredentialsFile = settings.speech.googleCredentialsFile.map(paths.expandingTilde)
 
-        let problems = Self.problems(in: settings).map { problem in
-            if let variable = overridden[problem.key] {
-                return "\(problem.message) (set by \(variable))"
-            }
-            return problem.message
-        }
+        let problems = Self.problems(in: settings)
         if !problems.isEmpty {
             throw SettingsError(source: source, problems: problems)
         }
@@ -193,60 +141,12 @@ public struct SettingsLoader: Sendable {
         return file
     }
 
-    /// Applies every LISTENER_* variable that is set and not empty. Returns the
-    /// settings it changed, keyed by setting, with the variable that changed them.
-    func applyEnvironment(to settings: inout Settings) throws -> [String: String] {
-        var applied: [String: String] = [:]
-        var problems: [String] = []
-        for override in Self.environmentOverrides {
-            guard let raw = environment[override.variable]?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
-                continue
-            }
-            switch override.kind {
-            case .text(let keyPath):
-                settings[keyPath: keyPath] = raw
-            case .optionalText(let keyPath):
-                settings[keyPath: keyPath] = raw
-            case .wholeNumber(let keyPath):
-                guard let value = Int(raw) else {
-                    problems.append("\(override.variable) should be a whole number, but is \"\(raw)\"")
-                    continue
-                }
-                settings[keyPath: keyPath] = value
-            case .flag(let keyPath):
-                guard let value = Self.parseFlag(raw) else {
-                    problems.append("\(override.variable) should be true or false, but is \"\(raw)\"")
-                    continue
-                }
-                settings[keyPath: keyPath] = value
-            }
-            applied[override.setting] = override.variable
-        }
-        if !problems.isEmpty {
-            throw SettingsError(source: "Environment", problems: problems)
-        }
-        return applied
-    }
-
-    static func parseFlag(_ text: String) -> Bool? {
-        switch text.lowercased() {
-        case "1", "true", "yes", "on": true
-        case "0", "false", "no", "off": false
-        default: nil
-        }
-    }
-
-    struct Problem: Equatable {
-        var key: String
-        var message: String
-    }
-
     /// Values that decode fine but make no sense.
-    static func problems(in settings: Settings) -> [Problem] {
-        var problems: [Problem] = []
+    static func problems(in settings: Settings) -> [String] {
+        var problems: [String] = []
         func require(_ condition: Bool, _ key: String, _ message: String) {
             if !condition {
-                problems.append(Problem(key: key, message: "\(key) \(message)"))
+                problems.append("\(key) \(message)")
             }
         }
         func requireOneOf(_ value: String, _ allowed: [String], _ key: String) {
@@ -276,9 +176,7 @@ public struct SettingsLoader: Sendable {
         require(settings.storage.retentionDays >= 0, "storage.retentionDays", "must be 0 (keep forever) or more")
         require(
             (0.2...1).contains(settings.window.opacity), "window.opacity", "must be between 0.2 and 1")
-        for problem in settings.hotkeys.problems {
-            problems.append(Problem(key: problem.action.settingKey, message: problem.message))
-        }
+        problems += settings.hotkeys.problems.map(\.message)
         return problems
     }
 
