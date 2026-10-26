@@ -218,7 +218,8 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   Transcription/  SpeechToTextProvider protocol, the on-device rotating stream logic
   Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
   Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow
-  Dictation/      FnTapDetector, DictationRecorder, DictationTidier (the clean-up prompt)
+  Dictation/      FnTapDetector, DictationRecorder, DictationTidier (the clean-up prompt),
+                  DictationFormatting (lists as HTML)
   Metrics/        PriceTable, CostTracker, LatencyStats
   Session/        CallSession (the actor that wires everything), SessionStore,
                   SessionSummarizer, SessionEvent

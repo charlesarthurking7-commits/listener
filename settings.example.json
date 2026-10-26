@@ -81,6 +81,7 @@
       "thinking": "off",
       "maxTokens": 4000
     },
+    "formattedLists": true,
     "vocabulary": [],
     "sounds": true
   },

@@ -64,6 +64,9 @@ struct DictateCommand: AsyncParsableCommand {
         if let problem = result.problem {
             Console.error("Typed what was heard: \(problem)")
         }
+        if settings.dictation.formattedLists, let html = DictationFormatting.html(for: result.text) {
+            Console.write("Formatted:\n\(html)\n\n")
+        }
         var details = ["tidied in \(DisplayFormat.latency(milliseconds: elapsed))"]
         if let usage = result.usage, let price = settings.prices.models[settings.dictation.model.model] {
             details.append("\(usage.promptTokens) tokens in, \(usage.outputTokens) out")

@@ -260,6 +260,10 @@ microphone level while it listens, then ripples while it works.
   characters either side of the cursor, where the app shares them. That is how a reply
   gets the names in the email above it right, and how dictating into the middle of a
   sentence carries it on rather than starting a new one. Password fields are never read.
+- **Lists** paste as real bulleted or numbered lists wherever the app takes formatted
+  text: Outlook, Teams, Slack, Gmail, Notes, Mail, Word. Terminals, code editors and
+  plain text boxes get the same text with "- " and "1." lines. Text without a list always
+  pastes plain, so it takes on the style at the cursor (`dictation.formattedLists`).
 - **Pasting** goes through the clipboard, which is put back a second later. If the text
   went somewhere unexpected, **Copy Last Dictation** in the menu bar menu has it.
 - **Names and terms** that come out wrong can go in `dictation.vocabulary`, for example
@@ -405,7 +409,7 @@ want to change: anything left out keeps its default, at every level.
 | `storage` | Sessions folder, retention in days, whether to keep the audio |
 | `hotkeys` | The five hotkeys |
 | `window` | Always on top, opacity, Dock icon |
-| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), the recognizer (`parakeet` or `apple`), tidying and its model, vocabulary, sounds |
+| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), the recognizer (`parakeet` or `apple`), tidying and its model, formatted lists, vocabulary, sounds |
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
 The window reads the file again on every Start, so changes apply to the next call.

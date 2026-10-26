@@ -123,7 +123,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             enabled: listening || (!dictation.isActive && !callRunning)
         ) { $0.dictation.toggle() }
         menu.addItem(item(dictate, tabStop: shortcutTabStop(for: [dictate])))
-        if dictation.lastText != nil {
+        if dictation.hasLastDictation {
             menu.addItem(item(Entry("Copy Last Dictation", "doc.on.doc") { $0.dictation.copyLastText() }))
         }
     }

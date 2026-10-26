@@ -1,8 +1,15 @@
 import AppKit
 import ListenerCore
 
-/// Where dictated text goes: the app in front, its window, and the text either side of
-/// the cursor in the field being typed into, read through Accessibility.
+/// Where dictated text goes, as the clean-up sees it, and the font at the cursor for
+/// pasting a formatted list in.
+struct DictationDestination {
+    var target = DictationTarget()
+    var font: NSFont?
+}
+
+/// Where dictated text goes: the app in front, its window, and the text and font either
+/// side of the cursor in the field being typed into, read through Accessibility.
 @MainActor
 enum DictationTargets {
     /// How long to wait on an app that is slow to answer.
@@ -11,9 +18,9 @@ enum DictationTargets {
     /// the names in an email being answered.
     static let contextCharacters = 500
 
-    static func current() -> DictationTarget {
+    static func current() -> DictationDestination {
         guard let app = NSWorkspace.shared.frontmostApplication else {
-            return DictationTarget()
+            return DictationDestination()
         }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(element, timeout)
@@ -22,12 +29,34 @@ enum DictationTargets {
         var target = DictationTarget(
             appName: app.localizedName, bundleID: app.bundleIdentifier,
             windowTitle: element.child(kAXFocusedWindowAttribute)?.string(kAXTitleAttribute))
+        var font: NSFont?
         if let field = element.child(kAXFocusedUIElementAttribute),
             field.string(kAXSubroleAttribute) != kAXSecureTextFieldSubrole
         {
             (target.textBeforeCursor, target.textAfterCursor) = textAroundCursor(in: field)
+            font = cursorFont(in: field)
         }
-        return target
+        return DictationDestination(target: target, font: font)
+    }
+
+    /// The font of the character before the cursor, or after it at the start, as Cocoa
+    /// text views report it. Web views don't, and need no font: they use their own.
+    private static func cursorFont(in field: AXUIElement) -> NSFont? {
+        guard let selection = field.range(kAXSelectedTextRangeAttribute) else {
+            return nil
+        }
+        var range = CFRange(location: max(selection.location - 1, 0), length: 1)
+        var value: CFTypeRef?
+        guard let parameter = AXValueCreate(.cfRange, &range),
+            AXUIElementCopyParameterizedAttributeValue(
+                field, kAXAttributedStringForRangeParameterizedAttribute as CFString, parameter, &value) == .success,
+            let text = value as? NSAttributedString, text.length > 0,
+            let font = text.attribute(NSAttributedString.Key("AXFont"), at: 0, effectiveRange: nil) as? [String: Any],
+            let name = font["AXFontName"] as? String, let size = font["AXFontSize"] as? NSNumber
+        else {
+            return nil
+        }
+        return NSFont(name: name, size: CGFloat(truncating: size))
     }
 
     private static func textAroundCursor(in field: AXUIElement) -> (String?, String?) {

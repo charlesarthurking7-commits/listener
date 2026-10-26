@@ -143,6 +143,9 @@ public struct DictationSettings: Sendable, Codable, Equatable {
     /// Sonnet, not Haiku: Haiku keeps the sentences a speaker abandons and restarts, and
     /// once filled one in with words never said. Sonnet is as quick here.
     public var model = ModelSettings(model: "claude-sonnet-5-5", effort: "low", thinking: .off, maxTokens: 4000)
+    /// Paste lists as real lists in apps that take formatted text, such as Outlook,
+    /// Notes, Teams and Slack. Other text, and other apps, get plain text.
+    public var formattedLists = true
     /// Names and terms to spell exactly like this, e.g. colleagues and products.
     public var vocabulary: [String] = []
     /// A soft sound when dictation starts and stops.

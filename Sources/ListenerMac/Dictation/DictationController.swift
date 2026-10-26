@@ -26,7 +26,7 @@ final class DictationController {
     /// How loud the microphone is, from 0 to 1, while listening.
     private(set) var level = 0.0
     /// The last text dictation typed, in memory only, for pasting again from the menu.
-    private(set) var lastText: String?
+    @ObservationIgnored private var lastPaste: TextInserter.Paste?
 
     @ObservationIgnored private let environment: AppEnvironment
     @ObservationIgnored private let isCallRunning: () -> Bool
@@ -170,7 +170,7 @@ final class DictationController {
         play("Pop")
         let stoppedAt = ContinuousClock.now
         // Read now, where the text will be pasted, not where the cursor was at the start.
-        let target = DictationTargets.current()
+        let destination = DictationTargets.current()
         let readMs = Int((ContinuousClock.now - stoppedAt).inSeconds * 1000)
         Log.dictation.debug("Read the cursor's surroundings in \(readMs) ms")
         let (starting, settings) = (starting, settings)
@@ -186,7 +186,7 @@ final class DictationController {
             }
             let tidier = DictationTidier(
                 model: languageModel(), settings: settings.dictation, aboutMe: settings.answers.context)
-            let result = await tidier.tidy(heard.text, for: target)
+            let result = await tidier.tidy(heard.text, for: destination.target)
             guard generation == self.generation else {
                 return
             }
@@ -202,8 +202,10 @@ final class DictationController {
                 show(heard.problem == nil ? "No words were heard." : "Speech recognition failed.")
                 return
             }
-            lastText = result.text
-            switch TextInserter.insert(result.text) {
+            let paste = TextInserter.Paste(
+                result.text, formattingLists: settings.dictation.formattedLists, font: destination.font)
+            lastPaste = paste
+            switch TextInserter.insert(paste) {
             case .pasted:
                 finish(generation)
             case .copied:
@@ -234,13 +236,13 @@ final class DictationController {
         level = 0
     }
 
+    var hasLastDictation: Bool { lastPaste != nil }
+
     /// Copies the last dictation again, e.g. when it went to the wrong place.
     func copyLastText() {
-        guard let lastText else {
-            return
+        if let lastPaste {
+            TextInserter.put(lastPaste, on: NSPasteboard.general)
         }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(lastText, forType: .string)
     }
 
     private func finish(_ generation: Int) {
