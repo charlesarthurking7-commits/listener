@@ -10,7 +10,7 @@ import Foundation
 /// order of creation and never change.
 ///
 /// A turn grows while its speaker's finals follow each other with gaps shorter than
-/// `silenceMs` and nobody else speaks in between. It closes, and never changes again,
+/// `silenceMs` and nobody else speaks in between or starts a turn during it. It closes, and never changes again,
 /// once its final is in and the speaker's voice activity has seen `silenceMs` of
 /// silence after it (which it can only be sure of `minSpeechMs` later), or when the
 /// speaker starts a new turn. Speech the speaker went on with that has no final yet may
@@ -300,8 +300,13 @@ public struct TurnDetector: Sendable {
     /// Whether speech starting at `startOnChannel` (`start` in session time) continues
     /// `turn`, whose last final ended at `end` on the channel. The pause is measured in
     /// the channel's audio, so replay at any speed splits turns where a live call would.
+    ///
+    /// A reply that started while the turn was going on ("Yeah.") also ends it: what
+    /// the speaker says after the reply must come after it, or a question asked then
+    /// reads as already answered.
     private func canExtend(_ turn: Turn, ending end: Double, from startOnChannel: Double, at start: Double) -> Bool {
         startOnChannel - end < silence && !someoneElseSpoke(after: turn.end, before: start, besides: turn.speaker)
+            && !snapshot.turns.contains { $0.speaker != turn.speaker && $0.start > turn.start && $0.start < start }
     }
 
     private func someoneElseSpoke(after gapStart: Double, before gapEnd: Double, besides speaker: Speaker) -> Bool {

@@ -30,11 +30,11 @@ struct TranscriptWindowTests {
 
     @Test func rendersTimestampedSpeakerLines() {
         let turns = [
-            Turn(id: 0, speaker: .them, text: "Can you hear me?", start: 3.2, end: 4.0),
+            Turn(id: 0, speaker: .them, text: "Can you hear me?", start: 3.2, end: 3.9),
             Turn(id: 1, speaker: .me, text: "Yes,\nloud and clear.", start: 65.9, end: 67),
         ]
         let window = TranscriptWindow(turns: turns, budgetTokens: 8_000, hardCapTokens: 60_000)
-        #expect(window.blocks == ["[00:03] Them: Can you hear me?\n[01:05] Me: Yes, loud and clear.\n"])
+        #expect(window.blocks == ["[00:03] Them: Can you hear me?\n[01:05-01:07] Me: Yes, loud and clear.\n"])
         #expect(window.firstTurnIndex == 0)
         #expect(!window.omitsEarlierTurns)
         #expect(window.estimatedTokens == Self.tokens(turns[...]))
@@ -135,7 +135,7 @@ struct TranscriptWindowTests {
         #expect(window.firstTurnIndex == 10)
         #expect(window.estimatedTokens <= 1_000)
         #expect(window.estimatedTokens == TokenEstimate.tokens(in: window.blocks.joined()))
-        #expect(window.blocks.joined().hasPrefix("[03:20] Them: ... "))
+        #expect(window.blocks.joined().hasPrefix("[03:20-15:00] Them: ... "))
         #expect(window.blocks.joined().hasSuffix("so what is the margin?\n"))
     }
 
@@ -167,6 +167,6 @@ struct TranscriptWindowTests {
         ]
         let window = TranscriptWindow(turns: turns, budgetTokens: 100, hardCapTokens: 60_000)
         #expect(window.firstTurnIndex == 2)
-        #expect(window.estimatedTokens == 95)
+        #expect(window.estimatedTokens == 99)
     }
 }

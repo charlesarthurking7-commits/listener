@@ -25,6 +25,7 @@ struct PromptBuilderTests {
         #expect(first.system.contains("answer the most likely reading, then add one short clarifying question"))
         #expect(first.system.contains("If nothing has been asked of Me, start with a note saying so"))
         #expect(first.system.contains("\"I\" or \"we\" in a Them line is whoever is speaking, never Me"))
+        #expect(first.system.contains("a short line can fall inside a longer one above it"))
         #expect(first.system.contains("never volunteer Me for work nobody asked Me to take on"))
         #expect(first.system.contains("one to three sentences, or up to five short bullets"))
         #expect(!first.system.contains("About Me"))
@@ -58,9 +59,9 @@ struct PromptBuilderTests {
                 == PromptBlock(
                     """
                     <transcript>
-                    [00:01] Me: Hi, thanks for calling.
-                    [00:03] Them: We saw a failed copy trade on account 4471 this morning.
-                    [00:07] Them: Can you tell us why it was rejected?
+                    [00:01-00:02] Me: Hi, thanks for calling.
+                    [00:03-00:07] Them: We saw a failed copy trade on account 4471 this morning.
+                    [00:07-00:09] Them: Can you tell us why it was rejected?
 
                     """, cacheBreakpoint: true))
         #expect(
@@ -202,9 +203,9 @@ struct PromptBuilderTests {
                 Title line: # Call on Tuesday 20 October 2026 at 14:05 (32 min)
 
                 <transcript>
-                [00:01] Me: Hi, thanks for calling.
-                [00:03] Them: We saw a failed copy trade on account 4471 this morning.
-                [00:07] Them: Can you tell us why it was rejected?
+                [00:01-00:02] Me: Hi, thanks for calling.
+                [00:03-00:07] Them: We saw a failed copy trade on account 4471 this morning.
+                [00:07-00:09] Them: Can you tell us why it was rejected?
                 </transcript>
 
                 Write the notes.

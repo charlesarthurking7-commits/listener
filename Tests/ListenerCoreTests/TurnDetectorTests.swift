@@ -413,6 +413,28 @@ struct TurnDetectorTests {
         #expect(near(harness.turns.last?.start, 72.0))
     }
 
+    @Test func aReplyDuringTheOtherSidesSpeechComesBeforeWhatTheySaidAfterIt() {
+        // "Yeah." lands while Them is still talking. Their next final must not join the
+        // turn that started before it, or their question reads as already answered.
+        var harness = Harness()
+        harness.started(.them, at: 0)
+        harness.speech(.me, 12.0...12.5)
+        harness.play(.me, to: 12.6)
+        harness.final(.me, "Yeah.", 12.0...12.5)
+        harness.play(.them, to: 15.1)
+        harness.ended(.them, at: 15.0)
+        harness.final(.them, "We reran the overnight batch after the outage.", 0...15.0)
+        harness.started(.them, at: 15.4)
+        harness.play(to: 24.1)
+        harness.ended(.them, at: 24.0)
+        harness.final(.them, "Can you check it finished?", 15.4...24.0)
+        #expect(
+            harness.turns.map(\.text) == [
+                "We reran the overnight batch after the outage.", "Yeah.", "Can you check it finished?",
+            ])
+        #expect(harness.turns.map(\.speaker) == [.them, .me, .them])
+    }
+
     @Test func speechTheRecogniserSplitsWithoutAPauseStaysOneTurn() {
         var harness = Harness()
         harness.started(.them, at: 0.5)

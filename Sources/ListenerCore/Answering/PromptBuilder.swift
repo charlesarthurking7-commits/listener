@@ -223,8 +223,10 @@ extension PromptBuilder {
     static let callIntro = """
         You help the user during a live call. The user is "Me" in the transcript. "Them" is everyone \
         else on the call, so "Them" can be more than one person, and "I" or "we" in a Them line is \
-        whoever is speaking, never Me. The transcript comes from live speech recognition: expect \
-        misheard words and missing punctuation, and read through obvious errors.
+        whoever is speaking, never Me. Each line shows when it was said, from start to end, and lines \
+        are in order of when they started, so a short line can fall inside a longer one above it: it \
+        was said while the other person was still talking. The transcript comes from live speech \
+        recognition: expect misheard words and missing punctuation, and read through obvious errors.
         """
 
     static let answerRules = """
@@ -299,8 +301,9 @@ extension PromptBuilder {
     static let summarySystemPrompt = """
         You write the notes for a call that has just ended. The transcript comes from speech recognition: \
         "Me" is the user, who will read these notes, and "Them" is everyone else on the call, possibly \
-        several people, and "I" or "we" in a Them line is never Me. Expect misheard words and read through \
-        obvious errors.
+        several people, and "I" or "we" in a Them line is never Me. Each line shows when it was said, from \
+        start to end, and lines are in order of when they started, so a short line can fall inside a longer \
+        one above it. Expect misheard words and read through obvious errors.
 
         Write Markdown in British English, in exactly this structure:
 

@@ -13,7 +13,7 @@ import Testing
 /// whatever the scripted recogniser says once it has that frame. There are no tasks and
 /// no clock, so the outcome never depends on how busy the machine is.
 struct RandomCallTests {
-    static let seeds: [UInt64] = [1, 3, 9, 14, 26, 44, 61, 85, 122, 129, 139, 141, 191, 215, 228, 231, 258]
+    static let seeds: [UInt64] = [1, 3, 9, 14, 26, 44, 61, 85, 122, 129, 139, 141, 191, 215, 228, 231, 258, 439]
 
     @Test(arguments: seeds)
     func turnsFollowTheScript(seed: UInt64) {
@@ -24,7 +24,7 @@ struct RandomCallTests {
         let turns = Self.detectTurns(in: script, finalDelay: finalDelay)
 
         #expect(turns.map(\.start) == turns.map(\.start).sorted())
-        if let expected = Self.expectedTurns(script) {
+        if let expected = Self.expectedTurns(script, finalDelay: finalDelay) {
             #expect(turns.map(\.text) == expected)
         } else {
             // A pause too close to a threshold to call: each speaker's words still come
@@ -108,15 +108,20 @@ struct RandomCallTests {
         return ConversationScript(title: "random", lines: lines)
     }
 
-    /// What the turns should be, or nil when a pause is too close to a threshold to say.
+    /// What the turns should be, or nil when a pause or an order is too close to call.
     /// A line joins its speaker's last turn when the pause is shorter than the silence
-    /// threshold and nobody else spoke in it. A pause shorter than the detector's
-    /// hangover is not heard at all, so it never splits a turn, even with the other
-    /// speaker talking over it.
-    static func expectedTurns(_ script: ConversationScript) -> [String]? {
+    /// threshold, nobody else spoke in it, and no reply that started during the turn
+    /// was final before the line. A pause shorter than the detector's hangover is not
+    /// heard at all, so only such a reply splits the turn there.
+    static func expectedTurns(_ script: ConversationScript, finalDelay: Double) -> [String]? {
         let silence = Double(TurnSettings().silenceMs) / 1000
         let hangover = 0.2
-        var turns: [(speaker: Speaker, text: String, end: Double)] = []
+        // When ScriptRecognizer gives each line its final.
+        func finalAt(_ line: ConversationScript.Line) -> Double {
+            let next = script.lines.first { $0.speaker == line.speaker && $0.start > line.start }
+            return min(line.end + finalDelay, next?.start ?? .infinity)
+        }
+        var turns: [(speaker: Speaker, text: String, start: Double, end: Double, firstFinal: Double)] = []
         var latest: [Speaker: Int] = [:]
         for line in script.lines {
             if let index = latest[line.speaker] {
@@ -128,13 +133,23 @@ struct RandomCallTests {
                 let interrupted = script.lines.contains {
                     $0.speaker != line.speaker && $0.start < line.start && $0.end > previous.end
                 }
-                if gap < hangover || (gap < silence && !interrupted) {
+                let replies = turns.filter {
+                    $0.speaker != line.speaker && $0.start > previous.start - 0.05 && $0.start < line.start + 0.05
+                }
+                if replies.contains(where: {
+                    abs($0.start - previous.start) < 0.05 || abs($0.start - line.start) < 0.05
+                        || abs($0.firstFinal - finalAt(line)) < 0.15
+                }) {
+                    return nil
+                }
+                let replied = replies.contains { $0.firstFinal < finalAt(line) }
+                if !replied && (gap < hangover || (gap < silence && !interrupted)) {
                     turns[index].text += " " + line.text
                     turns[index].end = max(previous.end, line.end)
                     continue
                 }
             }
-            turns.append((line.speaker, line.text, line.end))
+            turns.append((line.speaker, line.text, line.start, line.end, finalAt(line)))
             latest[line.speaker] = turns.count - 1
         }
         return turns.map(\.text)

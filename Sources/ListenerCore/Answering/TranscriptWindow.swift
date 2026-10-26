@@ -14,7 +14,7 @@ public enum TokenEstimate {
 }
 
 /// The newest part of the transcript that fits the token budget, rendered as
-/// `[mm:ss] Speaker: text` lines and split into prompt blocks.
+/// `[mm:ss-mm:ss] Speaker: text` lines and split into prompt blocks.
 ///
 /// The window is a pure function of the turn list, and it is built so that
 /// consecutive requests share a byte-identical prefix for prompt caching:
@@ -84,7 +84,7 @@ public struct TranscriptWindow: Sendable, Equatable {
 
     /// One transcript line, newline included.
     public static func line(for turn: Turn) -> String {
-        "\(timestamp(turn.start)) \(turn.speaker.rawValue): \(flatten(turn.text))\n"
+        "\(span(turn)) \(turn.speaker.rawValue): \(flatten(turn.text))\n"
     }
 
     /// Tokens of `line(for:)`. Counts the raw text, which is never shorter than the
@@ -92,16 +92,29 @@ public struct TranscriptWindow: Sendable, Equatable {
     public static func estimatedTokens(for turn: Turn) -> Int {
         let separators = 4  // " ", ": " and the newline
         let bytes =
-            timestamp(turn.start).utf8.count + turn.speaker.rawValue.utf8.count + turn.text.utf8.count + separators
+            span(turn).utf8.count + turn.speaker.rawValue.utf8.count + turn.text.utf8.count + separators
         return TokenEstimate.tokens(bytes: bytes)
     }
 
     /// `[mm:ss]` in session time. Minutes keep counting past an hour.
     public static func timestamp(_ seconds: Double) -> String {
+        "[\(clock(seconds))]"
+    }
+
+    /// When a turn was said, `[mm:ss-mm:ss]`, or `[mm:ss]` when it starts and ends in
+    /// the same second. The end shows that a short reply fell inside a longer turn
+    /// above it, since turns are in order of start.
+    static func span(_ turn: Turn) -> String {
+        let start = clock(turn.start)
+        let end = clock(turn.end)
+        return start == end ? "[\(start)]" : "[\(start)-\(end)]"
+    }
+
+    private static func clock(_ seconds: Double) -> String {
         let whole = seconds.isFinite ? max(0, Int(seconds)) : 0
         let minutes = whole / 60
         let remainder = whole % 60
-        return "[\(minutes < 10 ? "0" : "")\(minutes):\(remainder < 10 ? "0" : "")\(remainder)]"
+        return "\(minutes < 10 ? "0" : "")\(minutes):\(remainder < 10 ? "0" : "")\(remainder)"
     }
 
     /// The first checkpoint turn from which the rest fits the budget.
@@ -131,7 +144,7 @@ public struct TranscriptWindow: Sendable, Equatable {
     }
 
     private static func line(for turn: Turn, maxTokens: Int) -> String {
-        let prefix = "\(timestamp(turn.start)) \(turn.speaker.rawValue): ... "
+        let prefix = "\(span(turn)) \(turn.speaker.rawValue): ... "
         let maxBytes = max(0, maxTokens * TokenEstimate.bytesPerToken - prefix.utf8.count - 1)
         let text = flatten(turn.text)
         var start = text.endIndex
