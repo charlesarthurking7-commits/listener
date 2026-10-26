@@ -6,27 +6,23 @@ import Foundation
 /// handshake.
 public final class URLSessionStreamingTransport: HTTPStreamingTransport {
     private let session: URLSession
-    private let readTimeout: TimeInterval
 
-    /// - Parameters:
-    ///   - readTimeout: the longest wait for more data. Generous, because a model can
-    ///     think for a while between events; `ClaudeClient` puts a short limit on the
-    ///     wait for the response headers, which is where a dead connection shows.
-    ///   - maxDuration: the longest a whole request may take, summaries included.
-    public init(readTimeout: TimeInterval = 60, maxDuration: TimeInterval = 600) {
+    public init() {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = readTimeout
-        configuration.timeoutIntervalForResource = maxDuration
+        // The longest wait for more data. Generous, because a model can think for a while
+        // between events; `ClaudeClient` puts a short limit on the wait for the response
+        // headers, which is where a dead connection shows.
+        configuration.timeoutIntervalForRequest = 60
+        // The longest a whole request may take, summaries included.
+        configuration.timeoutIntervalForResource = 600
         configuration.waitsForConnectivity = false
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         session = URLSession(configuration: configuration)
-        self.readTimeout = readTimeout
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPStreamingResponse {
-        var urlRequest = URLRequest(
-            url: request.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: readTimeout)
+        var urlRequest = URLRequest(url: request.url)
         urlRequest.httpMethod = request.method
         urlRequest.httpBody = request.body
         for (name, value) in request.headers {

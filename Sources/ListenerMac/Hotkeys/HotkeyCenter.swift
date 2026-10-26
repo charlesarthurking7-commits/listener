@@ -1,9 +1,8 @@
 import Carbon
 import ListenerCore
 
-public struct HotkeyRegistrationFailure: Sendable, Equatable {
+public struct HotkeyRegistrationFailure: Sendable {
     public let action: HotkeyAction
-    public let hotkey: Hotkey
     public let message: String
 }
 
@@ -57,7 +56,7 @@ public final class HotkeyCenter {
         return failures
     }
 
-    public func unregisterAll() {
+    private func unregisterAll() {
         for entry in registered.values {
             UnregisterEventHotKey(entry.ref)
         }
@@ -88,7 +87,7 @@ public final class HotkeyCenter {
             } else {
                 "\(hotkey.displayString) for \(action.title.lowercased()) could not be registered (error \(status))."
             }
-        return HotkeyRegistrationFailure(action: action, hotkey: hotkey, message: message)
+        return HotkeyRegistrationFailure(action: action, message: message)
     }
 
     static func carbonModifiers(_ modifiers: HotkeyModifiers) -> UInt32 {

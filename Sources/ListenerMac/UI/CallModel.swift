@@ -92,7 +92,6 @@ public final class CallModel {
 
     /// A call is running or being saved, or a summary is being written.
     public var hasWorkToFinish: Bool { session != nil || !summarising.isEmpty }
-    public var isListening: Bool { phase == .listening }
     public var hasTranscript: Bool { !settledRows.isEmpty || !liveRows.isEmpty }
 
     /// Checks permissions, credentials and keys again.
@@ -388,7 +387,7 @@ public final class CallModel {
     }
 
     public func openSessionsFolder() {
-        let directory = environment.sessionsDirectory(settings)
+        let directory = SessionStore.root(for: settings.storage, paths: environment.paths)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             NSWorkspace.shared.open(directory)

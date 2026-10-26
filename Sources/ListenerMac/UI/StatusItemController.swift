@@ -8,7 +8,6 @@ import ListenerCore
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
     struct Actions {
-        var showWindow: () -> Void
         var toggleWindow: () -> Void
         var isWindowVisible: () -> Bool
         var moveWindowToTopCentre: () -> Void

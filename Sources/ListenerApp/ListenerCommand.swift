@@ -79,7 +79,6 @@ struct ListenerCommand: AsyncParsableCommand {
             googleSetup: { SessionFactory.googleSetup($0) },
             prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
             hasAnthropicKey: { demo?.scriptedAnswers == true || secrets.secret(.anthropicAPIKey) != nil },
-            sessionsDirectory: { SessionStore.root(for: $0.storage) },
             importWebPage: { try await SessionFactory.importWebPage($0, settings: $1, secrets: secrets) },
             finishDueSummaries: { demo == nil ? await SessionFactory.finishDueSummaries($0, secrets: secrets) : [] }
         )

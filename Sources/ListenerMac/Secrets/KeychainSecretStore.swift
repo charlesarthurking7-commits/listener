@@ -78,11 +78,8 @@ public struct KeychainError: Error, CustomStringConvertible {
 
 /// The secret stores the app and the CLI use, in the order they are asked.
 public enum StandardSecrets {
-    public static func chain(
-        paths: ListenerPaths = .current,
-        currentDirectory: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    ) -> ChainedSecretStore {
-        let localEnv = currentDirectory.appendingPathComponent(".env")
+    public static func chain(paths: ListenerPaths = .current) -> ChainedSecretStore {
+        let localEnv = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".env")
         return ChainedSecretStore([
             .init(name: "Keychain", store: KeychainSecretStore()),
             .init(name: "environment", store: EnvironmentSecretStore()),

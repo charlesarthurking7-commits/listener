@@ -38,7 +38,6 @@ var targets: [Target] = [
             name: "ListenerMac",
             dependencies: [
                 "ListenerCore",
-                "GoogleSpeech",
                 "ClaudeAPI",
             ]
         ),

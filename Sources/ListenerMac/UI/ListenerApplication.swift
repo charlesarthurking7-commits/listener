@@ -47,7 +47,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(
             model: model,
             actions: .init(
-                showWindow: { [weak self] in self?.showWindow() },
                 toggleWindow: { [weak self] in self?.toggleWindow() },
                 isWindowVisible: { [weak self] in self?.panel?.isVisible ?? false },
                 moveWindowToTopCentre: { [weak self] in
@@ -163,7 +162,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             panel?.apply(
                 transparency: model.transparency, opacity: model.windowOpacity,
                 hiddenFromSharing: model.hidesFromScreenSharing)
-            statusItem?.update(listening: model.isListening, hiddenFromSharing: model.hidesFromScreenSharing)
+            statusItem?.update(listening: model.phase == .listening, hiddenFromSharing: model.hidesFromScreenSharing)
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.followWindowState()

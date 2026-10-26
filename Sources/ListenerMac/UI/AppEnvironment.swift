@@ -17,7 +17,6 @@ public struct AppEnvironment: Sendable {
     public var prepareOnDeviceSpeech:
         @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void
     public var hasAnthropicKey: @Sendable () -> Bool
-    public var sessionsDirectory: @Sendable (Settings) -> URL
     /// A web page as a Markdown document for a call's background.
     public var importWebPage: @Sendable (URL, Settings) async throws -> String
     /// Writes the summaries earlier calls still owe, because the app quit or crashed
@@ -33,7 +32,6 @@ public struct AppEnvironment: Sendable {
         prepareOnDeviceSpeech:
             @escaping @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void,
         hasAnthropicKey: @escaping @Sendable () -> Bool,
-        sessionsDirectory: @escaping @Sendable (Settings) -> URL,
         importWebPage: @escaping @Sendable (URL, Settings) async throws -> String,
         finishDueSummaries: @escaping @Sendable (Settings) async -> [URL]
     ) {
@@ -44,7 +42,6 @@ public struct AppEnvironment: Sendable {
         self.googleSetup = googleSetup
         self.prepareOnDeviceSpeech = prepareOnDeviceSpeech
         self.hasAnthropicKey = hasAnthropicKey
-        self.sessionsDirectory = sessionsDirectory
         self.importWebPage = importWebPage
         self.finishDueSummaries = finishDueSummaries
     }
