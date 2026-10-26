@@ -16,22 +16,21 @@ func sessionSettings(directory: URL) -> Settings {
 /// A channel of tone bursts wherever `speaker` speaks in `script`, so the voice
 /// activity detector hears what the script says.
 func scriptAudio(
-    _ script: ConversationScript, speaker: Speaker, seconds: Double, rate: Int = 16_000, frequency: Double = 300
+    _ script: ConversationScript, speaker: Speaker, seconds: Double, frequency: Double = 300
 ) -> WAVAudio {
     let bursts = script.lines.filter { $0.speaker == speaker }.map { $0.start...$0.end }
-    let samples = Synth.track(seconds: seconds, bursts: bursts, frequency: frequency, amplitude: 0.2, rate: rate)
-    return WAVAudio(sampleRate: rate, channelCount: 1, samples: samples)
+    let samples = Synth.track(seconds: seconds, bursts: bursts, frequency: frequency, amplitude: 0.2)
+    return WAVAudio(sampleRate: AudioChunk.sampleRate, channelCount: 1, samples: samples)
 }
 
-/// Replay sources for both channels of a scripted conversation: Me at 16 kHz, Them at
-/// 24 kHz so the resampler is on the path too.
+/// Replay sources for both channels of a scripted conversation.
 func scriptSources(
     _ script: ConversationScript, seconds: Double, pacing: ReplaySource.Pacing
 ) throws -> [Speaker: ReplaySource] {
     [
         .me: try ReplaySource(audio: scriptAudio(script, speaker: .me, seconds: seconds), speaker: .me, pacing: pacing),
         .them: try ReplaySource(
-            audio: scriptAudio(script, speaker: .them, seconds: seconds, rate: 24_000, frequency: 200),
+            audio: scriptAudio(script, speaker: .them, seconds: seconds, frequency: 200),
             speaker: .them, pacing: pacing),
     ]
 }

@@ -19,10 +19,10 @@ struct ReplayCommand: AsyncParsableCommand {
     @OptionGroup var options: GlobalOptions
     @OptionGroup var callType: CallTypeOptions
 
-    @Argument(help: "Recording of your side (\"Me\"), a 16-bit WAV file.")
+    @Argument(help: "Recording of your side (\"Me\"), a 16 kHz 16-bit WAV file.")
     var me: String
 
-    @Argument(help: "Recording of the other side (\"Them\"), a 16-bit WAV file.")
+    @Argument(help: "Recording of the other side (\"Them\"), a 16 kHz 16-bit WAV file.")
     var them: String
 
     @Option(help: "Conversation script (JSON) to use instead of speech-to-text.")

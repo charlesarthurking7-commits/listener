@@ -202,7 +202,7 @@ recordings of real calls (`storage.saveAudio`).
 ```
 ListenerCore  (Foundation only, builds and tests on Linux)
   Audio/          AudioChunk, LevelMeter, WAV I/O, VoiceActivityDetector, AudioFramer,
-                  Resampler, GapFiller and the capture recovery logic
+                  GapFiller and the capture recovery logic
   Transcription/  SpeechToTextProvider protocol, the on-device rotating stream logic
   Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
   Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow

@@ -90,7 +90,7 @@ It compiles the dependencies for the same macOS version as Listener; without tha
 optimised app crashes in `Task.sleep` (see the comment in the script).
 
 ```
-Sources/ListenerCore   platform independent: audio framing, VAD, resampling, turn detection,
+Sources/ListenerCore   platform independent: audio framing, VAD, turn detection,
                        the call session, prompts, call types, web pages, cost, settings,
                        storage, replay, fakes
 Sources/GoogleSpeech   Speech-to-Text v2 streaming over gRPC, Google credentials

@@ -21,20 +21,6 @@ public struct WAVAudio: Equatable, Sendable {
     }
 
     public var frameCount: Int { samples.count / channelCount }
-
-    public func channel(_ index: Int) -> [Int16] {
-        if channelCount == 1 {
-            return samples
-        }
-        var result: [Int16] = []
-        result.reserveCapacity(frameCount)
-        var position = index
-        while position < samples.count {
-            result.append(samples[position])
-            position += channelCount
-        }
-        return result
-    }
 }
 
 /// Streams 16-bit mono PCM to disk. The header sizes are patched in `finish()`; until

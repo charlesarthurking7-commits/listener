@@ -52,8 +52,7 @@ struct WAVFileTests {
         #expect(audio.sampleRate == 48_000)
         #expect(audio.channelCount == 2)
         #expect(audio.frameCount == 2)
-        #expect(audio.channel(0) == [10, 20])
-        #expect(audio.channel(1) == [-10, -20])
+        #expect(audio.samples == [10, -10, 20, -20])
     }
 
     @Test func readerRejectsNonPCMAndGarbage() {
