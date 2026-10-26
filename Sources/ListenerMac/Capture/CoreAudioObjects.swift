@@ -51,7 +51,8 @@ enum CoreAudioObjects {
     /// Whether any process other than `excluded` is currently playing audio. Answers true
     /// when the process list cannot be read, so callers err on the side of acting.
     static func isAnotherProcessPlaying(excluding excluded: AudioObjectID?) -> Bool {
-        guard let processes = try? processList() else {
+        let address = globalAddress(kAudioHardwarePropertyProcessObjectList)
+        guard let processes = try? readObjectList(systemAudioObject, address, "Read audio process list") else {
             return true
         }
         for process in processes where process != excluded {
@@ -69,17 +70,12 @@ enum CoreAudioObjects {
 
     /// The format IO procs receive for the device's last input stream (its "virtual format").
     static func lastInputStreamFormat(_ device: AudioDeviceID) throws -> AudioStreamBasicDescription {
-        var address = AudioObjectPropertyAddress(
+        let address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyStreams,
             mScope: kAudioObjectPropertyScopeInput,
             mElement: kAudioObjectPropertyElementMain
         )
-        var size: UInt32 = 0
-        try check(AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size), "Read input stream list size")
-        var streams = [AudioStreamID](
-            repeating: unknownAudioObject, count: Int(size) / MemoryLayout<AudioStreamID>.size)
-        try check(AudioObjectGetPropertyData(device, &address, 0, nil, &size, &streams), "Read input stream list")
-        guard let last = streams.prefix(Int(size) / MemoryLayout<AudioStreamID>.size).last else {
+        guard let last = try readObjectList(device, address, "Read input stream list").last else {
             throw CaptureError.coreAudio(
                 operation: "Find input stream", status: OSStatus(kAudioHardwareBadStreamError))
         }
@@ -100,17 +96,17 @@ enum CoreAudioObjects {
         )
     }
 
-    private static func processList() throws -> [AudioObjectID] {
-        var address = globalAddress(kAudioHardwarePropertyProcessObjectList)
+    /// A property that holds a list of objects, such as a device's streams.
+    private static func readObjectList(
+        _ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ operation: String
+    ) throws -> [AudioObjectID] {
+        var address = address
         var size: UInt32 = 0
-        try check(
-            AudioObjectGetPropertyDataSize(systemAudioObject, &address, 0, nil, &size), "Read audio process list size")
-        var processes = [AudioObjectID](
-            repeating: unknownAudioObject, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        try check(
-            AudioObjectGetPropertyData(systemAudioObject, &address, 0, nil, &size, &processes),
-            "Read audio process list")
-        return Array(processes.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
+        try check(AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size), operation + " size")
+        let stride = MemoryLayout<AudioObjectID>.size
+        var list = [AudioObjectID](repeating: unknownAudioObject, count: Int(size) / stride)
+        try check(AudioObjectGetPropertyData(object, &address, 0, nil, &size, &list), operation)
+        return Array(list.prefix(Int(size) / stride))
     }
 
     private static func read<Value>(

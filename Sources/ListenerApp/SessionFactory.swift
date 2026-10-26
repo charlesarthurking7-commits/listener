@@ -73,9 +73,7 @@ enum SessionFactory {
             case "google":
                 return try googleProviders.provider(for: settings.speech)
             case "apple":
-                return try AppleSpeech.makeProvider(settings: settings) { state in
-                    callbacks.onDeviceSpeech(onDeviceStatus(state))
-                }
+                return try AppleSpeech.makeProvider(settings: settings, onModelState: callbacks.onDeviceSpeech)
             default:
                 throw FactoryError(
                     "speech.provider \"\(settings.speech.provider)\" only works with listener replay --script. "
@@ -142,19 +140,9 @@ enum SessionFactory {
         _ settings: Settings, report: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
     ) async {
         do {
-            try await AppleSpeech.installModel(languageCode: settings.speech.languageCode) { state in
-                report(onDeviceStatus(state))
-            }
+            try await AppleSpeech.installModel(languageCode: settings.speech.languageCode, onState: report)
         } catch {
             report(.failed(ErrorText.describe(error)))
-        }
-    }
-
-    private static func onDeviceStatus(_ state: AppleSpeechModelState) -> OnDeviceSpeechStatus {
-        switch state {
-        case .checking: .checking
-        case .downloading(let fraction): .downloading(fractionCompleted: fraction)
-        case .ready(let locale): .ready(locale: locale)
         }
     }
 }

@@ -22,15 +22,7 @@ final class AnalyzerAudio {
             converter = nil
             return
         }
-        guard
-            let chunkFormat = AVAudioFormat(
-                commonFormat: .pcmFormatInt16,
-                sampleRate: Double(AudioChunk.sampleRate),
-                channels: 1,
-                interleaved: true
-            ),
-            let converter = AVAudioConverter(from: chunkFormat, to: analyzerFormat)
-        else {
+        guard let converter = AVAudioConverter(from: .chunk, to: analyzerFormat) else {
             throw AppleSpeechError.unsupportedAudioFormat(AudioFormatText.describe(analyzerFormat))
         }
         self.converter = converter
@@ -51,19 +43,7 @@ final class AnalyzerAudio {
         guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
             return nil
         }
-        let pending = SingleBufferInput(input)
-        var conversionError: NSError?
-        let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
-            guard let next = pending.take() else {
-                inputStatus.pointee = .noDataNow
-                return nil
-            }
-            inputStatus.pointee = .haveData
-            return next
-        }
-        if status == .error {
-            throw conversionError ?? AppleSpeechError.failed("audio conversion failed")
-        }
+        try converter.convert(input, into: output)
         return output.frameLength > 0 ? output : nil
     }
 
@@ -81,21 +61,6 @@ final class AnalyzerAudio {
             }
         }
         buffer.frameLength = AVAudioFrameCount(samples.count)
-        return buffer
-    }
-}
-
-/// Hands one buffer to AVAudioConverter's input block; see PendingInput in
-/// PCMConverter.swift for why this is a class.
-private final class SingleBufferInput: @unchecked Sendable {
-    private var buffer: AVAudioPCMBuffer?
-
-    init(_ buffer: AVAudioPCMBuffer) {
-        self.buffer = buffer
-    }
-
-    func take() -> AVAudioPCMBuffer? {
-        defer { buffer = nil }
         return buffer
     }
 }

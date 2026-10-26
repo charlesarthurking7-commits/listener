@@ -101,8 +101,8 @@ public final class CallModel {
             settings.speech.provider == "google"
             ? environment.googleSetup(settings) : GoogleSetup(projectID: nil, credentialsProblem: nil)
         probes = ReadinessInput(
-            microphone: SystemPermissions.microphone,
-            screenRecording: settings.capture.systemAudioBackend == "sck" ? SystemPermissions.screenRecording : nil,
+            microphone: CapturePermissions.microphone,
+            screenRecording: settings.capture.systemAudioBackend == "sck" ? CapturePermissions.screenRecording : nil,
             systemAudioHeard: UserDefaults.standard.bool(forKey: Self.systemAudioHeardKey),
             speechProvider: settings.speech.provider,
             googleProjectID: google.projectID,
@@ -341,7 +341,9 @@ public final class CallModel {
     public func perform(_ fix: ReadinessFix) {
         switch fix {
         case .openPrivacySettings(let pane):
-            SystemPermissions.open(pane)
+            if let url = URL(string: pane.url) {
+                NSWorkspace.shared.open(url)
+            }
         case .editSettings:
             openSettingsFile()
         case .runInTerminal(let command):

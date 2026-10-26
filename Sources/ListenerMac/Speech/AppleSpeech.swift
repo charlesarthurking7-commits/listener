@@ -22,8 +22,7 @@ public enum AppleSpeech {
     }
 
     public static func makeProvider(
-        settings: Settings,
-        onModelState: @escaping @Sendable (AppleSpeechModelState) -> Void = { _ in }
+        settings: Settings, onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
     ) throws -> any SpeechToTextProvider {
         #if compiler(>=6.2)
             guard #available(macOS 26.0, *) else {
@@ -41,8 +40,7 @@ public enum AppleSpeech {
     /// Checks the language and downloads its model if needed. Call it when the user picks
     /// this provider, so the first call does not sit waiting on a download.
     public static func installModel(
-        languageCode: String,
-        onState: @escaping @Sendable (AppleSpeechModelState) -> Void = { _ in }
+        languageCode: String, onState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
     ) async throws {
         #if compiler(>=6.2)
             guard #available(macOS 26.0, *) else {
@@ -56,14 +54,4 @@ public enum AppleSpeech {
             throw AppleSpeechError.notInThisBuild
         #endif
     }
-}
-
-/// Getting the on-device model ready, for the UI to show.
-public enum AppleSpeechModelState: Sendable, Equatable {
-    case checking
-    /// macOS is downloading the model. Apple reports a fraction only, no sizes.
-    case downloading(fractionCompleted: Double)
-    /// The BCP 47 code in use. It can differ from the one asked for when macOS only has a
-    /// near match, e.g. another region of the same language.
-    case ready(locale: String)
 }

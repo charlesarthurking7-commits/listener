@@ -1,16 +1,12 @@
 import AVFoundation
 import CoreGraphics
+import ListenerCore
 
-public enum PermissionStatus: Sendable, Equatable {
-    case granted
-    case denied
-    case notDetermined
-}
-
-/// What macOS lets Listener capture, and how to ask for it.
-public enum CapturePermissions {
+/// What macOS lets Listener capture. Reading a permission never prompts: prompts only
+/// happen when the user presses Start and capture begins.
+enum CapturePermissions {
     /// Microphone access for the "Me" channel.
-    public static var microphone: PermissionStatus {
+    static var microphone: ReadinessInput.Permission {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: .granted
         case .notDetermined: .notDetermined
@@ -19,46 +15,30 @@ public enum CapturePermissions {
         }
     }
 
-    /// Shows the macOS prompt if the user has not decided yet. Returns whether access is granted.
-    public static func requestMicrophone() async -> Bool {
-        switch microphone {
-        case .granted: true
-        case .denied: false
-        case .notDetermined: await AVCaptureDevice.requestAccess(for: .audio)
-        }
-    }
-
     /// Screen Recording access, needed only by the ScreenCaptureKit system audio backend.
-    /// Checking never shows a prompt.
-    public static var screenRecordingGranted: Bool {
-        CGPreflightScreenCaptureAccess()
+    /// macOS only says whether access is granted, not whether it was refused, so anything
+    /// else reads as "will ask".
+    static var screenRecording: ReadinessInput.Permission {
+        CGPreflightScreenCaptureAccess() ? .granted : .notDetermined
     }
 
-    /// Asks for Screen Recording access. macOS prompts only the first time; after that
-    /// the user has to allow Listener in System Settings and reopen it.
-    @discardableResult
-    public static func requestScreenRecording() -> Bool {
-        CGRequestScreenCaptureAccess()
-    }
-
-    /// The Core Audio tap backend needs System Audio Recording access, which macOS
-    /// neither reports nor lets an app ask for up front.
-    public static let systemAudioExplanation = """
-        macOS asks for System Audio Recording access the first time Listener captures the \
-        other side of a call, and offers no way to check it afterwards. Without it the "Them" \
-        channel is pure digital silence, so Listener watches for that: if "Them" stays silent \
-        while audio is playing, allow Listener in System Settings > Privacy & Security > \
-        Screen & System Audio Recording, under "System Audio Recording Only".
-        """
-
+    /// Shows the macOS prompt if the user has not decided yet.
     static func requireMicrophone() async throws {
-        if !(await requestMicrophone()) {
+        let granted =
+            switch microphone {
+            case .granted: true
+            case .denied: false
+            case .notDetermined: await AVCaptureDevice.requestAccess(for: .audio)
+            }
+        if !granted {
             throw CaptureError.microphonePermissionDenied
         }
     }
 
+    /// macOS prompts only the first time; after that the user has to allow Listener in
+    /// System Settings and reopen it.
     static func requireScreenRecording() throws {
-        if !screenRecordingGranted && !requestScreenRecording() {
+        if !CGPreflightScreenCaptureAccess() && !CGRequestScreenCaptureAccess() {
             throw CaptureError.screenRecordingPermissionDenied
         }
     }

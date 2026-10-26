@@ -14,8 +14,8 @@ import Synchronization
 /// - It reads the audio at the rate the device clock runs at, not the one the tap's
 ///   format reports, and keeps checking the rate it arrives at, as AirPods switch to a
 ///   lower rate when a call app opens their mic (see DeliveredRateMonitor).
-/// - It rebuilds after `Options.silenceTimeout` of exact digital zeros while another app
-///   is playing audio. A tap without the System Audio Recording permission, and some
+/// - It rebuilds after SilenceWatchdog's timeout of exact digital zeros while another
+///   app is playing audio. A tap without the System Audio Recording permission, and some
 ///   taps on macOS 26 after a while, keep running but deliver only zeros. When a rebuild
 ///   does not bring the audio back, the next one waits twice as long.
 ///
@@ -25,22 +25,13 @@ import Synchronization
 ///
 /// Mutable state is only touched on `controlQueue` (and in deinit), hence @unchecked Sendable.
 public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
-    public struct Options: Sendable {
-        /// Rebuild after this much unbroken digital silence while other apps play audio.
-        public var silenceTimeout: Duration = .seconds(10)
-        /// The silence timeout doubles after every rebuild that did not help, up to this.
-        public var maximumSilenceTimeout: Duration = .seconds(320)
-
-        public init() {}
-    }
-
     private let onEvent: (@Sendable (CaptureEvent) -> Void)?
     private let controlQueue = DispatchQueue(label: "listener.capture.tap.control", qos: .userInitiated)
     // Core Audio runs the IO block on this queue synchronously from its audio thread, so
     // nothing else may run here: stopping the device from this queue would deadlock.
     private let ioQueue = DispatchQueue(label: "listener.capture.tap.io", qos: .userInitiated)
     private let teardownQueue = DispatchQueue(label: "listener.capture.tap.teardown", qos: .utility)
-    private let watchdog: Mutex<SilenceWatchdog>
+    private let watchdog = Mutex(SilenceWatchdog())
     private let delivery = Mutex<ContinuousAudioFeed?>(nil)
 
     private var feed: ContinuousAudioFeed?
@@ -51,10 +42,8 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     private var restartPending = false
     private var lastFailure: String?
 
-    public init(options: Options = Options(), onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
+    public init(onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
         self.onEvent = onEvent
-        watchdog = Mutex(
-            SilenceWatchdog(timeout: options.silenceTimeout, maximumTimeout: options.maximumSilenceTimeout))
     }
 
     deinit {

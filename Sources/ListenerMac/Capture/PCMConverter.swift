@@ -8,7 +8,6 @@ import ListenerCore
 /// fed from one capture thread. That is the reason for @unchecked Sendable.
 final class PCMConverter: @unchecked Sendable {
     let inputFormat: AVAudioFormat
-    private let outputFormat: AVAudioFormat
     private let converter: AVAudioConverter
 
     /// - Parameter mixAllChannels: average all input channels. When false only the
@@ -16,15 +15,7 @@ final class PCMConverter: @unchecked Sendable {
     ///   the cleaned-up signal on channel 0 and reference signals on the others (it
     ///   can turn a one-channel mic into three or more).
     init(inputFormat: AVAudioFormat, mixAllChannels: Bool = true) throws {
-        guard
-            let outputFormat = AVAudioFormat(
-                commonFormat: .pcmFormatInt16,
-                sampleRate: Double(AudioChunk.sampleRate),
-                channels: 1,
-                interleaved: true
-            ),
-            let converter = AVAudioConverter(from: inputFormat, to: outputFormat)
-        else {
+        guard let converter = AVAudioConverter(from: inputFormat, to: .chunk) else {
             throw CaptureError.unsupportedFormat(AudioFormatText.describe(inputFormat))
         }
         converter.downmix = mixAllChannels
@@ -32,7 +23,6 @@ final class PCMConverter: @unchecked Sendable {
             converter.channelMap = [0]
         }
         self.inputFormat = inputFormat
-        self.outputFormat = outputFormat
         self.converter = converter
     }
 
@@ -40,17 +30,34 @@ final class PCMConverter: @unchecked Sendable {
         if buffer.frameLength == 0 {
             return []
         }
-        let ratio = outputFormat.sampleRate / inputFormat.sampleRate
+        let ratio = AVAudioFormat.chunk.sampleRate / inputFormat.sampleRate
         let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 64
-        guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
+        guard let output = AVAudioPCMBuffer(pcmFormat: .chunk, frameCapacity: capacity) else {
             return []
         }
+        try converter.convert(buffer, into: output)
 
-        // The converter pulls input through this block. Handing it the buffer once and
-        // then saying "no data now" keeps its resampler state for the next call.
-        let pending = PendingInput(buffer)
+        guard let channel = output.int16ChannelData?[0] else {
+            return []
+        }
+        return Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
+    }
+}
+
+extension AVAudioFormat {
+    /// What an AudioChunk holds: 16 kHz mono Int16.
+    static let chunk = AVAudioFormat(
+        commonFormat: .pcmFormatInt16, sampleRate: Double(AudioChunk.sampleRate), channels: 1, interleaved: true)!
+}
+
+extension AVAudioConverter {
+    /// Converts one buffer. The converter pulls input through a block; handing it the
+    /// buffer once and then saying "no data now" keeps its resampler state for the next
+    /// call.
+    func convert(_ input: AVAudioPCMBuffer, into output: AVAudioPCMBuffer) throws {
+        let pending = PendingInput(input)
         var conversionError: NSError?
-        let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
+        let status = convert(to: output, error: &conversionError) { _, inputStatus in
             guard let next = pending.take() else {
                 inputStatus.pointee = .noDataNow
                 return nil
@@ -61,11 +68,6 @@ final class PCMConverter: @unchecked Sendable {
         if status == .error {
             throw conversionError ?? CaptureError.conversionFailed
         }
-
-        guard let channel = output.int16ChannelData?[0] else {
-            return []
-        }
-        return Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
     }
 }
 

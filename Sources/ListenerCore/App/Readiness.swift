@@ -3,8 +3,10 @@ import Foundation
 /// Getting Apple's on-device speech model ready, as the app reports it.
 public enum OnDeviceSpeechStatus: Sendable, Equatable {
     case checking
+    /// macOS is downloading the model. Apple reports a fraction only, no sizes.
     case downloading(fractionCompleted: Double)
-    /// The language actually in use, which can be a near match of the one asked for.
+    /// The BCP 47 code actually in use, which can be a near match of the one asked for,
+    /// e.g. another region of the same language.
     case ready(locale: String)
     /// Not available on this Mac or in this build, or the model could not be loaded.
     case failed(String)

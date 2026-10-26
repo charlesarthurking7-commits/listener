@@ -10,31 +10,17 @@ import Speech
         private let configuration: RotatingSpeechStream.Configuration
         private let loader: ModelLoader
 
-        public init(
-            languageCode: String,
-            configuration: RotatingSpeechStream.Configuration = RotatingSpeechStream.Configuration(),
-            onModelState: @escaping @Sendable (AppleSpeechModelState) -> Void = { _ in }
-        ) {
-            displayName = "Apple on-device (\(languageCode))"
-            self.configuration = configuration
-            loader = ModelLoader(languageCode: languageCode, onState: onModelState)
-        }
-
         /// Takes the language from the speech settings and what counts as speech from the
         /// turn settings, so pauses mean the same here as in turn detection.
-        public convenience init(
-            settings: Settings,
-            onModelState: @escaping @Sendable (AppleSpeechModelState) -> Void = { _ in }
-        ) {
+        public init(settings: Settings, onModelState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void) {
+            let languageCode = settings.speech.languageCode
             let finalization = FinalizationTrigger.Configuration(
                 speechThresholdDBFS: settings.turns.vadThresholdDBFS,
                 minSpeechSeconds: Double(settings.turns.minSpeechMs) / 1000
             )
-            self.init(
-                languageCode: settings.speech.languageCode,
-                configuration: RotatingSpeechStream.Configuration(finalization: finalization),
-                onModelState: onModelState
-            )
+            displayName = "Apple on-device (\(languageCode))"
+            configuration = RotatingSpeechStream.Configuration(finalization: finalization)
+            loader = ModelLoader(languageCode: languageCode, onState: onModelState)
         }
 
         public func openStream(for speaker: Speaker) async throws -> any SpeechStream {
@@ -73,10 +59,10 @@ import Speech
     @available(macOS 26.0, *)
     actor ModelLoader {
         private let languageCode: String
-        private let onState: @Sendable (AppleSpeechModelState) -> Void
+        private let onState: @Sendable (OnDeviceSpeechStatus) -> Void
         private var loading: Task<InstalledModel, any Error>?
 
-        init(languageCode: String, onState: @escaping @Sendable (AppleSpeechModelState) -> Void) {
+        init(languageCode: String, onState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void) {
             self.languageCode = languageCode
             self.onState = onState
         }
@@ -102,7 +88,7 @@ import Speech
 
         static func load(
             languageCode: String,
-            onState: @escaping @Sendable (AppleSpeechModelState) -> Void
+            onState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
         ) async throws -> InstalledModel {
             onState(.checking)
             let requested = Locale(identifier: languageCode)
@@ -139,20 +125,13 @@ import Speech
         /// own readiness test; `AssetInventory.status` has been seen to report `.supported`
         /// on Macs where transcription works.
         private static func installedFormat(for transcriber: SpeechTranscriber) async -> AVAudioFormat? {
-            let chunkFormat = AVAudioFormat(
-                commonFormat: .pcmFormatInt16,
-                sampleRate: Double(AudioChunk.sampleRate),
-                channels: 1,
-                interleaved: true
-            )
-            return await SpeechAnalyzer.bestAvailableAudioFormat(
-                compatibleWith: [transcriber], considering: chunkFormat)
+            await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber], considering: .chunk)
         }
 
         private static func download(
             _ request: AssetInstallationRequest,
             reportingProgress: Bool,
-            onState: @escaping @Sendable (AppleSpeechModelState) -> Void
+            onState: @escaping @Sendable (OnDeviceSpeechStatus) -> Void
         ) async throws {
             guard reportingProgress else {
                 try await request.downloadAndInstall()
