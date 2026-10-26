@@ -119,10 +119,3 @@ struct ReplaySourceTests {
         }
     }
 }
-
-extension Duration {
-    var inSeconds: Double {
-        let parts = components
-        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
-    }
-}

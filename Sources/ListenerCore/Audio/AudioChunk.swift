@@ -22,3 +22,9 @@ public struct AudioChunk: Sendable {
         .seconds(Double(samples.count) / Double(Self.sampleRate))
     }
 }
+
+extension Duration {
+    public var inSeconds: Double {
+        Double(components.seconds) + Double(components.attoseconds) / 1e18
+    }
+}

@@ -107,7 +107,7 @@ struct TerminalSession {
             switch input {
             case .event(let event):
                 eventLog.record(event)
-                answers.apply(event, now: seconds(since: started))
+                answers.apply(event, now: (ContinuousClock.now - started).inSeconds)
                 Console.write(renderer.render(event))
             case .eventsEnded:
                 break loop
@@ -164,10 +164,5 @@ struct TerminalSession {
             feed.cancel()
         }
         return answers.records
-    }
-
-    private func seconds(since start: ContinuousClock.Instant) -> Double {
-        let elapsed = ContinuousClock.now - start
-        return Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
     }
 }

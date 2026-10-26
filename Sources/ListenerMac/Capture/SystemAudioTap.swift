@@ -476,8 +476,7 @@ private final class TapInput: @unchecked Sendable {
         if time.mFlags.contains(.hostTimeValid) {
             return Double(AudioConvertHostTimeToNanos(time.mHostTime)) / 1_000_000_000
         }
-        let (seconds, attoseconds) = (arrival - origin).components
-        return Double(seconds) + Double(attoseconds) / 1e18
+        return (arrival - origin).inSeconds
     }
 
     func close() {

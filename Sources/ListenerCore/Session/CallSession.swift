@@ -766,8 +766,7 @@ public actor CallSession {
     }
 
     private func sessionTime(_ instant: ContinuousClock.Instant) -> Double {
-        let parts = (instant - origin).components
-        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+        (instant - origin).inSeconds
     }
 
     /// Tenths of a millisecond are plenty, and keep session.json readable.

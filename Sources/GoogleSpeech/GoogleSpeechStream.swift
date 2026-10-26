@@ -340,9 +340,3 @@ private func describe(_ error: any Error) -> String {
     }
     return "\(error)"
 }
-
-extension Duration {
-    fileprivate var inSeconds: Double {
-        Double(components.seconds) + Double(components.attoseconds) / 1e18
-    }
-}

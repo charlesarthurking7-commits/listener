@@ -89,14 +89,14 @@ struct SpeechBench: AsyncParsableCommand {
         print("\n\(engine.name): loading (the first run downloads the model)…")
         do {
             let clock = ContinuousClock()
-            run.loadSeconds = try await clock.measure { try await engine.prepare() }.seconds
+            run.loadSeconds = try await clock.measure { try await engine.prepare() }.inSeconds
             // The first call compiles and warms the model; keep it out of the timings.
             _ = try await engine.transcribe(floats(samples, segmentation.segments[0]))
             for (index, span) in segmentation.segments.enumerated() {
                 let audio = floats(samples, span)
                 let started = clock.now
                 let text = try await engine.transcribe(audio)
-                run.segments.append(SegmentResult(text: text, seconds: started.duration(to: clock.now).seconds))
+                run.segments.append(SegmentResult(text: text, seconds: started.duration(to: clock.now).inSeconds))
                 if showsProgress {
                     print("\r\(engine.name): \(index + 1) of \(segmentation.segments.count) segments", terminator: "")
                     fflush(stdout)
@@ -118,12 +118,5 @@ struct SpeechBench: AsyncParsableCommand {
         let lower = max(0, Int(span.start * rate))
         let upper = min(samples.count, Int(span.end * rate))
         return samples[lower..<upper].map { Float($0) / 32768 }
-    }
-}
-
-extension Duration {
-    var seconds: Double {
-        let (seconds, attoseconds) = components
-        return Double(seconds) + Double(attoseconds) / 1e18
     }
 }
