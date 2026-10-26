@@ -157,15 +157,11 @@ private struct JumpToLatestButton: View {
 
 private struct FloatingCapsule: ViewModifier {
     func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                content.glassEffect(.regular.interactive(), in: Capsule())
-            } else {
-                materialCapsule(content)
-            }
-        #else
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
             materialCapsule(content)
-        #endif
+        }
     }
 
     private func materialCapsule(_ content: Content) -> some View {
@@ -181,14 +177,10 @@ private struct FloatingCapsule: ViewModifier {
 /// systems keep the plain edge rather than pay for a mask on every scroll.
 private struct SoftTopEdge: ViewModifier {
     func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                content.scrollEdgeEffectStyle(.soft, for: .top)
-            } else {
-                content
-            }
-        #else
+        if #available(macOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
             content
-        #endif
+        }
     }
 }

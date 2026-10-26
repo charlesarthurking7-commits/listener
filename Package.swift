@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 import PackageDescription
 
 // ListenerCore, GoogleSpeech and ClaudeAPI use no Apple-only frameworks, so they

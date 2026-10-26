@@ -160,13 +160,11 @@ final class FloatingPanel: NSPanel {
     /// Liquid Glass where macOS has it. Before macOS 26, the popover material, which
     /// follows light and dark mode and turns opaque with Reduce Transparency.
     private static func makeGlass() -> NSView {
-        #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                let glass = NSGlassEffectView()
-                glass.cornerRadius = Theme.windowRadius
-                return glass
-            }
-        #endif
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = Theme.windowRadius
+            return glass
+        }
         let effect = NSVisualEffectView()
         effect.material = .popover
         effect.blendingMode = .behindWindow

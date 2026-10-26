@@ -8,7 +8,7 @@ public enum OnDeviceSpeechStatus: Sendable, Equatable {
     /// The BCP 47 code actually in use, which can be a near match of the one asked for,
     /// e.g. another region of the same language.
     case ready(locale: String)
-    /// Not available on this Mac or in this build, or the model could not be loaded.
+    /// Not available on this Mac, or the model could not be loaded.
     case failed(String)
 }
 

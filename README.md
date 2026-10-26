@@ -27,8 +27,7 @@ call ends it writes a summary with action items.
 ## Requirements
 
 - Apple Silicon Mac, macOS 15 or later (macOS 26 or later for on-device speech).
-- Xcode 16.3 or later, or its Command Line Tools (`xcode-select --install`). Xcode 26 is
-  needed to build the on-device speech provider.
+- Xcode 26 or later, or its Command Line Tools (`xcode-select --install`).
 - A microphone that works with the lid closed (the built-in mics are off in clamshell
   mode), and headphones on calls so the mic does not hear the other side.
 - An Anthropic API key for answers and summaries.
