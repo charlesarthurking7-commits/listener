@@ -44,6 +44,10 @@ struct InstalledModel: Sendable {
 extension SpeechTranscriber {
     /// Volatile results feed the live interim; fast results bring them every second or
     /// so instead of every four; word times make audioStart and audioEnd precise.
+    ///
+    /// Apple calls fast results less accurate, but on the fixture calls replayed through
+    /// this pipeline they were better: 54 word errors in 496 against 91 without, as the
+    /// slower setting made up a run of "A A A…" in the silence before the first word.
     static func live(locale: Locale) -> SpeechTranscriber {
         SpeechTranscriber(
             locale: locale,
