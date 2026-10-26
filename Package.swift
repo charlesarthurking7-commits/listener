@@ -18,7 +18,7 @@ var targets: [Target] = [
         ]
     ),
     .target(name: "ClaudeAPI", dependencies: ["ListenerCore"]),
-    .testTarget(name: "ListenerCoreTests", dependencies: ["ListenerCore"], resources: [.copy("Fixtures")]),
+    .testTarget(name: "ListenerCoreTests", dependencies: ["ListenerCore"]),
     .testTarget(
         name: "GoogleSpeechTests",
         dependencies: [

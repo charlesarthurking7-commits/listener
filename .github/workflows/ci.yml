@@ -41,8 +41,6 @@ jobs:
         run: |
           sw_vers
           swift --version
-      - name: Build
-        run: swift build --product listener
       - name: Test
         run: swift test
       - name: Bundle
