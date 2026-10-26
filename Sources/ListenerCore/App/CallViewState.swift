@@ -69,14 +69,6 @@ public struct CallOutcome: Sendable, Equatable {
     public var turnCount: Int
     public var cost: Double
 
-    public init(directory: String?, summaryFile: String?, duration: Double?, turnCount: Int, cost: Double) {
-        self.directory = directory
-        self.summaryFile = summaryFile
-        self.duration = duration
-        self.turnCount = turnCount
-        self.cost = cost
-    }
-
     /// "12:05 · 48 turns · $0.12".
     public var details: String {
         var parts: [String] = []

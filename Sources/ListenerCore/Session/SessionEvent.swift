@@ -26,39 +26,15 @@ public struct AnswerRecord: Sendable, Codable, Equatable, Identifiable {
     public var model: String
     /// Session seconds when the hotkey was pressed.
     public var askedAt: Double
-    public var text: String
-    public var latency: AnswerLatency
+    public var text = ""
+    public var latency = AnswerLatency()
     public var usage: TokenUsage?
-    public var cost: Double
+    public var cost: Double = 0
     public var error: String?
     /// Shown from an answer drafted ahead when Them finished a turn
     /// (`AnswerSettings.draftAhead`). Its request went out before the hotkey, so
     /// `hotkeyToRequestSent` is negative and the other stages measure when text appeared.
-    public var fromDraft: Bool
-
-    public init(
-        id: Int,
-        tier: AnswerTier,
-        model: String,
-        askedAt: Double,
-        text: String = "",
-        latency: AnswerLatency = AnswerLatency(),
-        usage: TokenUsage? = nil,
-        cost: Double = 0,
-        error: String? = nil,
-        fromDraft: Bool = false
-    ) {
-        self.id = id
-        self.tier = tier
-        self.model = model
-        self.askedAt = askedAt
-        self.text = text
-        self.latency = latency
-        self.usage = usage
-        self.cost = cost
-        self.error = error
-        self.fromDraft = fromDraft
-    }
+    public var fromDraft = false
 }
 
 public struct CostSummary: Sendable, Codable, Equatable {

@@ -25,11 +25,6 @@ public struct TurnDetector: Sendable {
         public var changed = false
         /// Turns that just closed, in the order they closed.
         public var closed: [Turn] = []
-
-        public init(changed: Bool = false, closed: [Turn] = []) {
-            self.changed = changed
-            self.closed = closed
-        }
     }
 
     public private(set) var snapshot = TranscriptSnapshot()

@@ -90,8 +90,6 @@ public struct SummarySettings: Sendable, Codable, Equatable {
     public var enabled = true
     public var model = ModelSettings(
         model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 16_000)
-
-    public init() {}
 }
 
 public struct CaptureSettings: Sendable, Codable, Equatable {
@@ -109,8 +107,6 @@ public struct StorageSettings: Sendable, Codable, Equatable {
     public var retentionDays = 30
     /// Keep me.wav and them.wav with each session. Off: transcripts only.
     public var saveAudio = false
-
-    public init() {}
 }
 
 public struct HotkeySettings: Sendable, Codable, Equatable {
@@ -122,14 +118,10 @@ public struct HotkeySettings: Sendable, Codable, Equatable {
     public var recap = "ctrl+option+s"
     public var toggleListening = "ctrl+option+l"
     public var toggleWindow = "ctrl+option+h"
-
-    public init() {}
 }
 
 public struct WindowSettings: Sendable, Codable, Equatable {
     public var alwaysOnTop = true
     public var opacity = 0.97
     public var showDockIcon = false
-
-    public init() {}
 }

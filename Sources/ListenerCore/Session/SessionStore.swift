@@ -9,17 +9,6 @@ public struct SavedSession: Sendable, Equatable {
     public var turnCount: Int
     public var cost: CostSummary?
     public var hasSummary: Bool
-
-    public init(
-        directory: URL, startedAt: Date, duration: Double?, turnCount: Int, cost: CostSummary?, hasSummary: Bool
-    ) {
-        self.directory = directory
-        self.startedAt = startedAt
-        self.duration = duration
-        self.turnCount = turnCount
-        self.cost = cost
-        self.hasSummary = hasSummary
-    }
 }
 
 /// One session's directory, `<root>/<yyyy-MM-dd HH.mm.ss>/`:

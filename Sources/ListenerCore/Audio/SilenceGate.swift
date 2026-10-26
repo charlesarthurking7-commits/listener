@@ -4,11 +4,6 @@ public struct ChannelFrame: Sendable {
     /// Seconds of the channel's audio before this frame's first sample.
     public var start: Double
 
-    public init(chunk: AudioChunk, start: Double) {
-        self.chunk = chunk
-        self.start = start
-    }
-
     public var duration: Double { Double(chunk.samples.count) / Double(AudioChunk.sampleRate) }
     public var end: Double { start + duration }
 }

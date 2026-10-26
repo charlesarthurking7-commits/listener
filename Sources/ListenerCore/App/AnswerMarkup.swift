@@ -34,12 +34,6 @@ public struct AnswerBlock: Sendable, Equatable, Identifiable {
     public let kind: Kind
     public let spans: [AnswerSpan]
 
-    public init(id: Int, kind: Kind, spans: [AnswerSpan]) {
-        self.id = id
-        self.kind = kind
-        self.spans = spans
-    }
-
     public var text: String { spans.map(\.text).joined() }
 }
 

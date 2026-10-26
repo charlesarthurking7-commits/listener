@@ -18,15 +18,6 @@ public final class ClaudeClient: LanguageModelProvider {
         /// `warmUp()` does nothing when it last ran less than this long ago.
         public var warmUpInterval: Duration
 
-        public init(
-            responseTimeout: Duration, retryDelay: Duration, maxRetryAfter: Duration, warmUpInterval: Duration
-        ) {
-            self.responseTimeout = responseTimeout
-            self.retryDelay = retryDelay
-            self.maxRetryAfter = maxRetryAfter
-            self.warmUpInterval = warmUpInterval
-        }
-
         public static let standard = Timing(
             responseTimeout: .seconds(10), retryDelay: .milliseconds(250), maxRetryAfter: .seconds(2),
             warmUpInterval: .seconds(60))

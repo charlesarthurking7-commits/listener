@@ -133,11 +133,6 @@ public struct AudioSpan: Sendable, Equatable, Codable {
     public let start: Double
     public let end: Double
 
-    public init(start: Double, end: Double) {
-        self.start = start
-        self.end = end
-    }
-
     public var duration: Double { end - start }
 }
 

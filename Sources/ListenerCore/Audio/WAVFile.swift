@@ -14,12 +14,6 @@ public struct WAVAudio: Equatable, Sendable {
     public let channelCount: Int
     public let samples: [Int16]
 
-    public init(sampleRate: Int, channelCount: Int, samples: [Int16]) {
-        self.sampleRate = sampleRate
-        self.channelCount = channelCount
-        self.samples = samples
-    }
-
     public var frameCount: Int { samples.count / channelCount }
 }
 

@@ -22,11 +22,6 @@ public struct SettingsError: Error, Equatable, CustomStringConvertible {
     public var source: String
     public var problems: [String]
 
-    public init(source: String, problems: [String]) {
-        self.source = source
-        self.problems = problems
-    }
-
     public var description: String {
         if problems.count == 1 {
             return "\(source): \(problems[0])"

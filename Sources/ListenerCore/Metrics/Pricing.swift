@@ -13,39 +13,12 @@ public struct ModelPrice: Sendable, Codable, Equatable {
     public var longPromptOutput: Double?
     public var longPromptCacheRead: Double?
     public var longPromptCacheWrite: Double?
-
-    public init(
-        input: Double,
-        output: Double,
-        cacheRead: Double,
-        cacheWrite: Double,
-        longPromptThreshold: Int? = nil,
-        longPromptInput: Double? = nil,
-        longPromptOutput: Double? = nil,
-        longPromptCacheRead: Double? = nil,
-        longPromptCacheWrite: Double? = nil
-    ) {
-        self.input = input
-        self.output = output
-        self.cacheRead = cacheRead
-        self.cacheWrite = cacheWrite
-        self.longPromptThreshold = longPromptThreshold
-        self.longPromptInput = longPromptInput
-        self.longPromptOutput = longPromptOutput
-        self.longPromptCacheRead = longPromptCacheRead
-        self.longPromptCacheWrite = longPromptCacheWrite
-    }
 }
 
 public struct PriceTable: Sendable, Codable, Equatable {
     public var models: [String: ModelPrice]
     /// Dollars per minute of audio, per channel, keyed by speech provider name.
     public var speechPerMinute: [String: Double]
-
-    public init(models: [String: ModelPrice], speechPerMinute: [String: Double]) {
-        self.models = models
-        self.speechPerMinute = speechPerMinute
-    }
 
     /// First-party Anthropic API and Google Speech-to-Text v2 list prices, October 2026.
     public static let standard = PriceTable(

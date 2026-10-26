@@ -9,12 +9,7 @@ import Foundation
 /// prompt, which gets its own breakpoint once there are documents to cache.
 public struct PromptBuilder: Sendable {
     public var answers: AnswerSettings
-    public var call: CallContext
-
-    public init(answers: AnswerSettings, call: CallContext = .none) {
-        self.answers = answers
-        self.call = call
-    }
+    public var call = CallContext.none
 
     /// The request for a hotkey answer or recap. `now` is session seconds, used to mark
     /// how long ago things were said. A recap reads the whole call, up to the hard cap.
