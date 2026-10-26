@@ -8,6 +8,9 @@ import Foundation
 /// - A volatile result that finalisation left unchanged need not be resent as final.
 ///   Its words are promoted once the recognizer reports it has settled past them, and
 ///   when the session ends.
+/// - The volatile and the final decoding of a word can be timed so differently that
+///   they do not overlap. A volatile word that repeats the final word next to it is
+///   that stale copy, and is dropped rather than promoted as a word of its own.
 /// - A forced final can come back as punctuation only ("......."). That is dropped.
 /// - Some fillers come marked with a "#" ("#um", "#ah"). The mark is dropped, so they
 ///   read like any other filler.
@@ -20,16 +23,25 @@ public struct VolatileResultMapper: Sendable {
     private var offset = 0.0
     private var volatileWords: [Word] = []
     private var shownInterim = ""
+    /// The last few words settled as final, to tell a stale volatile copy of one from
+    /// a new word.
+    private var recentFinal: [Word] = []
 
     /// Recognizer times are only ever compared at word boundaries, so a few milliseconds
     /// of slack is enough to absorb rounding.
     private let tolerance = 0.01
+    /// How far after a final word its stale volatile copy can start. A word said again
+    /// after a real pause starts later than this.
+    private let staleCopyGap = 0.5
+    private let recentFinalCount = 8
 
     public init() {}
 
     /// Starts mapping a recognizer session whose time zero is `offset` channel seconds.
+    /// It hears none of the audio earlier sessions settled, so it cannot repeat them.
     public mutating func beginSession(at offset: Double) {
         self.offset = offset
+        recentFinal = []
     }
 
     public mutating func map(_ result: RecognizerResult) -> [SpeechEvent] {
@@ -39,18 +51,22 @@ public struct VolatileResultMapper: Sendable {
             let start = shifted(result.start) ?? words.first?.start ?? finalizedThrough
             let end = shifted(result.end) ?? words.last?.end ?? start
             let settledEdge = max(end, shifted(result.finalizedThrough) ?? end)
-            let after = volatileWords.filter { $0.start >= end - tolerance }
-            let settledAfter = after.filter { $0.end <= settledEdge + tolerance }
-
-            settle(volatileWords.filter { $0.end <= start + tolerance }, into: &events)
+            // Volatile words the final's range overlaps are replaced by it. Those on
+            // either side are kept, unless they repeat the final's words next to them.
+            var before = volatileWords.filter { $0.end <= start + tolerance }
+            before.removeLast(repeatedRun(endOf: before, startOf: words))
+            settle(before, into: &events)
             settle(words, into: &events)
+            var after = volatileWords.filter { $0.start >= end - tolerance }
+            after.removeFirst(repeatedRun(endOf: recentFinal, startOf: after))
+            let settledAfter = after.filter { $0.end <= settledEdge + tolerance }
             settle(settledAfter, into: &events)
             volatileWords = Array(after.dropFirst(settledAfter.count))
             finalizedThrough = max(finalizedThrough, settledEdge)
         } else {
             let settledEdge = shifted(result.finalizedThrough) ?? shifted(result.start) ?? finalizedThrough
             settle(volatileWords.filter { $0.end <= settledEdge + tolerance }, into: &events)
-            volatileWords = words
+            volatileWords = Array(words.dropFirst(repeatedRun(endOf: recentFinal, startOf: words)))
             finalizedThrough = max(finalizedThrough, settledEdge)
         }
         showInterim(into: &events)
@@ -91,8 +107,28 @@ public struct VolatileResultMapper: Sendable {
             return
         }
         events.append(SpeechEvent(kind: .final, text: text, audioStart: words.first?.start, audioEnd: words.last?.end))
+        recentFinal = Array((recentFinal + words).suffix(recentFinalCount))
         // A final ends the interim it settles, so any words still volatile must be shown again.
         shownInterim = ""
+    }
+
+    /// How many words at the start of `later` repeat as many at the end of `earlier`.
+    private func repeatedRun(endOf earlier: [Word], startOf later: [Word]) -> Int {
+        let longest = min(earlier.count, later.count)
+        return (0...longest).last { count in
+            zip(earlier.suffix(count), later.prefix(count)).allSatisfy { repeats($1, $0) }
+        } ?? 0
+    }
+
+    /// Whether `later` is `earlier` heard again: the same word, whatever its case and
+    /// punctuation, starting at most `staleCopyGap` after it.
+    private func repeats(_ later: Word, _ earlier: Word) -> Bool {
+        let spoken = Self.spoken(earlier.text)
+        return !spoken.isEmpty && spoken == Self.spoken(later.text) && later.start - earlier.end <= staleCopyGap
+    }
+
+    private static func spoken(_ text: String) -> String {
+        withoutFillerMarks(text).lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
     private mutating func showInterim(into events: inout [SpeechEvent]) {

@@ -92,6 +92,65 @@ struct VolatileResultMapperTests {
             ])
     }
 
+    /// The volatile and final decodings of one word can be timed so far apart that the
+    /// two do not overlap. The volatile copy is not a word of its own.
+    @Test func aStaleCopyTimedAfterTheFinalIsNotPromoted() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(
+            volatileResult(("Speak", 0.2, 0.5), (" to", 0.5, 0.7), (" you", 0.7, 0.95), (" tomorrow", 1.05, 1.4)))
+
+        var final = finalResult(("Speak", 0.2, 0.5), (" to", 0.5, 0.65), (" you", 0.65, 0.8), (" tomorrow.", 0.8, 1.0))
+        final.finalizedThrough = 2.0
+        #expect(mapper.map(final).map(\.text) == ["Speak to you tomorrow."])
+        #expect(mapper.endSession().isEmpty)
+    }
+
+    @Test func aStaleCopyLeftVolatileAfterTheFinalIsNeitherShownNorPromoted() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(volatileResult(("Speak", 0.2, 0.5), (" you", 0.7, 0.95), (" tomorrow", 1.05, 1.4)))
+
+        let events = mapper.map(finalResult(("Speak", 0.2, 0.5), (" you", 0.65, 0.8), (" tomorrow.", 0.8, 1.0)))
+        #expect(events.map(\.text) == ["Speak you tomorrow."])
+        #expect(mapper.endSession().isEmpty)
+    }
+
+    @Test func aStaleCopyTimedBeforeTheFinalIsNotPromoted() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(volatileResult(("Right", 0.0, 0.4), (" so", 0.7, 0.95)))
+
+        let events = mapper.map(finalResult((" so", 1.0, 1.2)))
+        #expect(events.map(\.text) == ["Right", "so"])
+    }
+
+    @Test func aStaleCopyInTheNextVolatileResultIsDropped() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(finalResult(("See", 0.2, 0.5), (" you", 0.5, 0.8), (" tomorrow.", 0.8, 1.0)))
+
+        let next = withFinalizedThrough(1.0, volatileResult((" tomorrow", 1.05, 1.4), (" then", 1.5, 1.7)))
+        #expect(mapper.map(next) == [SpeechEvent(kind: .interim, text: "then", audioStart: 1.5, audioEnd: 1.7)])
+        #expect(mapper.endSession().map(\.text) == ["then"])
+    }
+
+    @Test func aWordSaidAgainAfterAPauseIsKept() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(volatileResult(("No.", 0.0, 0.3), (" No", 0.9, 1.1)))
+
+        var final = finalResult(("No.", 0.0, 0.3))
+        final.finalizedThrough = 1.5
+        #expect(mapper.map(final).map(\.text) == ["No.", "No"])
+    }
+
+    @Test func aNewSessionCannotRepeatTheLastOne() {
+        var mapper = VolatileResultMapper()
+        _ = mapper.map(finalResult(("Fine", 0.0, 0.3)))
+        _ = mapper.endSession()
+
+        // The next session starts on the pause after "Fine", and the speaker says it again
+        // as soon as the pause is over.
+        mapper.beginSession(at: 0.45)
+        #expect(mapper.map(volatileResult(("Fine", 0.3, 0.6))).map(\.text) == ["Fine"])
+    }
+
     @Test func endingTheSessionPromotesWhatIsStillVolatile() {
         var mapper = VolatileResultMapper()
         mapper.beginSession(at: 3.0)

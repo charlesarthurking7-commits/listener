@@ -91,6 +91,34 @@ struct RotatingSpeechStreamTests {
         #expect(near(last?.audioStart, 1.1) && near(last?.audioEnd, 1.4))
     }
 
+    @Test func theLastWordIsNotRepeatedWhenTheVolatileCopyOfItIsTimedLater() async throws {
+        // At Stop the last final has "tomorrow" at 0.8 to 1.0 s, where the volatile
+        // result before it, from a shorter context, had it at 1.05 to 1.4 s.
+        let recognizer = FakeRecognizer()
+        let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
+        let session = try await recognizer.nextSession()
+        session.emit(
+            RecognizerResult(
+                isFinal: false, start: 0.2, end: 1.4, finalizedThrough: 0.2,
+                pieces: [
+                    .init(text: "Speak", start: 0.2, end: 0.5), .init(text: " to", start: 0.5, end: 0.7),
+                    .init(text: " you", start: 0.7, end: 0.95), .init(text: " tomorrow", start: 1.05, end: 1.4),
+                ]))
+        session.onFinish = [
+            RecognizerResult(
+                isFinal: true, start: 0.2, end: 1.0, finalizedThrough: 2.0,
+                pieces: [
+                    .init(text: "Speak", start: 0.2, end: 0.5), .init(text: " to", start: 0.5, end: 0.65),
+                    .init(text: " you", start: 0.65, end: 0.8), .init(text: " tomorrow.", start: 0.8, end: 1.0),
+                ])
+        ]
+        try await send(Synth.tone(seconds: 2.0), to: stream)
+        await stream.finish()
+
+        let finals = try await stream.events.collect().filter { $0.kind == .final }
+        #expect(finals.map(\.text) == ["Speak to you tomorrow."])
+    }
+
     @Test func audioThatArrivesWhileASessionEndsIsReplayedIntoTheNextOne() async throws {
         let recognizer = FakeRecognizer()
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
