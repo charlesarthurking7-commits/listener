@@ -29,7 +29,7 @@ jobs:
 
   macos:
     name: Build app and test (macOS)
-    runs-on: macos-26
+    runs-on: macos-latest
     if: github.ref == 'refs/heads/main' || github.event_name != 'push'
     steps:
       - uses: actions/checkout@v4
