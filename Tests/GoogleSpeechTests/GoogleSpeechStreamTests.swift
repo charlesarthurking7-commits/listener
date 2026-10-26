@@ -337,7 +337,13 @@ struct GoogleSpeechStreamTests {
 }
 
 private struct BrokenTokens: AccessTokenProvider {
+    var quotaProjectID: String? { nil }
+
     func accessToken() async throws -> String {
         throw GoogleAuthError(.missingCredentials, "No Google credentials")
+    }
+
+    func refreshAccessToken() async throws -> String {
+        try await accessToken()
     }
 }

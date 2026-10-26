@@ -10,22 +10,15 @@ typealias HTTPClient = @Sendable (URLRequest) async throws -> (Data, HTTPURLResp
 /// Access tokens for user credentials, the `authorized_user` file that
 /// `gcloud auth application-default login` writes. Exchanges the refresh token at
 /// Google's token endpoint and caches the result until shortly before it expires.
-public actor AuthorizedUserTokenProvider: AccessTokenProvider {
+public struct AuthorizedUserTokenProvider: AccessTokenProvider {
     static let tokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
     static let scope = "https://www.googleapis.com/auth/cloud-platform"
     /// A stream checks its token only when it opens, so a token with this much
     /// life left is still good for any stream that starts with it.
     static let refreshMargin: TimeInterval = 300
 
-    public nonisolated let quotaProjectID: String?
-    private let clientID: String
-    private let clientSecret: String
-    private let refreshToken: String
-    private let http: HTTPClient
-    private let now: @Sendable () -> Date
-
-    private var cached: (token: String, expiresAt: Date)?
-    private var inFlight: Task<(token: String, expiresAt: Date), any Error>?
+    public let quotaProjectID: String?
+    private let cache: TokenCache
 
     public init(clientID: String, clientSecret: String, refreshToken: String, quotaProjectID: String?) {
         self.init(
@@ -41,51 +34,34 @@ public actor AuthorizedUserTokenProvider: AccessTokenProvider {
         http: @escaping HTTPClient,
         now: @escaping @Sendable () -> Date
     ) {
-        self.clientID = clientID
-        self.clientSecret = clientSecret
-        self.refreshToken = refreshToken
         self.quotaProjectID = quotaProjectID
-        self.http = http
-        self.now = now
-    }
-
-    public func accessToken() async throws -> String {
-        if let cached, cached.expiresAt.timeIntervalSince(now()) > Self.refreshMargin {
-            return cached.token
-        }
-        return try await refresh()
-    }
-
-    public func refreshAccessToken() async throws -> String {
-        cached = nil
-        return try await refresh()
-    }
-
-    /// Joins a refresh already under way, so two channels opening together make
-    /// one request.
-    private func refresh() async throws -> String {
-        if let inFlight {
-            return try await inFlight.value.token
-        }
-        let task = Task { try await requestToken() }
-        inFlight = task
-        defer { inFlight = nil }
-        let result = try await task.value
-        cached = result
-        return result.token
-    }
-
-    private func requestToken() async throws -> (token: String, expiresAt: Date) {
-        var request = URLRequest(url: Self.tokenEndpoint, timeoutInterval: 15)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formEncoded([
+        let form = formEncoded([
             ("grant_type", "refresh_token"),
             ("client_id", clientID),
             ("client_secret", clientSecret),
             ("refresh_token", refreshToken),
             ("scope", Self.scope),
         ])
+        cache = TokenCache(margin: Self.refreshMargin, now: now) {
+            try await Self.requestToken(form: form, http: http, now: now)
+        }
+    }
+
+    public func accessToken() async throws -> String {
+        try await cache.token()
+    }
+
+    public func refreshAccessToken() async throws -> String {
+        try await cache.refreshedToken()
+    }
+
+    private static func requestToken(
+        form: Data, http: HTTPClient, now: @Sendable () -> Date
+    ) async throws -> TokenCache.Token {
+        var request = URLRequest(url: tokenEndpoint, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = form
 
         let sentAt = now()
         let data: Data
@@ -98,7 +74,7 @@ public actor AuthorizedUserTokenProvider: AccessTokenProvider {
         }
 
         guard response.statusCode == 200 else {
-            throw Self.error(status: response.statusCode, body: data)
+            throw error(status: response.statusCode, body: data)
         }
         guard let body = try? JSONDecoder().decode(TokenResponse.self, from: data), !body.accessToken.isEmpty else {
             throw GoogleAuthError(.unavailable, "Google's token endpoint returned an unreadable response")

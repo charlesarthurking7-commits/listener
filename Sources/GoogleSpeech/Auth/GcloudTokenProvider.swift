@@ -15,19 +15,13 @@ typealias CommandRunner =
 /// than the native refresh (gcloud takes a second or two to start), but it handles
 /// every kind of credentials file gcloud understands: service account keys, service
 /// account impersonation and workload identity federation.
-public actor GcloudTokenProvider: AccessTokenProvider {
+public struct GcloudTokenProvider: AccessTokenProvider {
     /// gcloud refreshes the token on every call (see print_access_token.py in the
     /// Cloud SDK), so a fresh one has a full hour of life. Half an hour leaves room.
     static let cacheLifetime: TimeInterval = 1800
 
-    public nonisolated let quotaProjectID: String?
-    private let credentialsFile: String?
-    private let environment: [String: String]
-    private let run: CommandRunner
-    private let now: @Sendable () -> Date
-
-    private var cached: (token: String, fetchedAt: Date)?
-    private var inFlight: Task<String, any Error>?
+    public let quotaProjectID: String?
+    private let cache: TokenCache
 
     /// - Parameters:
     ///   - credentialsFile: Passed to gcloud as GOOGLE_APPLICATION_CREDENTIALS. Nil uses
@@ -50,46 +44,33 @@ public actor GcloudTokenProvider: AccessTokenProvider {
         run: @escaping CommandRunner,
         now: @escaping @Sendable () -> Date
     ) {
-        self.credentialsFile = credentialsFile
         self.quotaProjectID = quotaProjectID
-        self.environment = environment
-        self.run = run
-        self.now = now
+        cache = TokenCache(margin: 0, now: now) {
+            let fetchedAt = now()
+            let token = try await Self.printAccessToken(
+                credentialsFile: credentialsFile, environment: environment, run: run)
+            return (token, fetchedAt.addingTimeInterval(Self.cacheLifetime))
+        }
     }
 
     public func accessToken() async throws -> String {
-        if let cached, now().timeIntervalSince(cached.fetchedAt) < Self.cacheLifetime {
-            return cached.token
-        }
-        return try await refresh()
+        try await cache.token()
     }
 
     public func refreshAccessToken() async throws -> String {
-        cached = nil
-        return try await refresh()
+        try await cache.refreshedToken()
     }
 
-    private func refresh() async throws -> String {
-        if let inFlight {
-            return try await inFlight.value
-        }
-        let task = Task { try await printAccessToken() }
-        inFlight = task
-        defer { inFlight = nil }
-        let fetchedAt = now()
-        let token = try await task.value
-        cached = (token, fetchedAt)
-        return token
-    }
-
-    private func printAccessToken() async throws -> String {
-        guard let gcloud = Self.locateGcloud(environment: environment) else {
+    private static func printAccessToken(
+        credentialsFile: String?, environment: [String: String], run: CommandRunner
+    ) async throws -> String {
+        guard let gcloud = locateGcloud(environment: environment) else {
             throw GoogleAuthError(
                 .missingCredentials,
                 "These Google credentials need the gcloud CLI, which was not found. Install the Google Cloud SDK.")
         }
         var childEnvironment = environment
-        childEnvironment["PATH"] = Self.searchPath(environment: environment).joined(separator: ":")
+        childEnvironment["PATH"] = searchPath(environment: environment).joined(separator: ":")
         if let credentialsFile {
             childEnvironment["GOOGLE_APPLICATION_CREDENTIALS"] = credentialsFile
         }

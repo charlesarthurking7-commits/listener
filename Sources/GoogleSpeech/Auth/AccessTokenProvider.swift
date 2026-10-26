@@ -16,12 +16,49 @@ public protocol AccessTokenProvider: Sendable {
     var quotaProjectID: String? { get }
 }
 
-extension AccessTokenProvider {
-    public func refreshAccessToken() async throws -> String {
-        try await accessToken()
+/// One cached access token, fetched again once less than `margin` of its life is left.
+/// Callers that arrive during a fetch join it, so two channels opening together make
+/// one request.
+actor TokenCache {
+    typealias Token = (token: String, expiresAt: Date)
+
+    private let margin: TimeInterval
+    private let now: @Sendable () -> Date
+    private let fetch: @Sendable () async throws -> Token
+    private var cached: Token?
+    private var inFlight: Task<Token, any Error>?
+
+    init(
+        margin: TimeInterval, now: @escaping @Sendable () -> Date, fetch: @escaping @Sendable () async throws -> Token
+    ) {
+        self.margin = margin
+        self.now = now
+        self.fetch = fetch
     }
 
-    public var quotaProjectID: String? { nil }
+    func token() async throws -> String {
+        if let cached, cached.expiresAt.timeIntervalSince(now()) > margin {
+            return cached.token
+        }
+        return try await refresh()
+    }
+
+    func refreshedToken() async throws -> String {
+        cached = nil
+        return try await refresh()
+    }
+
+    private func refresh() async throws -> String {
+        if let inFlight {
+            return try await inFlight.value.token
+        }
+        let task = Task { try await fetch() }
+        inFlight = task
+        defer { inFlight = nil }
+        let result = try await task.value
+        cached = result
+        return result.token
+    }
 }
 
 public struct GoogleAuthError: Error, LocalizedError, CustomStringConvertible, Equatable {
