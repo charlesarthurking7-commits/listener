@@ -119,6 +119,28 @@ struct GapFillerTests {
         #expect(filler.streamEnd == at(300))
     }
 
+    /// A Mac that slept through an hour of a call: no audio and no ticks until it woke.
+    @Test func aGapLongerThanThePauseIsCutShort() {
+        var filler = GapFiller(speaker: .them, origin: origin)
+        _ = filler.accept(chunk(endMs: 100))
+        let pause = filler.fill(until: at(3_600_100))
+        #expect(sampleCount(pause) == SampleClock.samples(in: GapFiller.maximumFill))
+        #expect(pause.allSatisfy { LevelMeter.isDigitalSilence($0.samples) })
+        // The pause follows the audio before the gap, and the rest of the gap is skipped.
+        #expect(pause.last?.capturedAt == at(100) + GapFiller.maximumFill)
+        #expect(filler.streamEnd == at(3_600_100))
+        #expect(filler.accept(chunk(endMs: 3_600_200)).count == 1)
+    }
+
+    @Test func aLongGapFoundByTheNextChunkIsCutShortToo() {
+        var filler = GapFiller(speaker: .them, origin: origin)
+        _ = filler.accept(chunk(endMs: 100))
+        let output = filler.accept(chunk(endMs: 3_600_200))
+        #expect(sampleCount(Array(output.dropLast())) == SampleClock.samples(in: GapFiller.maximumFill))
+        #expect(output.last?.samples.first == 100)
+        #expect(filler.streamEnd == at(3_600_200))
+    }
+
     @Test func silenceBeforeTheFirstChunkCountsFromTheOrigin() {
         var filler = GapFiller(speaker: .them, origin: origin)
         let output = filler.accept(chunk(endMs: 1100))

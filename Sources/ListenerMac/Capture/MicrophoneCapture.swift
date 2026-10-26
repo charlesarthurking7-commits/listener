@@ -6,10 +6,10 @@ import Synchronization
 /// The "Me" channel: the default input device through AVAudioEngine.
 ///
 /// AVAudioEngine stops itself when the audio hardware changes channel count or sample
-/// rate and posts AVAudioEngineConfigurationChange. Whenever that happens, or the default
-/// input device changes, this class throws the engine away and starts a new one on the
-/// current default device, with a converter for its format. The channel carries silence
-/// in between, and while no microphone is present.
+/// rate and posts AVAudioEngineConfigurationChange. Whenever that happens, the default
+/// input device changes or the Mac wakes from sleep, this class throws the engine away
+/// and starts a new one on the current default device, with a converter for its format.
+/// The channel carries silence in between, and while no microphone is present.
 ///
 /// Mutable state is only touched on `controlQueue`, hence @unchecked Sendable.
 public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
@@ -22,6 +22,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     private var engine: AVAudioEngine?
     private var configurationObserver: (any NSObjectProtocol)?
     private var inputListener: PropertyListener?
+    private var sleepListener: SleepWakeListener?
     private var pacer = RestartPacer()
     private var restartPending = false
     private var lastFailure: String?
@@ -80,6 +81,9 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
             Log.capture.error(
                 "Cannot follow input device changes: \(String(describing: error), privacy: .public)")
         }
+        sleepListener = SleepWakeListener(speaker: .me) { [weak self] in
+            self?.requestRestart(.wokeFromSleep)
+        }
         return info
     }
 
@@ -89,6 +93,8 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         delivery.withLock { $0 = nil }
         inputListener?.remove()
         inputListener = nil
+        sleepListener?.remove()
+        sleepListener = nil
         stopEngine()
     }
 

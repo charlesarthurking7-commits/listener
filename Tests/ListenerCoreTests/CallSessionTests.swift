@@ -583,6 +583,41 @@ struct CallSessionTests {
         #expect((seconds["Me"] ?? 0) == 0)
     }
 
+    /// The lid closed for an hour during a call. Speech-to-text gets a short pause, enough
+    /// to finalise what was said before, not an hour of silence to get through first, and
+    /// what is said after the wake is still placed an hour into the call.
+    @Test func anHourAsleepIsAShortPauseAndKeepsTheCallsTimes() async throws {
+        // The scripted recogniser goes by the audio it is sent: two seconds before the
+        // sleep, the pause, then the audio after the wake.
+        let script = ConversationScript(
+            title: "lid closed",
+            lines: [
+                .init(speaker: .them, start: 0.5, end: 1.8, text: "Before the lid closed."),
+                .init(speaker: .them, start: 4.5, end: 5.5, text: "After it opened again."),
+            ])
+        let root = try temporaryDirectory("sleep")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let them = FeedSource(speaker: .them)
+        let session = CallSession(
+            settings: sessionSettings(directory: root),
+            components: SessionComponents(
+                sources: [.them: them], speech: ScriptedSpeechToText(script: script), languageModel: nil))
+        try await session.start()
+
+        them.deliver(Synth.track(seconds: 2, bursts: [0.5...1.8], frequency: 200, amplitude: 0.2), endingAt: 2)
+        them.tick(at: 3602)
+        #expect(await eventually { await session.transcript.turns.count == 1 })
+        them.deliver(Synth.track(seconds: 2, bursts: [0.5...1.5], frequency: 200, amplitude: 0.2), endingAt: 3604)
+        #expect(await eventually { await session.transcript.turns.count == 2 })
+        await session.stop()
+
+        let turns = await session.transcript.turns
+        try #require(turns.map(\.text) == script.lines.map(\.text))
+        #expect(abs(turns[0].start - 0.5) < 0.05 && abs(turns[0].end - 1.8) < 0.05)
+        #expect(abs(turns[1].start - 3602.5) < 0.05 && abs(turns[1].end - 3603.5) < 0.05)
+        #expect(try #require(await session.cost.speechSeconds["Them"]) <= 6.1)
+    }
+
     @Test func withoutALanguageModelThereAreNoAnswersOrSummary() async throws {
         let setup = try setUp(model: nil)
         defer { try? FileManager.default.removeItem(at: setup.root) }

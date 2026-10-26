@@ -9,7 +9,8 @@ import Synchronization
 ///
 /// Taps fail quietly, so this class keeps the channel alive itself:
 /// - It rebuilds when the default output device or its sample rate changes: a headset
-///   plugged in, or a Bluetooth headset switching to its call profile.
+///   plugged in, or a Bluetooth headset switching to its call profile. It also rebuilds
+///   when the Mac wakes from sleep.
 /// - It reads the audio at the rate the device clock runs at, not the one the tap's
 ///   format reports, and keeps checking the rate it arrives at, as AirPods switch to a
 ///   lower rate when a call app opens their mic (see DeliveredRateMonitor).
@@ -45,6 +46,7 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
     private var feed: ContinuousAudioFeed?
     private var pipeline: TapPipeline?
     private var outputListener: PropertyListener?
+    private var sleepListener: SleepWakeListener?
     private var pacer = RestartPacer()
     private var restartPending = false
     private var lastFailure: String?
@@ -105,6 +107,9 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
             Log.capture.error(
                 "Cannot follow output device changes: \(String(describing: error), privacy: .public)")
         }
+        sleepListener = SleepWakeListener(speaker: .them) { [weak self] in
+            self?.requestRestart(.wokeFromSleep)
+        }
         return info
     }
 
@@ -114,6 +119,8 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         delivery.withLock { $0 = nil }
         outputListener?.remove()
         outputListener = nil
+        sleepListener?.remove()
+        sleepListener = nil
         retire(pipeline)
         pipeline = nil
     }
@@ -205,7 +212,8 @@ public final class SystemAudioTap: AudioCaptureSource, @unchecked Sendable {
         guard feed != nil else {
             return
         }
-        guard let pipeline else {
+        // Sleep can leave the tap broken on a route that looks the same, so a wake always rebuilds.
+        guard let pipeline, reason != .wokeFromSleep else {
             rebuild(reason)
             return
         }

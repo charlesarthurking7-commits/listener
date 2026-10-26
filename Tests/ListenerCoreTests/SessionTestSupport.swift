@@ -244,3 +244,50 @@ final class PushSource: AudioCaptureSource, Sendable {
         }
     }
 }
+
+/// A capture source that delivers through a ContinuousAudioFeed, as the Mac's do, with
+/// capture times and timer ticks the test picks, counted in seconds from its start.
+final class FeedSource: AudioCaptureSource, Sendable {
+    let speaker: Speaker
+    private let state = Mutex<(feed: ContinuousAudioFeed, origin: ContinuousClock.Instant)?>(nil)
+
+    init(speaker: Speaker) {
+        self.speaker = speaker
+    }
+
+    func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
+        // The feed's own timer would tick an hour from now; the test ticks it instead.
+        let feed = ContinuousAudioFeed(speaker: speaker, tickInterval: .seconds(3600), onChunk: onChunk)
+        let origin = ContinuousClock.now
+        feed.start(at: origin)
+        state.withLock { $0 = (feed, origin) }
+        return ChannelInfo(speaker: speaker, backend: "feed", device: "test", nativeFormat: "16 kHz")
+    }
+
+    func stop() {
+        state.withLock { $0?.feed }?.stop()
+    }
+
+    /// Delivers `samples` in 100 ms chunks, the last one captured at `seconds`.
+    func deliver(_ samples: [Int16], endingAt seconds: Double) {
+        guard let (feed, origin) = state.withLock({ $0 }) else {
+            return
+        }
+        let end = origin + .seconds(seconds)
+        var index = 0
+        while index < samples.count {
+            let next = min(index + AudioChunk.sampleRate / 10, samples.count)
+            let capturedAt = end - SampleClock.duration(ofSamples: samples.count - next)
+            feed.accept(AudioChunk(speaker: speaker, samples: Array(samples[index..<next]), capturedAt: capturedAt))
+            index = next
+        }
+    }
+
+    /// The feed's timer firing at `seconds`.
+    func tick(at seconds: Double) {
+        guard let (feed, origin) = state.withLock({ $0 }) else {
+            return
+        }
+        feed.tick(now: origin + .seconds(seconds))
+    }
+}

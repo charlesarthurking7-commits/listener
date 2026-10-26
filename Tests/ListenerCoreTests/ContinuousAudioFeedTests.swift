@@ -57,6 +57,31 @@ struct ContinuousAudioFeedTests {
         feed.stop()
     }
 
+    /// The lid closed for an hour with a call running. Whichever comes first after the
+    /// wake, the tick or the source's next buffer (on the tap's IO thread), the channel
+    /// gets a short pause rather than an hour of silence in one go.
+    @Test(arguments: [true, false])
+    func anHourAsleepBecomesAShortPause(tickFirst: Bool) {
+        let collector = Collector()
+        let feed = makeFeed(collector)
+        let origin = ContinuousClock.now
+        feed.start(at: origin)
+
+        feed.accept(audio(100, endingAt: origin + .milliseconds(100)))
+        let woke = origin + .seconds(3600)
+        if tickFirst {
+            feed.tick(now: woke)
+        }
+        feed.accept(audio(100, endingAt: woke + .milliseconds(100)))
+
+        let chunks = collector.all
+        #expect(collector.sampleCount == 1_600 + SampleClock.samples(in: GapFiller.maximumFill) + 1_600)
+        #expect(chunks.last?.samples.first == 7)
+        #expect(chunks.last?.capturedAt == woke + .milliseconds(100))
+        #expect(zip(chunks, chunks.dropFirst()).allSatisfy { $0.capturedAt <= $1.capturedAt })
+        feed.stop()
+    }
+
     @Test func deliversNothingAfterStop() {
         let collector = Collector()
         let feed = makeFeed(collector)

@@ -10,15 +10,27 @@
 /// rebuilt (`realign()`), however short the break. Real audio is never dropped, so a
 /// buffer that turns up late, after the gap was already filled, puts the stream slightly
 /// ahead of the wall clock until the next gap absorbs the difference.
+///
+/// A gap that arrives all at once, as when the Mac slept with a call running, gets at
+/// most `maximumFill` of silence and the rest is skipped. Otherwise an hour asleep would
+/// go out as an hour of silence in one burst, which speech-to-text then has to get
+/// through before it hears anything new. Chunks carry their capture times, so the turn
+/// detector still places what comes after the gap at the right time (see CaptureClock).
 public struct GapFiller: Sendable {
     public static let defaultThreshold: Duration = .milliseconds(250)
     /// Silence goes out in pieces no longer than this, so it looks like ordinary audio downstream.
     public static let fillChunkSamples = AudioChunk.sampleRate / 10
+    /// The most silence one gap gets: a pause long enough for a recogniser to finalise
+    /// what was said before it.
+    public static let maximumFill: Duration = .seconds(2)
+    private static let maximumFillSamples = SampleClock.samples(in: maximumFill)
 
     public let speaker: Speaker
     public let threshold: Duration
     private let origin: ContinuousClock.Instant
     private var emittedSamples = 0
+    /// The parts of long gaps that were skipped rather than filled.
+    private var skippedSamples = 0
     private var lastArrival: ContinuousClock.Instant
     private var realignPending = false
 
@@ -30,9 +42,10 @@ public struct GapFiller: Sendable {
         lastArrival = origin
     }
 
-    /// The wall-clock time the next sample belongs to, judging by how much audio went out.
+    /// The wall-clock time the next sample belongs to, judging by how much audio went out
+    /// and how much was skipped.
     public var streamEnd: ContinuousClock.Instant {
-        origin + SampleClock.duration(ofSamples: emittedSamples)
+        origin + SampleClock.duration(ofSamples: emittedSamples + skippedSamples)
     }
 
     /// Passes a captured chunk through, preceded by silence if the source had been quiet
@@ -63,8 +76,11 @@ public struct GapFiller: Sendable {
         return silence(until: now)
     }
 
+    /// A long gap's pause follows the audio before it; the skip comes after the pause.
     private mutating func silence(until end: ContinuousClock.Instant) -> [AudioChunk] {
-        var missing = SampleClock.samples(in: end - streamEnd)
+        let gap = SampleClock.samples(in: end - streamEnd)
+        var missing = min(gap, Self.maximumFillSamples)
+        let skipped = gap - missing
         var pieces: [AudioChunk] = []
         while missing > 0 {
             let count = min(missing, Self.fillChunkSamples)
@@ -73,6 +89,7 @@ public struct GapFiller: Sendable {
             pieces.append(
                 AudioChunk(speaker: speaker, samples: Array(repeating: 0, count: count), capturedAt: streamEnd))
         }
+        skippedSamples += skipped
         return pieces
     }
 }

@@ -63,6 +63,7 @@ public enum CaptureRestartReason: Sendable, Equatable, CustomStringConvertible {
     case digitalSilence(seconds: Int)
     /// The capture stream ended with an error.
     case streamStopped
+    case wokeFromSleep
 
     public var description: String {
         switch self {
@@ -72,6 +73,7 @@ public enum CaptureRestartReason: Sendable, Equatable, CustomStringConvertible {
         case .audioConfigurationChanged: "audio configuration changed"
         case .digitalSilence(let seconds): "\(seconds) s of digital silence while another app was playing audio"
         case .streamStopped: "stream stopped"
+        case .wokeFromSleep: "Mac woke from sleep"
         }
     }
 }
