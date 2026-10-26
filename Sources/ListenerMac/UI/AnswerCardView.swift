@@ -109,10 +109,12 @@ private struct AnswerHeader: View {
                     .transition(.opacity)
                     .accessibilityLabel("Copied")
             } else {
+                // Half an answer, or one that is only a note, is nothing to paste.
                 Button(action: copy) {
                     Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(IconButtonStyle(size: 24))
+                .disabled(card.status != .finished || !model.canCopyAnswer)
                 .help("Copy the \(card.tier.noun), without the notes for you")
                 .accessibilityLabel("Copy the \(card.tier.noun)")
             }
@@ -120,7 +122,9 @@ private struct AnswerHeader: View {
     }
 
     private func copy() {
-        model.copyAnswer()
+        guard model.copyAnswer() else {
+            return
+        }
         withAnimation(.easeOut(duration: 0.15)) {
             copied = true
         }

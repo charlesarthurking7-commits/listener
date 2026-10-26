@@ -74,6 +74,10 @@ final class CallModel {
     @ObservationIgnored private var throttle = UpdateThrottle.displayRate
     @ObservationIgnored private var markup = AnswerMarkup()
     @ObservationIgnored private let library: CallTypeLibrary
+    /// The picked call type as last read off the main thread, so Start doesn't wait for
+    /// its PDFs. Nil while it is being read again.
+    @ObservationIgnored private var loadedCall: (name: String, context: CallContext)?
+    @ObservationIgnored private var callReads = 0
     @ObservationIgnored private let callTypeWatcher = FolderWatcher()
 
     init(environment: AppEnvironment) {
@@ -164,7 +168,9 @@ final class CallModel {
             return
         }
 
-        let call = library.load(callType, readText: DocumentText.read).context
+        let call =
+            loadedCall.flatMap { $0.name == callType ? $0.context : nil }
+            ?? library.load(callType, readText: DocumentText.read).context
         activeCall = call
         Log.session.info(
             "Call type \(call.callType, privacy: .public) with \(call.documents.count) documents")
@@ -252,12 +258,13 @@ final class CallModel {
     }
 
     /// Solid is fully opaque. Clear also fades the window between answers during a call,
-    /// and brings it back when an answer arrives or the pointer is over it.
+    /// and brings it back when an answer arrives or the pointer is over it. Reads the
+    /// answer's id, not the answer, so the window is not updated for every streamed word.
     var windowOpacity: Double {
         if transparency == .solid {
             return 1
         }
-        if transparency == .clear && isInCall && answer == nil && !isPointerOver {
+        if transparency == .clear && isInCall && answerID == nil && !isPointerOver {
             return WindowTransparency.clearIdleOpacity
         }
         return settings.window.opacity
@@ -294,14 +301,25 @@ final class CallModel {
         publish()
     }
 
+    /// Whether the answer has words to say, beyond notes in brackets for the user.
+    var canCopyAnswer: Bool {
+        answerBlocks.contains { block in
+            if case .note = block.kind {
+                return false
+            }
+            return true
+        }
+    }
+
     /// Copies what to say, leaving out the notes in brackets that are only for the user.
-    func copyAnswer() {
+    /// Returns whether anything was copied.
+    func copyAnswer() -> Bool {
         let text = markup.textToSay
         guard !text.isEmpty else {
-            return
+            return false
         }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        return NSPasteboard.general.setString(text, forType: .string)
     }
 
     func dismissNotice(_ notice: Notice) {
@@ -564,10 +582,15 @@ final class CallModel {
     private func reloadCallFiles() {
         let library = library
         let name = callType
+        loadedCall = nil
+        callReads += 1
+        let read = callReads
         Task {
             let loaded = await Task.detached { library.load(name, readText: DocumentText.read) }.value
-            if callType == name {
+            // A newer read has begun if the files changed meanwhile; this one is stale.
+            if callType == name, read == callReads {
                 callFiles = loaded.files
+                loadedCall = (name, loaded.context)
             }
         }
     }
