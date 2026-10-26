@@ -207,7 +207,7 @@ after it is labelled "If you want to chip in".
 | --- | --- |
 | Quick answer (Haiku 5.5) | Control-Option-A (`ctrl+option+a`) |
 | Deep answer (Sonnet 5.5) | Control-Option-Shift-A (`ctrl+option+shift+a`) |
-| Recap so far (Haiku 5.5) | Control-Option-S (`ctrl+option+s`) |
+| Recap so far (Sonnet 5.5) | Control-Option-S (`ctrl+option+s`) |
 | Start or stop listening | Control-Option-L (`ctrl+option+l`) |
 | Show or hide the window | Control-Option-H (`ctrl+option+h`) |
 

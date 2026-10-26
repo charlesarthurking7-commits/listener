@@ -55,7 +55,9 @@ public struct TurnSettings: Sendable, Codable, Equatable {
 public struct AnswerSettings: Sendable, Codable, Equatable {
     public var quick = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 600)
     public var deep = ModelSettings(model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 4000)
-    public var recap = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 1000)
+    /// Sonnet, not Haiku: over a long call Haiku mixes up who asked and agreed what, and
+    /// hands the user other people's requests.
+    public var recap = ModelSettings(model: "claude-sonnet-5-5", effort: "low", thinking: .off, maxTokens: 1000)
     /// Transcript tokens sent with each answer: about 20 minutes of non-stop conversation,
     /// longer for a real call with pauses.
     public var transcriptBudgetTokens = 8_000
