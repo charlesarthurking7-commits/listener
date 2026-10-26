@@ -685,6 +685,7 @@ public actor CallSession {
             for channel in speech {
                 channel.cancel()
             }
+            emit(.warning("Speech-to-text hadn't finished 3 s after Stop, so the last words may be missing."))
         }
         acceptingSpeech = false
         apply(detector.finish())

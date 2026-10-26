@@ -475,6 +475,21 @@ final class CallSessionTests {
         #expect(model.requests[1].userText.contains("Me: Let me look."))
     }
 
+    @Test func speechThatHasNotFinishedByStopIsReported() async throws {
+        // A recogniser far behind (a loaded Mac) is cut off at Stop; its last words may be lost.
+        final class Stuck: SpeechToTextProvider, SpeechStream, @unchecked Sendable {
+            let displayName = "stuck"
+            let (events, continuation) = AsyncThrowingStream.makeStream(of: SpeechEvent.self)
+            func openStream(for speaker: Speaker) async throws -> any SpeechStream { self }
+            func send(_ chunk: AudioChunk) async throws {}
+            func finish() async {}
+        }
+        let setup = try setUp(sources: [.me: FakeSource(.me)], speech: Stuck(), model: nil)
+        try await setup.session.start()
+        await setup.stop()
+        #expect(setup.recorder.warnings.contains { $0.hasPrefix("Speech-to-text hadn't finished") })
+    }
+
     @Test func aRejectedKeyIsReportedAtStartNotAtTheFirstHotkey() async throws {
         struct RejectedKey: LanguageModelProvider {
             func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
