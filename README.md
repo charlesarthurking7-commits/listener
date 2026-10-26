@@ -24,11 +24,6 @@ call ends it writes a summary with action items.
 - **Local**: calls are saved under `~/Library/Application Support/Listener/sessions`
   with 30-day retention. Raw audio is not kept unless you turn it on.
 
-**Status:** all features are built and tested. The whole package, dependencies included,
-compiles for macOS against the macOS 26.5 SDK, but it was developed without a Mac, so it
-has never been linked or run: the first build and run on yours is the first real test.
-Start with the audio spike below.
-
 ## Requirements
 
 - Apple Silicon Mac, macOS 15 or later (macOS 26 or later for on-device speech).
@@ -81,21 +76,14 @@ scripts/spike.sh --voice-processing     # echo cancellation, if you are on speak
 
 ## macOS permissions
 
-| Permission | Used for | Where to change it |
-| --- | --- | --- |
-| Microphone | "Me" | System Settings > Privacy & Security > Microphone |
-| System Audio Recording | "Them" (default Core Audio tap) | Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" |
-| Screen Recording | "Them", only with the `sck` backend | Same pane, "Screen & System Audio Recording" |
-
-macOS asks the first time each is used. A channel without permission records silence
-rather than failing, and the window warns you. **Accessibility is not needed**: the
-hotkeys use `RegisterEventHotKey`, which macOS allows without it.
+[First run](docs/USAGE.md#first-run), step 4, lists the permissions macOS asks for and
+where to change them.
 
 macOS ties permissions to the app's code signature. `scripts/build-app.sh` signs ad hoc,
 which changes with every build, so macOS asks again after rebuilds. To keep permissions,
 create a stable identity once: Keychain Access > Certificate Assistant > Create a
-Certificate, name `Listener Dev`, "Self Signed Root", "Code Signing"; then
-`export LISTENER_SIGNING_IDENTITY="Listener Dev"`.
+Certificate, name `Listener Dev`, "Self Signed Root", "Code Signing". The build script
+picks it up from then on.
 
 The scripts launch the app through `open` so that macOS asks on behalf of Listener. A
 command run straight from Terminal gets its permissions through your terminal app.
@@ -106,8 +94,8 @@ command run straight from Terminal gets its permissions through your terminal ap
 swift build                 # everything (the macOS targets build only on macOS)
 swift test                  # ListenerCore, GoogleSpeech and ClaudeAPI tests, also on Linux
 scripts/build-app.sh        # release app bundle
-swift format lint --strict --recursive Sources Tests Package.swift
-swift format --in-place --recursive Sources Tests Package.swift
+swift format lint --strict --recursive Sources Tests Package.swift Tools/SpeechBench/Sources Tools/SpeechBench/Package.swift
+swift format --in-place --recursive Sources Tests Package.swift Tools/SpeechBench/Sources Tools/SpeechBench/Package.swift
 scripts/generate-protos.sh  # regenerate the Speech-to-Text gRPC client
 ```
 

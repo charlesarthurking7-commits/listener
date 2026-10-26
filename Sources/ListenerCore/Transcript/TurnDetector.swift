@@ -1,7 +1,7 @@
 import Foundation
 
 /// Builds speaker turns from each channel's speech-to-text results and voice activity
-/// (PLAN 4.5).
+/// (PLAN 3.5).
 ///
 /// Results and voice activity arrive in channel time, seconds of that channel's audio.
 /// `audioProgress` says when each stretch of audio was captured, which maps channel time
