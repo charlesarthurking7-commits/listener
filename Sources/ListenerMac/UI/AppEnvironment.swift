@@ -20,6 +20,9 @@ public struct AppEnvironment: Sendable {
     public var sessionsDirectory: @Sendable (Settings) -> URL
     /// A web page as a Markdown document for a call's background.
     public var importWebPage: @Sendable (URL, Settings) async throws -> String
+    /// Writes the summaries earlier calls still owe, because the app quit or crashed
+    /// while writing them, and returns their files.
+    public var finishDueSummaries: @Sendable (Settings) async -> [URL]
 
     public init(
         paths: ListenerPaths,
@@ -31,7 +34,8 @@ public struct AppEnvironment: Sendable {
             @escaping @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void,
         hasAnthropicKey: @escaping @Sendable () -> Bool,
         sessionsDirectory: @escaping @Sendable (Settings) -> URL,
-        importWebPage: @escaping @Sendable (URL, Settings) async throws -> String
+        importWebPage: @escaping @Sendable (URL, Settings) async throws -> String,
+        finishDueSummaries: @escaping @Sendable (Settings) async -> [URL]
     ) {
         self.paths = paths
         self.launchSettings = launchSettings
@@ -42,6 +46,7 @@ public struct AppEnvironment: Sendable {
         self.hasAnthropicKey = hasAnthropicKey
         self.sessionsDirectory = sessionsDirectory
         self.importWebPage = importWebPage
+        self.finishDueSummaries = finishDueSummaries
     }
 }
 

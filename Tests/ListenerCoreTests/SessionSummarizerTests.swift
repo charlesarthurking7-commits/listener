@@ -51,6 +51,41 @@ struct SessionSummarizerTests {
         #expect(model.requests.count == 1)
     }
 
+    @Test func summariesStillDueGetOneMoreTry() async throws {
+        let root = try temporaryDirectory("summary")
+        defer { try? FileManager.default.removeItem(at: root) }
+        func session(startingAt seconds: Double, saying text: String, due: Bool) throws -> URL {
+            let startedAt = Date(timeIntervalSince1970: seconds)
+            let store = try SessionStore(root: root, startedAt: startedAt)
+            try store.append(Turn(id: 1, speaker: .them, text: text, start: 1, end: 2))
+            try store.write(
+                SessionRecord(
+                    startedAt: startedAt, channels: [], speechProvider: "x", settings: Settings(), turnCount: 1,
+                    summaryDue: due))
+            try store.close()
+            return store.directory
+        }
+        let summarised = try session(startingAt: 1_790_000_000, saying: "Thanks, bye.", due: false)
+        let quitWhileWriting = try session(startingAt: 1_790_003_600, saying: "Can you send the report?", due: true)
+        let failing = try session(startingAt: 1_790_007_200, saying: "This one fails.", due: true)
+        #expect(
+            SessionSummarizer.due(in: root).map(\.lastPathComponent)
+                == [quitWhileWriting, failing].map(\.lastPathComponent))
+
+        let model = ScriptedLanguageModel(firstTokenDelay: .zero, tokenInterval: .zero) { request in
+            if request.userText.contains("This one fails.") {
+                throw URLError(.timedOut)
+            }
+            return tradeSummary
+        }
+        let written = await SessionSummarizer.finishDue(in: root, settings: Settings(), model: model)
+        #expect(written.map { $0.pathComponents.suffix(2) } == [[quitWhileWriting.lastPathComponent, "summary.md"]])
+        #expect(try SessionStore.readRecord(in: quitWhileWriting).summaryFile == "summary.md")
+        // A failure is not tried again at every launch.
+        #expect(SessionSummarizer.due(in: root).isEmpty)
+        #expect(try SessionStore.readRecord(in: summarised).summaryFile == nil)
+    }
+
     @Test func aSummaryCutOffAtTheTokenLimitSaysSo() async throws {
         let model = ScriptedLanguageModel(
             answer: "## Summary\n\nThe report", firstTokenDelay: .zero, tokenInterval: .zero, stopReason: "max_tokens")

@@ -96,6 +96,16 @@ enum SessionFactory {
         return ClaudeClient(apiKey: key, transport: transport)
     }
 
+    /// Summaries that earlier calls still owe. The Keychain is only read when there is one.
+    static func finishDueSummaries(_ settings: Settings, secrets: any SecretStore) async -> [URL] {
+        let root = SessionStore.root(for: settings.storage)
+        guard settings.summary.enabled, !SessionSummarizer.due(in: root).isEmpty, let model = languageModel(secrets)
+        else {
+            return []
+        }
+        return await SessionSummarizer.finishDue(in: root, settings: settings, model: model)
+    }
+
     /// A web page as Markdown for a call's background, tidied by the quick model.
     static func importWebPage(_ url: URL, settings: Settings, secrets: any SecretStore) async throws -> String {
         guard let model = languageModel(secrets) else {

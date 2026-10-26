@@ -1,9 +1,9 @@
 import ListenerCore
 import SwiftUI
 
-/// After Stop: progress while the call is saved and summarised, then the saved call
-/// with its length, turns and cost, a way to open the summary, and New Call to go back
-/// to the start screen.
+/// After Stop: progress while the call is saved, then the saved call with its length,
+/// turns and cost, the summary once it is written, and New Call to go back to the
+/// start screen. A new call can start while the summary is still being written.
 struct CallOutcomeCard: View {
     let model: CallModel
 
@@ -39,6 +39,15 @@ struct CallOutcomeCard: View {
                             Label("Open Summary", systemImage: "doc.text")
                         }
                         .buttonStyle(FilledButtonStyle(small: true))
+                    } else if outcome.writingSummary {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("Writing the summary…")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                     Button {
                         model.perform(.revealInFinder(path: directory))
@@ -75,10 +84,7 @@ struct CallOutcomeCard: View {
     }
 
     private var title: String {
-        if model.outcome != nil {
-            return "Call saved"
-        }
-        return model.phase == .summarizing ? "Writing the summary…" : "Saving the call…"
+        model.outcome != nil ? "Call saved" : "Saving the call…"
     }
 
     private var details: String {

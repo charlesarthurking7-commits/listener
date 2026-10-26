@@ -151,10 +151,10 @@ struct CallViewStateTests {
 
         state.beginStopping()
         #expect(state.phase == .stopping)
-        state.apply(.summaryStarted, now: start)
-        #expect(state.phase == .summarizing)
-        state.apply(.summaryFinished(markdownFile: "/s/2026-10-20 14.03.11/summary.md"), now: start)
         state.apply(.stopped(directory: "/s/2026-10-20 14.03.11"), now: start)
+        state.apply(.summaryStarted, now: start)
+        #expect(state.outcome?.writingSummary == true)
+        state.apply(.summaryFinished(markdownFile: "/s/2026-10-20 14.03.11/summary.md"), now: start)
 
         #expect(state.phase == .finished)
         #expect(state.canStart)
@@ -191,9 +191,22 @@ struct CallViewStateTests {
         var state = listening()
         state.apply(.stopped(directory: "/s/call"), now: start)
         state.apply(.summaryStarted, now: start)
-        #expect(state.phase == .finished)
+        #expect(state.phase == .finished && state.canStart)
+        #expect(state.outcome?.writingSummary == true)
+        state.apply(.cost(CostSummary(speechCost: 0.1, modelCost: 0.03)), now: start)
         state.apply(.summaryFinished(markdownFile: "/s/call/summary.md"), now: start)
         #expect(state.outcome?.summaryFile == "/s/call/summary.md")
+        #expect(state.outcome?.writingSummary == false)
+        // The summary's cost counts towards the call's.
+        #expect(state.outcome?.cost == 0.13)
+    }
+
+    @Test func aFailedSummaryStopsShowingProgress() {
+        var state = listening()
+        state.apply(.stopped(directory: "/s/call"), now: start)
+        state.apply(.summaryStarted, now: start)
+        state.apply(.summaryFinished(markdownFile: nil), now: start)
+        #expect(state.outcome?.writingSummary == false && state.outcome?.summaryFile == nil)
     }
 
     @Test func failedSaveIsAnError() {

@@ -71,7 +71,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         switch state.phase {
         case .starting: toggle = ("Starting…", "record.circle")
         case .listening: toggle = ("Stop Listening", "stop.circle")
-        case .stopping, .summarizing: toggle = ("Saving…", "record.circle")
+        case .stopping: toggle = ("Saving…", "record.circle")
         case .idle, .finished: toggle = ("Start Listening", "record.circle")
         }
         let entries: [Entry] = [

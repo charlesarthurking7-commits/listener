@@ -82,15 +82,16 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    /// A running call is stopped and saved before quitting. Saving normally takes a
-    /// few seconds; a stuck provider never holds the quit for more than 30.
+    /// A running call is stopped and saved, and its summary written, before quitting.
+    /// Neither ever holds the quit for more than 30 s: a summary cut off then is written
+    /// at the next launch.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard model.hasSession else {
+        guard model.hasWorkToFinish else {
             return .terminateNow
         }
         if !terminationPending {
             terminationPending = true
-            Log.session.notice("Quitting during a call: saving it first")
+            Log.session.notice("Quitting during a call or its summary: finishing it first")
             Task {
                 await model.finishForQuit()
                 replyToTermination()

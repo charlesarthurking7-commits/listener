@@ -62,6 +62,8 @@ public struct CallOutcome: Sendable, Equatable {
     /// Where the call was saved, or nil if saving failed.
     public var directory: String?
     public var summaryFile: String?
+    /// The summary is being written. A new call can start meanwhile.
+    public var writingSummary = false
     /// Seconds from the first audio to Stop.
     public var duration: Double?
     public var turnCount: Int
@@ -137,8 +139,8 @@ public struct CallViewState: Sendable, Equatable {
         case listening
         /// Capture has stopped; the last finals arrive and the session is saved.
         case stopping
-        case summarizing
-        /// A call ended. Its transcript stays on screen until the next Start or New Call.
+        /// A call ended. Its transcript stays on screen until the next Start or New Call,
+        /// and its summary may still be on the way.
         case finished
     }
 
@@ -172,7 +174,7 @@ public struct CallViewState: Sendable, Equatable {
     public var rows: [TranscriptRow] { settledRows + liveRows }
     public var notices: [Notice] { noticeList.items }
     public var isListening: Bool { phase == .listening }
-    public var isBusy: Bool { phase == .starting || phase == .stopping || phase == .summarizing }
+    public var isBusy: Bool { phase == .starting || phase == .stopping }
     public var canStart: Bool { phase == .idle || phase == .finished }
     public var canStop: Bool { phase == .listening }
     public var canAsk: Bool { phase == .listening }
@@ -198,7 +200,7 @@ public struct CallViewState: Sendable, Equatable {
 
     /// The event stream ended without `.stopped`, so the call was not saved.
     public mutating func eventsEnded(now: Date = Date()) {
-        if phase == .listening || phase == .stopping || phase == .summarizing {
+        if phase == .listening || phase == .stopping {
             finish(directory: nil, now: now)
         }
     }
@@ -281,15 +283,15 @@ public struct CallViewState: Sendable, Equatable {
             }
         case .cost(let summary):
             cost = summary
+            outcome?.cost = summary.total
         case .warning(let message):
             addNotice(.warning, message)
         case .summaryStarted:
-            if phase != .finished {
-                phase = .summarizing
-            }
+            outcome?.writingSummary = true
         case .summaryFinished(let file):
             summaryFile = file
             outcome?.summaryFile = file
+            outcome?.writingSummary = false
         case .stopped(let directory):
             finish(directory: directory, now: now)
         }

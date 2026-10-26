@@ -41,6 +41,9 @@ public struct SessionRecord: Sendable, Codable, Equatable {
     public var cost: CostSummary
     /// File name of the summary within the session directory, once written.
     public var summaryFile: String?
+    /// A summary was asked for and has not been written: the app quit or crashed while
+    /// writing it, or it failed. The next launch tries once more.
+    public var summaryDue: Bool?
     /// The call type picked before Start, and the names of its documents. The documents
     /// themselves are in context.json.
     public var callType: String?
@@ -56,6 +59,7 @@ public struct SessionRecord: Sendable, Codable, Equatable {
         answers: [AnswerRecord] = [],
         cost: CostSummary = CostSummary(),
         summaryFile: String? = nil,
+        summaryDue: Bool = false,
         call: CallContext = .none
     ) {
         self.startedAt = startedAt
@@ -68,6 +72,7 @@ public struct SessionRecord: Sendable, Codable, Equatable {
         latency = LatencyStats(answers.filter { $0.error == nil }.map(\.latency))
         self.cost = cost
         self.summaryFile = summaryFile
+        self.summaryDue = summaryDue ? true : nil
         if call != .none {
             callType = call.callType
             documents = call.documents.map(\.name)

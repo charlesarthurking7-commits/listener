@@ -246,6 +246,29 @@ struct CallSessionTests {
         #expect(recorder.stoppedDirectories.count == 1)
     }
 
+    @Test func theCallIsSavedBeforeItsSummaryIsWritten() async throws {
+        // A summary takes a minute or more. The next call must not wait for it, and the
+        // record says one is still due in case the app quits before it is written.
+        let setup = try setUp(model: tradeModel(firstTokenDelay: .milliseconds(500)))
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        try await setup.session.start()
+        await waitForReplay(setup.sources)
+        let stopping = Task { await setup.session.stop() }
+
+        #expect(await eventually { setup.recorder.stoppedDirectories.count == 1 })
+        #expect(!setup.recorder.all.contains { if case .summaryFinished = $0 { true } else { false } })
+        let directory = URL(fileURLWithPath: try #require(setup.recorder.stoppedDirectories.first ?? nil))
+        #expect(try SessionStore.readRecord(in: directory).summaryDue == true)
+
+        await stopping.value
+        await setup.recording.value
+        let events = setup.recorder.all
+        let stopped = try #require(events.firstIndex { if case .stopped = $0 { true } else { false } })
+        #expect(events.firstIndex(of: .summaryStarted).map { $0 > stopped } == true)
+        let record = try SessionStore.readRecord(in: directory)
+        #expect(record.summaryDue == nil && record.summaryFile == "summary.md")
+    }
+
     @Test func hotkeysOutsideACallAreIgnored() async throws {
         let model = tradeModel()
         let setup = try setUp(model: model)

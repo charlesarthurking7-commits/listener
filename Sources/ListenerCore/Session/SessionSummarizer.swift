@@ -72,10 +72,42 @@ public enum SessionSummarizer {
                     record.cost.modelUsage[summary.model] ?? TokenUsage(), usage)
             }
             record.summaryFile = SessionStore.summaryFile
-            try SessionStore.encoder(pretty: true).encode(record)
-                .write(to: directory.appendingPathComponent(SessionStore.recordFile), options: .atomic)
+            record.summaryDue = nil
+            try write(record, in: directory)
         }
         return url
+    }
+
+    /// Saved sessions under `root` whose summary is still due, oldest first.
+    public static func due(in root: URL) -> [URL] {
+        SessionStore.list(in: root).reversed().map(\.directory).filter {
+            (try? SessionStore.readRecord(in: $0))?.summaryDue == true
+        }
+    }
+
+    /// Writes the summaries still due under `root`, oldest first, and returns their
+    /// files. Each call gets this one more try: a failure clears its flag, so a call
+    /// that can't be summarised is not sent again at every launch.
+    public static func finishDue(in root: URL, settings: Settings, model: any LanguageModelProvider) async -> [URL] {
+        var written: [URL] = []
+        for directory in due(in: root) {
+            do {
+                written.append(try await summarize(directory: directory, settings: settings, model: model))
+            } catch is CancellationError {
+                break
+            } catch {
+                if var record = try? SessionStore.readRecord(in: directory) {
+                    record.summaryDue = nil
+                    try? write(record, in: directory)
+                }
+            }
+        }
+        return written
+    }
+
+    private static func write(_ record: SessionRecord, in directory: URL) throws {
+        try SessionStore.encoder(pretty: true).encode(record)
+            .write(to: directory.appendingPathComponent(SessionStore.recordFile), options: .atomic)
     }
 }
 

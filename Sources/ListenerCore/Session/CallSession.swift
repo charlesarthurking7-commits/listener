@@ -97,6 +97,7 @@ public actor CallSession {
     private var store: SessionStore?
     private var storageWarned = false
     private var summaryFile: String?
+    private var summaryDue = false
 
     private var costTracker: CostTracker
     private var lastCostEvent: ContinuousClock.Instant?
@@ -610,8 +611,9 @@ public actor CallSession {
         draft = startGeneration(request, tier: .quick, isDraft: true)
     }
 
-    /// Stops capture, lets speech-to-text deliver its last finals, saves the session,
-    /// writes the summary if enabled, then finishes `events`.
+    /// Stops capture, lets speech-to-text deliver its last finals and saves the session,
+    /// which is then stopped: a new call can start. Writes the summary if enabled, then
+    /// finishes `events` and returns.
     public func stop() async {
         if phase == .starting {
             await withCheckedContinuation { startWaiters.append($0) }
@@ -666,23 +668,26 @@ public actor CallSession {
         costFlush = nil
         emitCost()
         endedAt = Date()
+        let model =
+            settings.summary.enabled && store != nil && !detector.snapshot.turns.isEmpty
+            ? components.languageModel : nil
+        summaryDue = model != nil
         writeRecord()
         save { try $0.close() }
-        await summarise()
 
         phase = .stopped
         emit(.stopped(directory: store?.directory.path))
-        continuation.finish()
         for waiter in stopWaiters {
             waiter.resume()
         }
         stopWaiters = []
+        if let model {
+            await summarise(with: model)
+        }
+        continuation.finish()
     }
 
-    private func summarise() async {
-        guard settings.summary.enabled, let model = components.languageModel, !detector.snapshot.turns.isEmpty else {
-            return
-        }
+    private func summarise(with model: any LanguageModelProvider) async {
         emit(.summaryStarted)
         var file: String?
         do {
@@ -696,6 +701,7 @@ public actor CallSession {
             if let store {
                 file = try store.writeSummary(summary.markdown).path
                 summaryFile = SessionStore.summaryFile
+                summaryDue = false
                 writeRecord()
             }
             if summary.cutShort {
@@ -712,7 +718,7 @@ public actor CallSession {
             startedAt: startedAt, endedAt: endedAt, channels: channels,
             speechProvider: components.speech.displayName, settings: settings,
             turnCount: detector.snapshot.turns.count, answers: answers, cost: costTracker.summary,
-            summaryFile: summaryFile, call: call)
+            summaryFile: summaryFile, summaryDue: summaryDue, call: call)
         save { try $0.write(record) }
     }
 

@@ -241,7 +241,11 @@ struct FixtureCallTests {
         }
 
         #expect(recorder.warnings.isEmpty)
-        #expect(recorder.all.last == .stopped(directory: directory.path))
+        // Saved, then summarised.
+        let events = recorder.all
+        let stopped = try #require(events.firstIndex(of: .stopped(directory: directory.path)))
+        #expect(events.firstIndex(of: .summaryStarted).map { $0 > stopped } == true)
+        #expect(events.last == .summaryFinished(markdownFile: directory.appendingPathComponent("summary.md").path))
     }
 }
 

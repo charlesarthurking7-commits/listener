@@ -124,7 +124,7 @@ private struct WindowContent: View {
     /// Once the call has stopped, how it was saved matters more than its last answer.
     private var card: Card {
         switch model.phase {
-        case .stopping, .summarizing:
+        case .stopping:
             return .outcome
         case .finished:
             return model.outcome == nil ? .none : .outcome
@@ -165,7 +165,7 @@ private struct MainContent: View {
                 EmptyStateView(
                     title: "Listening", message: "The transcript appears here as people speak.\(callLine)",
                     model: model, showsHearing: true)
-            case .stopping, .summarizing:
+            case .stopping:
                 EmptyStateView(title: "Nothing was said", message: "Saving the call.", model: model)
             }
         }
@@ -280,7 +280,7 @@ private struct ListeningStatus: View {
                 Text("Starting…")
             }
             .modifier(IdleStatusStyle())
-        case .idle, .stopping, .summarizing, .finished:
+        case .idle, .stopping, .finished:
             HStack(spacing: 8) {
                 Circle()
                     .fill(.tertiary)

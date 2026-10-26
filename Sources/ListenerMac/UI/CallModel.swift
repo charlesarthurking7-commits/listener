@@ -62,12 +62,14 @@ public final class CallModel {
     @ObservationIgnored private let environment: AppEnvironment
     @ObservationIgnored private var session: CallSession?
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
+    /// The events of earlier calls still writing their summary while the next one runs.
+    @ObservationIgnored private var summarising: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// What the last refresh found, so progress updates don't probe the Keychain again.
     @ObservationIgnored private var probes: ReadinessInput?
     @ObservationIgnored private var preparedLanguage: String?
     @ObservationIgnored private var eventLog = SessionEventLog()
-    /// Held for the length of a call. With the window hidden Listener has nothing on
-    /// screen, and App Nap would otherwise slow its timers and network work mid-call.
+    /// Held for the length of a call and its summary. With the window hidden Listener has
+    /// nothing on screen, and App Nap would otherwise slow its timers and network work.
     @ObservationIgnored private var callActivity: (any NSObjectProtocol)?
     @ObservationIgnored private var throttle = UpdateThrottle.displayRate
     @ObservationIgnored private var markup = AnswerMarkup()
@@ -85,9 +87,11 @@ public final class CallModel {
         refreshReadiness()
         prepareOnDeviceSpeechIfNeeded()
         refreshCallTypes()
+        finishDueSummaries()
     }
 
-    public var hasSession: Bool { session != nil }
+    /// A call is running or being saved, or a summary is being written.
+    public var hasWorkToFinish: Bool { session != nil || !summarising.isEmpty }
     public var isListening: Bool { phase == .listening }
     public var hasTranscript: Bool { !settledRows.isEmpty || !liveRows.isEmpty }
 
@@ -166,6 +170,9 @@ public final class CallModel {
         Log.session.info(
             "Call type \(call.callType, privacy: .public) with \(call.documents.count) documents")
         let session = CallSession(settings: settings, components: components, call: call)
+        if let previous = self.session, let eventsTask {
+            summarising[ObjectIdentifier(previous)] = eventsTask
+        }
         self.session = session
         eventLog = SessionEventLog()
         let provider = settings.speech.provider
@@ -182,8 +189,10 @@ public final class CallModel {
         }
         publish()
         observe(session)
-        callActivity = ProcessInfo.processInfo.beginActivity(
-            options: .userInitiated, reason: "Listening to a call")
+        if callActivity == nil {
+            callActivity = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiated, reason: "Listening to a call")
+        }
 
         Task {
             do {
@@ -195,7 +204,7 @@ public final class CallModel {
                 eventsTask?.cancel()
                 eventsTask = nil
                 self.session = nil
-                endCallActivity()
+                endCallActivityIfIdle()
                 startFailed(ErrorText.describe(error))
                 refreshReadiness()
             }
@@ -386,17 +395,34 @@ public final class CallModel {
         }
     }
 
-    /// Stops a running call and waits until it is saved, for quitting.
+    /// Stops a running call and waits until it is saved and every summary being written
+    /// is done, for quitting.
     public func finishForQuit() async {
-        guard let session else {
-            return
-        }
-        if state.canStop {
-            stop()
-        } else if state.phase == .starting {
-            await session.stop()
+        if let session {
+            if state.canStop {
+                stop()
+            } else if state.phase == .starting {
+                await session.stop()
+            }
         }
         await eventsTask?.value
+        for task in summarising.values {
+            await task.value
+        }
+    }
+
+    /// Summaries that were being written when Listener last quit or crashed.
+    private func finishDueSummaries() {
+        let environment = environment
+        let settings = settings
+        Task {
+            for file in await environment.finishDueSummaries(settings) {
+                Log.session.info("Wrote a summary left unfinished last time")
+                appNotices.add(
+                    .info, "The summary Listener was writing when it quit is ready.", action: .openFile(path: file.path)
+                )
+            }
+        }
     }
 
     private static let systemAudioHeardKey = "systemAudioHeard"
@@ -611,11 +637,12 @@ public final class CallModel {
         updateReadiness()
     }
 
-    private func endCallActivity() {
-        if let callActivity {
-            ProcessInfo.processInfo.endActivity(callActivity)
+    private func endCallActivityIfIdle() {
+        guard !hasWorkToFinish, let callActivity else {
+            return
         }
-        callActivity = nil
+        ProcessInfo.processInfo.endActivity(callActivity)
+        self.callActivity = nil
     }
 
     private func startFailed(_ message: String) {
@@ -644,13 +671,17 @@ public final class CallModel {
     private func observe(_ session: CallSession) {
         eventsTask = Task { [weak self] in
             for await event in session.events {
-                self?.receive(event)
+                self?.receive(event, from: session)
             }
             self?.eventsEnded(for: session)
         }
     }
 
-    private func receive(_ event: SessionEvent) {
+    private func receive(_ event: SessionEvent, from session: CallSession) {
+        guard session === self.session else {
+            receiveFromEarlierCall(event)
+            return
+        }
         eventLog.record(event)
         noteSystemAudioHeard(event)
         state.apply(event, now: Date())
@@ -699,14 +730,26 @@ public final class CallModel {
         }
     }
 
-    private func eventsEnded(for session: CallSession) {
-        guard self.session === session else {
-            return
+    /// The summary of a call that ended before the one on screen.
+    private func receiveFromEarlierCall(_ event: SessionEvent) {
+        switch event {
+        case .summaryFinished(let file?):
+            appNotices.add(.info, "The last call's summary is ready.", action: .openFile(path: file))
+        case .warning(let message):
+            appNotices.add(.warning, message)
+        default:
+            break
         }
-        self.session = nil
-        eventsTask = nil
-        endCallActivity()
-        state.eventsEnded()
-        publish()
+    }
+
+    private func eventsEnded(for session: CallSession) {
+        summarising[ObjectIdentifier(session)] = nil
+        if self.session === session {
+            self.session = nil
+            eventsTask = nil
+            state.eventsEnded()
+            publish()
+        }
+        endCallActivityIfIdle()
     }
 }

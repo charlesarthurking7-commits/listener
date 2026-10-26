@@ -137,9 +137,11 @@ struct EndToEndTests {
         let summary = try String(contentsOf: directory.appendingPathComponent("summary.md"), encoding: .utf8)
         #expect(summary == tradeSummary + "\n")
         let summaryPath = directory.appendingPathComponent("summary.md").path
-        #expect(recorder.all.suffix(4).contains(.summaryFinished(markdownFile: summaryPath)))
-        #expect(recorder.all.contains(.summaryStarted))
-        #expect(recorder.all.last == .stopped(directory: directory.path))
+        let events = recorder.all
+        let stopped = try #require(events.firstIndex(of: .stopped(directory: directory.path)))
+        let started = try #require(events.firstIndex(of: .summaryStarted))
+        #expect(stopped < started)
+        #expect(events.last == .summaryFinished(markdownFile: summaryPath))
     }
 }
 
