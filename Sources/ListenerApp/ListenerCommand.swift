@@ -20,7 +20,6 @@ struct ListenerCommand: AsyncParsableCommand {
             ReadPageCommand.self,
             DemoCommand.self,
             SecretsCommand.self,
-            SpikeCommand.self,
         ]
     )
 

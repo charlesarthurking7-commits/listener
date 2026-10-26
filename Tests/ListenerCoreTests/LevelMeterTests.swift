@@ -26,12 +26,6 @@ struct LevelMeterTests {
         #expect(LevelMeter.isDigitalSilence([Int16](repeating: 0, count: 10)))
         #expect(!LevelMeter.isDigitalSilence([0, 0, 1]))
     }
-
-    @Test func barScalesBetweenFloorAndZero() {
-        #expect(LevelMeter.bar(dbfs: 0, width: 10) == "##########")
-        #expect(LevelMeter.bar(dbfs: -35, width: 10, floor: -70) == "#####-----")
-        #expect(LevelMeter.bar(dbfs: -120, width: 10) == "----------")
-    }
 }
 
 func sine(amplitude: Double, count: Int, frequency: Double = 440) -> [Int16] {

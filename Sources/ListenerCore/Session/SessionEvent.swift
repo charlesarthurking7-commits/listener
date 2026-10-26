@@ -102,10 +102,3 @@ public enum SessionEvent: Sendable, Equatable {
     /// The session ended and was saved to this directory (nil if saving failed).
     case stopped(directory: String?)
 }
-
-extension ChannelInfo: Equatable {
-    public static func == (lhs: ChannelInfo, rhs: ChannelInfo) -> Bool {
-        lhs.speaker == rhs.speaker && lhs.backend == rhs.backend && lhs.device == rhs.device
-            && lhs.nativeFormat == rhs.nativeFormat
-    }
-}

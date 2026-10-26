@@ -139,7 +139,7 @@ public final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         }
 
         let converter = try PCMConverter(inputFormat: format, mixAllChannels: !voiceProcessing)
-        // Ask for 100 ms buffers. macOS treats this as a hint, the spike measures what we really get.
+        // Ask for 100 ms buffers. macOS treats this as a hint.
         let bufferSize = AVAudioFrameCount(format.sampleRate / 10)
         input.installTap(onBus: 0, bufferSize: bufferSize, format: format) { buffer, _ in
             let capturedAt = ContinuousClock.now

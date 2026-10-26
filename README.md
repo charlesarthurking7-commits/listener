@@ -38,9 +38,8 @@ call ends it writes a summary with action items.
 ## Quick start
 
 ```sh
-scripts/spike.sh                          # 1. check both audio channels on this Mac (30 s, guided)
-scripts/run.sh                            # 2. build and open the app
-build/Listener.app/Contents/MacOS/listener secrets set anthropic   # 3. store your API key
+scripts/run.sh                            # 1. build and open the app
+build/Listener.app/Contents/MacOS/listener secrets set anthropic   # 2. store your API key
 ```
 
 On macOS 26 and later that is all: speech recognition runs on the Mac by default. On
@@ -60,19 +59,6 @@ listener replay Fixtures/delayed-executions/me.wav Fixtures/delayed-executions/t
 [docs/USAGE.md](docs/USAGE.md) covers everything: the window, hotkeys, terminal mode,
 replay, settings, environment variables, API keys, where files go and troubleshooting.
 [docs/PLAN.md](docs/PLAN.md) explains the architecture and the decisions behind it.
-
-## The audio spike
-
-`scripts/spike.sh` builds the app, launches it and walks you through three 10 second
-phases: talk with nothing playing, stay quiet while something plays, then both. It
-reports PASS/FAIL checks for each channel (continuous 16 kHz stream, active when it
-should be, quiet when it should be), timing, gaps and CPU, and writes `me.wav`,
-`them.wav` and `report.json` to `~/Library/Application Support/Listener/spike/`.
-
-```sh
-scripts/spike.sh --system sck           # compare with the ScreenCaptureKit backend
-scripts/spike.sh --voice-processing     # echo cancellation, if you are on speakers
-```
 
 ## macOS permissions
 

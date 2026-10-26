@@ -6,3 +6,17 @@ public protocol AudioCaptureSource: AnyObject, Sendable {
     func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo
     func stop()
 }
+
+public struct ChannelInfo: Codable, Sendable, Equatable {
+    public let speaker: Speaker
+    public let backend: String
+    public let device: String
+    public let nativeFormat: String
+
+    public init(speaker: Speaker, backend: String, device: String, nativeFormat: String) {
+        self.speaker = speaker
+        self.backend = backend
+        self.device = device
+        self.nativeFormat = nativeFormat
+    }
+}

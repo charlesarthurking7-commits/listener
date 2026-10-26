@@ -24,11 +24,4 @@ public enum LevelMeter {
     public static func isDigitalSilence<Samples: Collection<Int16>>(_ samples: Samples) -> Bool {
         samples.allSatisfy { $0 == 0 }
     }
-
-    /// A fixed-width bar for terminal meters, e.g. "#######-------".
-    public static func bar(dbfs: Double, width: Int = 20, floor: Double = -70) -> String {
-        let clamped = min(max(dbfs, floor), 0)
-        let filled = Int(((clamped - floor) / -floor * Double(width)).rounded())
-        return String(repeating: "#", count: filled) + String(repeating: "-", count: width - filled)
-    }
 }

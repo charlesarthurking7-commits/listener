@@ -271,8 +271,8 @@ listener replay me.wav them.wav --ask-at 12.5,30,1:05 --tier quick
 listener replay me.wav them.wav --ask-at 0:24 --call-type Meeting
 ```
 
-- The recordings are 16-bit PCM WAV files, such as the `me.wav` and `them.wav` that the
-  spike or `storage.saveAudio` write.
+- The recordings are 16-bit PCM WAV files, such as the `me.wav` and `them.wav` that
+  `storage.saveAudio` writes.
 - `--script call.json` takes the words from a script instead of speech-to-text, so the
   transcript is fast and the same every time. The format:
 
@@ -404,7 +404,6 @@ keep the key in `~/Library/Application Support/Listener/.env` instead.
 | `~/Library/Application Support/Listener/.env` | Optional API keys |
 | `~/Library/Application Support/Listener/sessions/` | Saved calls |
 | `~/Library/Application Support/Listener/Call Types/` | Call types: instructions, files and briefs |
-| `~/Library/Application Support/Listener/spike/` | Audio spike recordings |
 | Keychain, service `Listener` | Anthropic API key |
 | `~/.config/gcloud/application_default_credentials.json` | Google credentials from `gcloud` |
 

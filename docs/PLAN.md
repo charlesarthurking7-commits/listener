@@ -39,8 +39,7 @@ Section 1.
 
 ### 2.2 System audio: Core Audio process tap instead of ScreenCaptureKit
 Recommendation: a Core Audio process tap (macOS 14.2+) on all system audio except our own
-process, with ScreenCaptureKit kept as a fallback (`capture.systemAudioBackend = "sck"`,
-`--system sck` in the spike).
+process, with ScreenCaptureKit kept as a fallback (`capture.systemAudioBackend = "sck"`).
 
 | | Core Audio tap | ScreenCaptureKit |
 | --- | --- | --- |
@@ -69,9 +68,6 @@ Known tap pitfalls, all handled in the capture layer:
   agree on it (`DeliveredRateMonitor`). That also covers pressing Start before joining,
   when the AirPods only switch to call mode mid-recording. Every build logs the formats
   Core Audio reports.
-
-The spike measures both backends on your Mac (continuity, gaps, CPU, separation). Those
-numbers are the evidence that settles it.
 
 ### 2.3 Global hotkeys do not need Accessibility
 The spec asks to document the Accessibility permission. Carbon's `RegisterEventHotKey`,
@@ -177,11 +173,11 @@ again after macOS updates: share the whole screen in Meet and look at its previe
 
 ### 2.9 The hardware setup matters more than any code
 - **Clamshell mode**: the built-in mics are off with the lid closed. You need an external
-  mic. The spike reports which input device it used.
+  mic.
 - **Headphones vs speakers**: on speakers the mic hears the other side, so "Me" would
   contain their words too. Options, in order of preference: headphones; Apple's voice
-  processing (echo cancellation, `--voice-processing` in the spike); dropping "Me"
-  segments that duplicate a recent "Them" segment. The spike's phase 2 measures this.
+  processing (echo cancellation, `capture.voiceProcessing`); dropping "Me" segments
+  that duplicate a recent "Them" segment.
 - **Bluetooth headsets**: using a Bluetooth headset's mic switches its output to a low
   quality call profile and changes the output device's sample rate mid-call. The capture
   layer rebuilds the tap when the default output device or its format changes.
@@ -217,7 +213,6 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   App/            window and terminal state reduced from session events, hotkey parsing,
                   display formatting, the setup checklist logic
   Replay/, Fakes/ ReplaySource, ScriptedSpeechToText, ScriptedLanguageModel
-  Spike/          the audio spike's analysis
 
 GoogleSpeech  Speech-to-Text v2 streaming over gRPC (generated client), credentials
 ClaudeAPI     Anthropic Messages API client with SSE streaming and retries
@@ -232,7 +227,7 @@ ListenerMac   (macOS only)
   UI/             floating NSPanel, SwiftUI views, menu bar item, CallModel
 
 ListenerApp   the `listener` executable: the app with no arguments, plus the
-              live, replay, secrets, sessions, summarize and spike subcommands
+              live, replay, sessions, summarize, read-page, demo and secrets subcommands
 ```
 
 ### 3.2 Data flow
@@ -334,7 +329,8 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
 - Provider clients tested against recorded responses (no network in tests).
 - End-to-end replay test: fixture WAV pair -> real pipeline -> scripted fake STT and fake
   LLM -> assert transcript, turns, answer text, latency records and cost.
-- `ListenerCore` tests run on Linux and macOS; capture code is exercised by the spike.
+- `ListenerCore` tests run on Linux and macOS. Capture code has no unit tests; it is
+  checked on real calls.
 
 ## 4. Next
 
