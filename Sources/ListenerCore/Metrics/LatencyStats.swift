@@ -9,7 +9,7 @@ public struct LatencyStats: Sendable, Codable, Equatable {
 
     public var endOfSpeechToHotkey: Percentiles?
     public var finalToHotkey: Percentiles?
-    public var hotkeyToRequestSent: Percentiles?
+    public var hotkeyToAccepted: Percentiles?
     public var hotkeyToFirstToken: Percentiles?
     public var hotkeyToDone: Percentiles?
     public var endOfSpeechToFirstToken: Percentiles?
@@ -17,7 +17,7 @@ public struct LatencyStats: Sendable, Codable, Equatable {
     public init(_ latencies: [AnswerLatency]) {
         endOfSpeechToHotkey = Percentiles(latencies.compactMap(\.endOfSpeechToHotkey))
         finalToHotkey = Percentiles(latencies.compactMap(\.finalToHotkey))
-        hotkeyToRequestSent = Percentiles(latencies.compactMap(\.hotkeyToRequestSent))
+        hotkeyToAccepted = Percentiles(latencies.compactMap(\.hotkeyToAccepted))
         hotkeyToFirstToken = Percentiles(latencies.compactMap(\.hotkeyToFirstToken))
         hotkeyToDone = Percentiles(latencies.compactMap(\.hotkeyToDone))
         endOfSpeechToFirstToken = Percentiles(latencies.compactMap(\.endOfSpeechToFirstToken))

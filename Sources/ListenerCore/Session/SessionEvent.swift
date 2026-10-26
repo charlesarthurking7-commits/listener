@@ -11,7 +11,10 @@ public struct AnswerLatency: Sendable, Codable, Equatable {
     /// The speech-to-text final for that speech to the hotkey. Negative when the final
     /// arrived after the hotkey, i.e. the answer was built from interim text.
     public var finalToHotkey: Double?
-    public var hotkeyToRequestSent: Double?
+    /// The hotkey to the response beginning (`ModelEvent.accepted`). Much less than
+    /// `hotkeyToFirstToken` means the wait was the model; about the same, the
+    /// connection, the queue or reading the prompt, or headers held for the first output.
+    public var hotkeyToAccepted: Double?
     public var hotkeyToFirstToken: Double?
     public var hotkeyToDone: Double?
     /// The spec's headline number: target 1.5 s.
@@ -33,7 +36,7 @@ public struct AnswerRecord: Sendable, Codable, Equatable, Identifiable {
     public var error: String?
     /// Shown from an answer drafted ahead when Them finished a turn
     /// (`AnswerSettings.draftAhead`). Its request went out before the hotkey, so
-    /// `hotkeyToRequestSent` is negative and the other stages measure when text appeared.
+    /// `hotkeyToAccepted` is negative and the other stages measure when text appeared.
     public var fromDraft = false
 }
 

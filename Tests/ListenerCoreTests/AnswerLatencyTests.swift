@@ -92,4 +92,21 @@ struct AnswerLatencyTests {
         let finalAt = try #require(question.finalAt)
         #expect(abs(try #require(answer.latency.finalToHotkey) - (answer.askedAt - finalAt) * 1_000) < 0.1)
     }
+
+    @Test func theSavedFiguresAreKeptPerTierWithoutDrafts() {
+        func answer(_ tier: AnswerTier, firstToken: Double, fromDraft: Bool = false) -> AnswerRecord {
+            var record = AnswerRecord(id: 0, tier: tier, model: "m", askedAt: 0, fromDraft: fromDraft)
+            record.latency.hotkeyToFirstToken = firstToken
+            return record
+        }
+        let record = SessionRecord(
+            startedAt: Date(), channels: [], speechProvider: "x", settings: Settings(),
+            answers: [
+                answer(.quick, firstToken: 800), answer(.quick, firstToken: 1_000), answer(.deep, firstToken: 3_000),
+                answer(.quick, firstToken: 0, fromDraft: true),
+            ])
+        #expect(record.latency.keys.sorted() == ["deep", "quick"])
+        #expect(record.latency["quick"]?.hotkeyToFirstToken == .init(count: 2, p50: 900, p90: 980))
+        #expect(record.latency["deep"]?.hotkeyToFirstToken?.count == 1)
+    }
 }

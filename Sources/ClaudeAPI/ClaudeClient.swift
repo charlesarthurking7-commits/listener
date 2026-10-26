@@ -20,7 +20,7 @@ public final class ClaudeClient: LanguageModelProvider {
 
         public static let standard = Timing(
             responseTimeout: .seconds(10), retryDelay: .milliseconds(250), maxRetryAfter: .seconds(2),
-            warmUpInterval: .seconds(60))
+            warmUpInterval: .seconds(30))
     }
 
     static let baseURL = URL(string: "https://api.anthropic.com")!
@@ -52,6 +52,74 @@ public final class ClaudeClient: LanguageModelProvider {
         }
         continuation.onTermination = { _ in task.cancel() }
         return stream
+    }
+
+    /// A model that thinks adaptively caches its prompt with `max_tokens` in it, so its
+    /// warm-up is the request as it is, streamed and stopped as soon as the API has read
+    /// the prompt. Any other is sent with `max_tokens` 0, as a plain request since that
+    /// can't stream, and writes nothing but the cache.
+    public func prewarm(_ request: ModelRequest) async throws -> TokenUsage {
+        let profile = ModelProfile(model: request.settings.model)
+        let thinking = profile.thinking(request.settings.thinking, effort: request.settings.effort)
+        if thinking == .adaptive || thinking == nil {
+            return try await prewarmStreaming(request)
+        }
+        var request = request
+        request.settings.maxTokens = 0
+        let response = try await send(try httpRequest(for: request))
+        guard response.statusCode == 200 else {
+            throw await apiError(from: response)
+        }
+        let body = try await response.readBody()
+        let usage = try Self.decoder.decode(MessageResponse.self, from: Data(body.utf8)).usage
+        return TokenUsage(
+            inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0,
+            cacheReadInputTokens: usage.cacheReadInputTokens ?? 0,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens ?? 0)
+    }
+
+    private func prewarmStreaming(_ request: ModelRequest) async throws -> TokenUsage {
+        let response = try await send(try httpRequest(for: request))
+        guard response.statusCode == 200 else {
+            throw await apiError(from: response)
+        }
+        var parser = MessageStreamParser()
+        // Leaving the loop cancels the request, before the model writes anything much.
+        for try await line in response.lines {
+            _ = try parser.consume(line)
+            if parser.hasStarted {
+                break
+            }
+        }
+        return parser.usage
+    }
+
+    /// Looks each model up, which also opens the connection. A rejected key or an
+    /// unknown model says so; anything else (offline, a slow or failing API) is left for
+    /// the answers to report.
+    public func check(models: [String]) async -> String? {
+        for model in Set(models).sorted() {
+            let request = HTTPRequest(
+                method: "GET", url: Self.baseURL.appending(path: "v1/models/\(model)"), headers: commonHeaders)
+            guard let response = try? await send(request) else {
+                return nil
+            }
+            guard response.statusCode != 200 else {
+                _ = try? await response.readBody()
+                continue
+            }
+            switch await apiError(from: response) {
+            case .authentication:
+                return "The Anthropic API key was rejected, so answers and the summary won't work on this call."
+            case .permission(let message):
+                return "The Anthropic API key can't be used for answers: \(message)"
+            case .invalidRequest where response.statusCode == 404:
+                return "There is no Anthropic model called \(model). Check the model IDs in settings.json."
+            default:
+                continue
+            }
+        }
+        return nil
     }
 
     /// Opens the connection with a tiny authenticated GET so the first answer skips
@@ -96,6 +164,16 @@ public final class ClaudeClient: LanguageModelProvider {
         ["x-api-key": apiKey, "anthropic-version": Self.apiVersion]
     }
 
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+
+    private struct MessageResponse: Decodable {
+        var usage: StreamEvent.Usage
+    }
+
     private func run(
         _ request: ModelRequest, continuation: AsyncThrowingStream<ModelEvent, any Error>.Continuation
     ) async throws {
@@ -127,6 +205,7 @@ public final class ClaudeClient: LanguageModelProvider {
         guard response.statusCode == 200 else {
             throw await apiError(from: response)
         }
+        emit(.accepted)
         var parser = MessageStreamParser()
         do {
             for try await line in response.lines {

@@ -170,8 +170,8 @@ struct PromptBuilderTests {
             let warmUp = builder.cacheWarmUpRequest(tier: tier)
             let answer = builder.answerRequest(tier: tier, transcript: TranscriptSnapshot(turns: turns), now: 10)
             #expect(warmUp.system == answer.system && warmUp.cacheSystem)
-            #expect(warmUp.settings.model == answer.settings.model)
-            #expect(warmUp.settings.maxTokens == 1 && warmUp.settings.thinking == .off)
+            // Thinking, effort and with them max_tokens can be part of the cached prompt.
+            #expect(warmUp.settings == answer.settings)
         }
     }
 

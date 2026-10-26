@@ -1,8 +1,8 @@
 import Foundation
 import ListenerCore
 
-/// The JSON body of POST /v1/messages for one streamed, single-turn request, encoded
-/// with snake-case keys.
+/// The JSON body of POST /v1/messages for one single-turn request, encoded with
+/// snake-case keys. Streamed, except a cache warm-up: `max_tokens` 0 can't stream.
 struct MessagesRequest: Encodable {
     struct TextBlock: Encodable {
         var type = "text"
@@ -45,6 +45,7 @@ struct MessagesRequest: Encodable {
 
         model = settings.model
         maxTokens = settings.maxTokens
+        stream = settings.maxTokens > 0
         if !request.system.isEmpty {
             system = [TextBlock(text: request.system, cacheControl: request.cacheSystem ? CacheControl() : nil)]
         }
@@ -109,9 +110,9 @@ struct ModelProfile {
         }
     }
 
-    /// Fallback is sent whenever the model thinks adaptively, which includes Opus 5.5
-    /// with the field left out. Never with `between_tools`.
+    /// Fallback is sent wherever the model offers it. A `between_tools` request that
+    /// falls back runs on the fallback model with thinking disabled.
     func usesServerSideFallback(thinking: ThinkingType?) -> Bool {
-        supportsServerSideFallback && (thinking == .adaptive || thinking == nil)
+        supportsServerSideFallback && thinking != .disabled
     }
 }

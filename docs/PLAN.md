@@ -86,8 +86,15 @@ Two design choices protect the budget:
 
 - On hotkey we send the transcript *including the current interim result*, so we never
   wait for the speech-to-text final to arrive.
-- The HTTP/2 connection to the Anthropic API is opened at Start and kept warm, which
-  saves the TLS handshake on the first answer.
+- The HTTP/2 connection to the Anthropic API is opened at Start, where the key and every
+  model ID are checked, and kept open with a small request every 45 s, so no answer
+  pays for a new connection after a quiet stretch.
+- With documents, the quick and deep system prompts are written to the prompt cache at
+  Start and before they expire. A warm-up carries the tier's own thinking and effort,
+  since both are part of the cached prompt. Haiku's is sent with `max_tokens` 0; Sonnet
+  with adaptive thinking caches `max_tokens` too, so its warm-up is the real request,
+  stopped at `message_start`. Checked on the live API: the first answer of each tier
+  read the warm-up's cache.
 
 Optional, off by default: **draft ahead** (`answers.draftAhead`). When "Them" finishes a
 turn, start generating a suggestion in the background and show it instantly if you press
@@ -240,7 +247,7 @@ ListenerApp   the `listener` executable: the app with no arguments, plus the
                                                                                                          v
  Hotkey (Haiku) / Hotkey (Sonnet) --> CallSession --> PromptBuilder (system + window + interim) --> Anthropic SSE --> UI
                                             |
-                                            +--> AnswerLatency: end of speech, STT final, hotkey, request sent, first token, done
+                                            +--> AnswerLatency: end of speech, STT final, hotkey, response begins, first token, done
  CostTracker: STT seconds per channel + LLM tokens (input, cache read, cache write, output) per model --> UI footer, session.json
  Stop --> Summary (Sonnet 5.5, full transcript) --> summary.md
 ```

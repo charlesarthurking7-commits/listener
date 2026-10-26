@@ -76,7 +76,7 @@ public struct SessionEventLog: Sendable {
             \(record.model, privacy: .public)\(source, privacy: .public)). \
             Hotkey to first token \(ms(latency.hotkeyToFirstToken), privacy: .public), \
             end of speech to first token \(ms(latency.endOfSpeechToFirstToken), privacy: .public), \
-            hotkey to request sent \(ms(latency.hotkeyToRequestSent), privacy: .public), \
+            hotkey to accepted \(ms(latency.hotkeyToAccepted), privacy: .public), \
             hotkey to done \(ms(latency.hotkeyToDone), privacy: .public), \
             end of speech to hotkey \(ms(latency.endOfSpeechToHotkey), privacy: .public), \
             final to hotkey \(ms(latency.finalToHotkey), privacy: .public). \

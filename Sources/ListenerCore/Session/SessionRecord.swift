@@ -36,8 +36,10 @@ public struct SessionRecord: Sendable, Codable, Equatable {
     public var settings: Settings
     public var turnCount: Int
     public var answers: [AnswerTiming]
-    /// Over answers that succeeded.
-    public var latency: LatencyStats
+    /// Over answers that succeeded, keyed by tier: a quick answer and a deep one that
+    /// thinks first are different waits. Drafts are left out, as their request went out
+    /// before the hotkey.
+    public var latency: [String: LatencyStats]
     public var cost: CostSummary
     /// File name of the summary within the session directory, once written.
     public var summaryFile: String?
@@ -69,7 +71,8 @@ public struct SessionRecord: Sendable, Codable, Equatable {
         self.settings = settings
         self.turnCount = turnCount
         self.answers = answers.map(AnswerTiming.init)
-        latency = LatencyStats(answers.filter { $0.error == nil }.map(\.latency))
+        let measured = answers.filter { $0.error == nil && !$0.fromDraft }
+        latency = Dictionary(grouping: measured, by: \.tier.rawValue).mapValues { LatencyStats($0.map(\.latency)) }
         self.cost = cost
         self.summaryFile = summaryFile
         self.summaryDue = summaryDue ? true : nil

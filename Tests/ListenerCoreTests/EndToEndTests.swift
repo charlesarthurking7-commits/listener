@@ -100,14 +100,14 @@ struct EndToEndTests {
         let latency = answer.latency
         let speechToHotkey = try #require(latency.endOfSpeechToHotkey)
         let finalToHotkey = try #require(latency.finalToHotkey)
-        let requestSent = try #require(latency.hotkeyToRequestSent)
+        let accepted = try #require(latency.hotkeyToAccepted)
         let firstToken = try #require(latency.hotkeyToFirstToken)
         let done = try #require(latency.hotkeyToDone)
         let speechToFirstToken = try #require(latency.endOfSpeechToFirstToken)
         #expect(speechToHotkey >= 0 && speechToHotkey < 10_000)
         // The hotkey came after the final it was waiting for, which came after the speech.
         #expect(finalToHotkey >= 0 && finalToHotkey <= speechToHotkey)
-        #expect(requestSent >= 0 && requestSent < 10_000)
+        #expect(accepted >= 0 && accepted <= firstToken)
         #expect(firstToken >= 50 && firstToken < 10_000)
         #expect(done >= firstToken)
         #expect(abs(speechToFirstToken - (speechToHotkey + firstToken)) <= 0.2)
@@ -130,8 +130,9 @@ struct EndToEndTests {
         let directory = try #require(await session.directory)
         let record = try SessionStore.readRecord(in: directory)
         #expect(record.speechProvider == "Scripted speech-to-text")
-        #expect(record.latency.hotkeyToFirstToken?.count == 1)
-        #expect(record.latency.endOfSpeechToFirstToken?.p50 == speechToFirstToken)
+        #expect(record.latency.keys.sorted() == ["quick"])
+        #expect(record.latency["quick"]?.hotkeyToFirstToken?.count == 1)
+        #expect(record.latency["quick"]?.endOfSpeechToFirstToken?.p50 == speechToFirstToken)
         let summaryPath = directory.appendingPathComponent("summary.md").path
         let events = recorder.all
         let stopped = try #require(events.firstIndex(of: .stopped(directory: directory.path)))

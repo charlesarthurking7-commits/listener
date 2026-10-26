@@ -35,6 +35,7 @@ public enum SessionSummarizer {
         var stopReason: String?
         for try await event in model.stream(request) {
             switch event {
+            case .accepted: break
             case .text(let text): markdown += text
             case .finished(let finalUsage, let reason): (usage, stopReason) = (finalUsage, reason)
             }

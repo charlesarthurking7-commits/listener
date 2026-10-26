@@ -154,6 +154,7 @@ public struct WebPageImporter: Sendable {
         var cutShort = false
         for try await event in model.stream(PromptBuilder.webPageRequest(url: url, page: page, settings: settings)) {
             switch event {
+            case .accepted: break
             case .text(let text): markdown += text
             case .finished(_, let stopReason): cutShort = stopReason == "max_tokens"
             }

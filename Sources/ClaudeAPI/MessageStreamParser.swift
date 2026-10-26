@@ -11,6 +11,8 @@ struct MessageStreamParser {
     private(set) var usage = TokenUsage()
     private(set) var stopReason: String?
     private(set) var isFinished = false
+    /// `message_start` has arrived: the API has read the prompt.
+    private(set) var hasStarted = false
     private var stopCategory: String?
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -62,6 +64,7 @@ struct MessageStreamParser {
     private mutating func handle(_ event: StreamEvent) throws -> ModelEvent? {
         switch event.type {
         case "message_start":
+            hasStarted = true
             if let reported = event.message?.usage {
                 merge(reported)
             }

@@ -58,8 +58,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         followWindowState()
 
-        let hotkeys = HotkeyCenter { [weak self] action in
-            self?.handle(action)
+        let hotkeys = HotkeyCenter { [weak self] action, pressedAt in
+            self?.handle(action, pressedAt: pressedAt)
         }
         let wanted = settings.hotkeys.hotkeys
         model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
@@ -170,17 +170,18 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func handle(_ action: HotkeyAction) {
+    /// Asks first and shows the window after, so the request leaves as soon as it can.
+    private func handle(_ action: HotkeyAction, pressedAt: ContinuousClock.Instant) {
         switch action {
         case .quickAnswer:
+            model.ask(.quick, pressedAt: pressedAt)
             panel?.show()
-            model.ask(.quick)
         case .deepAnswer:
+            model.ask(.deep, pressedAt: pressedAt)
             panel?.show()
-            model.ask(.deep)
         case .recap:
+            model.ask(.recap, pressedAt: pressedAt)
             panel?.show()
-            model.ask(.recap)
         case .toggleWindow:
             toggleWindow()
         case .toggleListening:

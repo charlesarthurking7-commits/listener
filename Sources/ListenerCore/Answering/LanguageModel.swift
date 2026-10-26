@@ -86,6 +86,10 @@ public struct TokenUsage: Sendable, Codable, Equatable {
 }
 
 public enum ModelEvent: Sendable, Equatable {
+    /// The response began: its headers arrived. Before this are the connection, the
+    /// upload, the API's queue and the model reading the prompt; streamed answers can
+    /// hold their headers until the first output is ready.
+    case accepted
     /// Visible answer text, in order.
     case text(String)
     /// The last event of a successful stream.
@@ -95,7 +99,32 @@ public enum ModelEvent: Sendable, Equatable {
 public protocol LanguageModelProvider: Sendable {
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error>
 
+    /// Writes the request's prompt to the cache without writing an answer, and returns
+    /// what that cost.
+    func prewarm(_ request: ModelRequest) async throws -> TokenUsage
+
     /// Opens the connection ahead of the first request so the first answer doesn't
     /// pay for DNS and the TLS handshake. Safe to call repeatedly.
     func warmUp() async
+
+    /// Whether answers can work: the key is accepted and each model exists. Says what
+    /// is wrong, or nil when all is well or the provider could not tell (offline).
+    func check(models: [String]) async -> String?
+}
+
+extension LanguageModelProvider {
+    /// Streams the request and keeps only its usage.
+    public func prewarm(_ request: ModelRequest) async throws -> TokenUsage {
+        var usage = TokenUsage()
+        for try await event in stream(request) {
+            if case .finished(let final, _) = event {
+                usage = final
+            }
+        }
+        return usage
+    }
+
+    public func check(models: [String]) async -> String? {
+        nil
+    }
 }

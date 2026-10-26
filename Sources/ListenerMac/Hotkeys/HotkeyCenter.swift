@@ -16,11 +16,12 @@ final class HotkeyCenter {
     /// "LSTN", tags our hotkey IDs.
     private static let signature: OSType = 0x4C53_544E
 
-    private let onPress: (HotkeyAction) -> Void
+    /// The action and when its key went down.
+    private let onPress: (HotkeyAction, ContinuousClock.Instant) -> Void
     private var registered: [UInt32: (action: HotkeyAction, ref: EventHotKeyRef)] = [:]
     private var eventHandler: EventHandlerRef?
 
-    init(onPress: @escaping (HotkeyAction) -> Void) {
+    init(onPress: @escaping (HotkeyAction, ContinuousClock.Instant) -> Void) {
         self.onPress = onPress
     }
 
@@ -63,9 +64,9 @@ final class HotkeyCenter {
         registered = [:]
     }
 
-    fileprivate func handlePress(id: UInt32) {
+    fileprivate func handlePress(id: UInt32, at pressedAt: ContinuousClock.Instant) {
         if let action = registered[id]?.action {
-            onPress(action)
+            onPress(action, pressedAt)
         }
     }
 
@@ -128,10 +129,14 @@ private func hotkeyPressed(
     guard status == noErr else {
         return status
     }
+    // The event can wait behind other work on the main thread; that wait is part of
+    // the answer's latency, so the press is timed from the event itself.
+    let waited = min(max(ProcessInfo.processInfo.systemUptime - GetEventTime(event), 0), 2)
+    let pressedAt = ContinuousClock.now - .seconds(waited)
     let center = Unmanaged<HotkeyCenter>.fromOpaque(userData).takeUnretainedValue()
     let id = hotkeyID.id
     MainActor.assumeIsolated {
-        center.handlePress(id: id)
+        center.handlePress(id: id, at: pressedAt)
     }
     return noErr
 }

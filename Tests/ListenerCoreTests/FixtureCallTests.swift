@@ -202,7 +202,7 @@ struct FixtureCallTests {
         let latency = answer.latency
         for (stage, value) in [
             ("end of speech to hotkey", latency.endOfSpeechToHotkey), ("final to hotkey", latency.finalToHotkey),
-            ("hotkey to request", latency.hotkeyToRequestSent), ("hotkey to first token", latency.hotkeyToFirstToken),
+            ("hotkey to accepted", latency.hotkeyToAccepted), ("hotkey to first token", latency.hotkeyToFirstToken),
             ("hotkey to done", latency.hotkeyToDone), ("end of speech to first token", latency.endOfSpeechToFirstToken),
         ] {
             #expect(value != nil, "\(stage) missing")
@@ -246,7 +246,7 @@ struct FixtureCallTests {
         #expect(record.turnCount == script.lines.count)
         #expect(record.channels.map(\.speaker) == [.me, .them])
         #expect(record.answers.map(\.latency) == [latency])
-        #expect(record.latency.endOfSpeechToFirstToken?.count == 1)
+        #expect(record.latency["quick"]?.endOfSpeechToFirstToken?.count == 1)
         #expect(record.cost == cost)
         #expect(record.summaryFile == SessionStore.summaryFile)
         let notes = try String(contentsOf: directory.appendingPathComponent(SessionStore.summaryFile), encoding: .utf8)

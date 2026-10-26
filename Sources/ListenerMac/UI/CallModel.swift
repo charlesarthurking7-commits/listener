@@ -221,15 +221,15 @@ final class CallModel {
         }
     }
 
-    func ask(_ tier: AnswerTier) {
+    /// `pressedAt` is when the hotkey went down, or now for a button or the menu. It is
+    /// taken before the hop to the session actor, so that wait counts towards the
+    /// answer's latency and two quick presses keep their order.
+    func ask(_ tier: AnswerTier, pressedAt: ContinuousClock.Instant = .now) {
         guard state.canAsk, let session else {
             state.addNotice(.info, "Answers need a live call. Press Start first.")
             publish()
             return
         }
-        // Taken before the hop to the session actor, so that wait counts towards the
-        // answer's latency and two quick presses keep their order.
-        let pressedAt = ContinuousClock.now
         Task {
             await session.requestAnswer(tier, pressedAt: pressedAt)
         }

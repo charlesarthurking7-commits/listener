@@ -44,6 +44,9 @@ public actor CallSession {
     static let cacheCheckInterval = Duration.seconds(15)
     /// The tiers whose speed matters most; a recap can wait the extra moment.
     static let warmTiers: [AnswerTier] = [.quick, .deep]
+    /// An idle connection is closed by the network or the API after a minute or two, and
+    /// the next answer then pays for a new one. A small request this often keeps it open.
+    static let keepAliveInterval = Duration.seconds(45)
 
     public nonisolated let events: AsyncStream<SessionEvent>
     private let continuation: AsyncStream<SessionEvent>.Continuation
@@ -106,6 +109,7 @@ public actor CallSession {
     /// When each tier's system prompt last went to the model, for keeping it cached.
     private var promptSentAt: [AnswerTier: ContinuousClock.Instant] = [:]
     private var cacheWarmer: Task<Void, Never>?
+    private var connectionKeeper: Task<Void, Never>?
 
     private var visible: Generation?
     private var draft: Generation?
@@ -165,10 +169,33 @@ public actor CallSession {
             channelTasks.append(Task { await runChannel(speaker, chunks: chunks, speech: speech) })
         }
         if let model = components.languageModel {
-            Task { await model.warmUp() }
+            checkModels(model)
+            keepConnectionOpen(model)
             keepPromptsCached(model)
         }
         writeRecord()
+    }
+
+    /// A rejected key or a mistyped model would otherwise only show at the first hotkey.
+    private func checkModels(_ model: any LanguageModelProvider) {
+        var models = AnswerTier.allCases.map { settings.answers.settings(for: $0).model }
+        if settings.summary.enabled {
+            models.append(settings.summary.model.model)
+        }
+        Task {
+            if let problem = await model.check(models: models) {
+                emit(.warning(problem))
+            }
+        }
+    }
+
+    private func keepConnectionOpen(_ model: any LanguageModelProvider) {
+        connectionKeeper = Task {
+            while !Task.isCancelled && phase == .running {
+                try? await Task.sleep(for: Self.keepAliveInterval)
+                await model.warmUp()
+            }
+        }
     }
 
     /// With documents, the system prompt is long enough that reading it from the cache
@@ -197,11 +224,9 @@ public actor CallSession {
         let request = PromptBuilder(answers: settings.answers, call: call).cacheWarmUpRequest(tier: tier)
         Task {
             // A warm-up that fails only means the next answer writes the cache itself.
-            for try await event in model.stream(request) {
-                if case .finished(let usage, _) = event {
-                    costTracker.addModelUsage(usage, model: request.settings.model)
-                    costChanged()
-                }
+            if let usage = try? await model.prewarm(request) {
+                costTracker.addModelUsage(usage, model: request.settings.model)
+                costChanged()
             }
         }
     }
@@ -391,7 +416,8 @@ public actor CallSession {
         var answerID: Int?
         var hotkeyAt: Double?
         var speech: AnswerSpeech?
-        var requestSentAt: Double
+        /// When the API accepted the request (its response headers came back).
+        var acceptedAt: Double?
         var firstTokenAt: Double?
         var doneAt: Double?
         var text = ""
@@ -406,13 +432,11 @@ public actor CallSession {
         nextGenerationKey += 1
         promptSentAt[tier] = .now
         var generation = Generation(
-            key: key, tier: tier, model: request.settings.model, isDraft: isDraft, revision: detector.revision,
-            requestSentAt: sessionTime(.now))
+            key: key, tier: tier, model: request.settings.model, isDraft: isDraft, revision: detector.revision)
         guard let model = components.languageModel else {
             return generation
         }
         generation.task = Task {
-            update(key) { $0.requestSentAt = sessionTime(.now) }
             do {
                 for try await event in model.stream(request) {
                     modelEvent(event, key: key)
@@ -444,6 +468,9 @@ public actor CallSession {
 
     private func modelEvent(_ event: ModelEvent, key: Int) {
         switch event {
+        case .accepted:
+            let now = sessionTime(.now)
+            update(key) { $0.acceptedAt = now }
         case .text(let delta):
             guard !delta.isEmpty else {
                 return
@@ -550,7 +577,7 @@ public actor CallSession {
             return latency
         }
         let shownAt = shownAt(generation)
-        latency.hotkeyToRequestSent = milliseconds(generation.requestSentAt - hotkey)
+        latency.hotkeyToAccepted = generation.acceptedAt.map { milliseconds($0 - hotkey) }
         latency.hotkeyToFirstToken = shownAt.map { milliseconds($0 - hotkey) }
         latency.hotkeyToDone = generation.doneAt.map { milliseconds(max($0, hotkey) - hotkey) }
         if let speech = generation.speech {
@@ -664,6 +691,8 @@ public actor CallSession {
 
         cacheWarmer?.cancel()
         cacheWarmer = nil
+        connectionKeeper?.cancel()
+        connectionKeeper = nil
         costFlush?.cancel()
         costFlush = nil
         emitCost()

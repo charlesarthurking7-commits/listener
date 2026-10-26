@@ -64,6 +64,7 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: ModelEvent.self)
         let task = Task { [self] in
             do {
+                continuation.yield(.accepted)
                 try await Task.sleep(for: firstTokenDelay)
                 let text = try reply(request)
                 let tokens = Self.tokens(of: text)

@@ -8,11 +8,11 @@ struct RequestEncodingTests {
     let client = ClaudeClient(apiKey: "test-key", transport: FakeTransport([]))
 
     func request(
-        model: String, effort: String = "low", thinking: ThinkingMode = .off, cacheSystem: Bool = false,
-        user: [PromptBlock] = [PromptBlock("Hello")]
+        model: String, effort: String = "low", thinking: ThinkingMode = .off, maxTokens: Int = 600,
+        cacheSystem: Bool = false, user: [PromptBlock] = [PromptBlock("Hello")]
     ) -> ModelRequest {
         ModelRequest(
-            settings: ModelSettings(model: model, effort: effort, thinking: thinking, maxTokens: 600),
+            settings: ModelSettings(model: model, effort: effort, thinking: thinking, maxTokens: maxTokens),
             system: "Be brief.", cacheSystem: cacheSystem, user: user)
     }
 
@@ -64,12 +64,22 @@ struct RequestEncodingTests {
         #expect(content[0]["text"] as? String == "Real")
     }
 
-    @Test func sonnetTurnsThinkingOffWithBetweenToolsAndNoFallback() throws {
+    @Test func sonnetTurnsThinkingOffWithBetweenToolsAndKeepsItsFallback() throws {
+        // A between_tools request that falls back runs there with thinking disabled.
         let http = try client.httpRequest(for: request(model: "claude-sonnet-5-5", effort: "high", thinking: .off))
         let sent = try body(request(model: "claude-sonnet-5-5", effort: "high", thinking: .off))
         #expect(thinkingType(sent) == "between_tools")
-        #expect(sent["fallbacks"] == nil)
-        #expect(http.headers["anthropic-beta"] == nil)
+        #expect(sent["fallbacks"] as? String == "default")
+        #expect(http.headers["anthropic-beta"] == "server-side-fallback-2026-07-01")
+    }
+
+    @Test func aCacheWarmUpIsNotStreamedAndWritesNoAnswer() throws {
+        // max_tokens 0 is rejected with stream true.
+        let sent = try body(request(model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 0))
+        #expect(sent["max_tokens"] as? Int == 0)
+        #expect(sent["stream"] as? Bool == false)
+        #expect(thinkingType(sent) == "adaptive")
+        #expect(try body(request(model: "claude-haiku-5-5"))["stream"] as? Bool == true)
     }
 
     @Test func sonnetAdaptiveSendsServerSideFallback() throws {

@@ -415,7 +415,7 @@ final class CallSessionTests {
         let answer = try #require(setup.recorder.finishedAnswers.first)
         #expect(answer.fromDraft && answer.text == tradeAnswer)
         #expect(setup.recorder.answerText(id: 1) == tradeAnswer)
-        #expect((answer.latency.hotkeyToRequestSent ?? 0) < 0)
+        #expect((answer.latency.hotkeyToAccepted ?? 0) < 0)
         #expect(answer.latency.hotkeyToFirstToken == 0 && answer.latency.hotkeyToDone == 0)
         #expect(answer.latency.endOfSpeechToFirstToken == answer.latency.endOfSpeechToHotkey)
         #expect(answer.cost > 0)
@@ -434,7 +434,8 @@ final class CallSessionTests {
         let answer = try #require(setup.recorder.finishedAnswers.first)
         #expect(answer.fromDraft && answer.text == tradeAnswer)
         #expect(setup.recorder.answerText(id: 1) == tradeAnswer)
-        #expect((answer.latency.hotkeyToRequestSent ?? 0) <= 0)
+        // The draft's response can begin just after the hotkey, but always before its words.
+        #expect((answer.latency.hotkeyToAccepted ?? .infinity) <= (answer.latency.hotkeyToFirstToken ?? 0))
         #expect((answer.latency.hotkeyToFirstToken ?? -1) >= 0)
         #expect((answer.latency.hotkeyToDone ?? 0) > 0)
         #expect(model.requests.count == 2)
@@ -474,6 +475,24 @@ final class CallSessionTests {
         #expect(model.requests[1].userText.contains("Me: Let me look."))
     }
 
+    @Test func aRejectedKeyIsReportedAtStartNotAtTheFirstHotkey() async throws {
+        struct RejectedKey: LanguageModelProvider {
+            func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
+                AsyncThrowingStream { $0.finish(throwing: CancellationError()) }
+            }
+
+            func warmUp() async {}
+
+            func check(models: [String]) async -> String? {
+                "The Anthropic API key was rejected."
+            }
+        }
+        let setup = try setUp(sources: [.me: FakeSource(.me)], model: RejectedKey())
+        try await setup.session.start()
+        #expect(await eventually { setup.recorder.warnings == ["The Anthropic API key was rejected."] })
+        await setup.stop()
+    }
+
     @Test func aCallWithDocumentsCachesItsPromptsAtStart() async throws {
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
         let call = CallContext(
@@ -483,7 +502,7 @@ final class CallSessionTests {
         #expect(await eventually { await setup.session.cost.modelUsage.count == 2 })
         await setup.stop()
 
-        let warmUps = model.requests.filter { $0.settings.maxTokens == 1 }
+        let warmUps = model.requests.filter { $0.userText.contains("only loads the prompt cache") }
         #expect(warmUps.map(\.settings.model).sorted() == ["claude-haiku-5-5", "claude-sonnet-5-5"])
         #expect(warmUps.allSatisfy { $0.cacheSystem && $0.system.contains("<document name=\"runbook.pdf\">") })
     }
@@ -492,7 +511,7 @@ final class CallSessionTests {
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
         let setup = try setUp(model: model)
         try await setup.run()
-        #expect(!model.requests.contains { $0.settings.maxTokens == 1 })
+        #expect(!model.requests.contains { $0.userText.contains("only loads the prompt cache") })
     }
 
     @Test func aCachedPromptIsRefreshedBeforeItExpires() {

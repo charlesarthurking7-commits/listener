@@ -45,15 +45,14 @@ public struct PromptBuilder: Sendable {
             user: user)
     }
 
-    /// A one-token request that only writes a tier's system prompt, with the call's
-    /// documents, to the prompt cache, so the first answer reads it from there too.
+    /// A request that only writes a tier's system prompt, with the call's documents, to
+    /// the prompt cache, so the first answer reads it from there too. Its settings are the
+    /// tier's own, since thinking, effort and with them `max_tokens` can be part of the
+    /// cached prompt; `LanguageModelProvider.prewarm` sends it without an answer.
     public func cacheWarmUpRequest(tier: AnswerTier) -> ModelRequest {
-        let tierSettings = answers.settings(for: tier)
-        return ModelRequest(
-            settings: ModelSettings(
-                model: tierSettings.model, effort: tierSettings.effort, thinking: .off, maxTokens: 1),
-            system: systemPrompt(for: tier), cacheSystem: true,
-            user: [PromptBlock("This request only loads the prompt cache. Reply with OK.")])
+        ModelRequest(
+            settings: answers.settings(for: tier), system: systemPrompt(for: tier), cacheSystem: true,
+            user: [PromptBlock("This request only loads the prompt cache.")])
     }
 
     private func systemPrompt(for tier: AnswerTier) -> String {
