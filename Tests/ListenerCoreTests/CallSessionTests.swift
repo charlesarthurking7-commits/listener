@@ -129,11 +129,20 @@ struct RefusingModel: LanguageModelProvider {
     func warmUp() async {}
 }
 
-struct CallSessionTests {
+final class CallSessionTests {
+    private let root: URL
+
+    init() throws {
+        root = try temporaryDirectory("session")
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: root)
+    }
+
     private struct Setup {
         var session: CallSession
         var sources: [Speaker: ReplaySource]
-        var root: URL
         var recorder: EventRecorder
         var recording: Task<Void, Never>
 
@@ -151,60 +160,57 @@ struct CallSessionTests {
         }
     }
 
+    /// Given `sources`, the session captures from them instead of replaying the script,
+    /// which still drives the scripted speech-to-text.
     private func setUp(
         script: ConversationScript = tradeScript, seconds: Double = 11, pacing: ReplaySource.Pacing = .unpaced,
-        speech: (any SpeechToTextProvider)? = nil, model: (any LanguageModelProvider)? = tradeModel(),
+        sources: [Speaker: any AudioCaptureSource]? = nil, speech: (any SpeechToTextProvider)? = nil,
+        model: (any LanguageModelProvider)? = tradeModel(), call: CallContext = .none,
         configure: (inout Settings) -> Void = { _ in }
     ) throws -> Setup {
-        let root = try temporaryDirectory("session")
         var settings = sessionSettings(directory: root)
         configure(&settings)
-        let sources = try scriptSources(script, seconds: seconds, pacing: pacing)
+        let replay = sources == nil ? try scriptSources(script, seconds: seconds, pacing: pacing) : [:]
         let session = CallSession(
             settings: settings,
             components: SessionComponents(
-                sources: sources, speech: speech ?? ScriptedSpeechToText(script: script), languageModel: model))
+                sources: sources ?? replay, speech: speech ?? ScriptedSpeechToText(script: script),
+                languageModel: model),
+            call: call)
         let recorder = EventRecorder()
-        return Setup(
-            session: session, sources: sources, root: root, recorder: recorder, recording: recorder.record(session))
+        return Setup(session: session, sources: replay, recorder: recorder, recording: recorder.record(session))
+    }
+
+    /// Them asks one question, played at 8x with drafts ahead on.
+    private func draftSetUp(model: ScriptedLanguageModel) throws -> Setup {
+        let script = ConversationScript(
+            title: "draft", lines: [.init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?")])
+        return try setUp(script: script, seconds: 4, pacing: .realTime(speed: 8), model: model) {
+            $0.answers.draftAhead = true
+        }
     }
 
     @Test func aSourceThatCannotStartStopsTheOthersAndLeavesNothingBehind() async throws {
-        let root = try temporaryDirectory("session")
-        defer { try? FileManager.default.removeItem(at: root) }
         let me = FakeSource(.me)
         let them = FakeSource(.them, fails: true)
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: [.me: me, .them: them], speech: ScriptedSpeechToText(script: tradeScript),
-                languageModel: nil))
-        let recorder = EventRecorder()
-        let recording = recorder.record(session)
+        let setup = try setUp(sources: [.me: me, .them: them], model: nil)
 
         await #expect(throws: FakeSource.Failure()) {
-            try await session.start()
+            try await setup.session.start()
         }
         #expect(me.stops == 1 && them.stops == 0)
-        #expect(await !session.isRunning)
-        #expect(await session.directory == nil)
+        #expect(await !setup.session.isRunning)
+        #expect(await setup.session.directory == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
 
-        await session.stop()
-        await recording.value
-        #expect(recorder.all == [.stopped(directory: nil)])
+        await setup.stop()
+        #expect(setup.recorder.all == [.stopped(directory: nil)])
     }
 
     @Test func startingTwiceAndStoppingTwiceAreHarmless() async throws {
-        let root = try temporaryDirectory("session")
-        defer { try? FileManager.default.removeItem(at: root) }
         let me = FakeSource(.me)
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: [.me: me], speech: ScriptedSpeechToText(script: tradeScript), languageModel: nil))
-        let recorder = EventRecorder()
-        let recording = recorder.record(session)
+        let setup = try setUp(sources: [.me: me], model: nil)
+        let session = setup.session
 
         try await session.start()
         try await session.start()
@@ -212,45 +218,37 @@ struct CallSessionTests {
         async let first: Void = session.stop()
         async let second: Void = session.stop()
         _ = await (first, second)
-        await session.stop()
-        await recording.value
+        await setup.stop()
         #expect(me.stops == 1)
-        #expect(recorder.stoppedDirectories.count == 1)
+        #expect(setup.recorder.stoppedDirectories.count == 1)
         try await session.start()
         #expect(me.starts == 1)
     }
 
     @Test func stopDuringStartWaitsForStartThenStops() async throws {
-        let root = try temporaryDirectory("session")
-        defer { try? FileManager.default.removeItem(at: root) }
         let me = FakeSource(.me, startDelay: .milliseconds(200))
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: [.me: me], speech: ScriptedSpeechToText(script: tradeScript), languageModel: nil))
-        let recorder = EventRecorder()
-        let recording = recorder.record(session)
+        let setup = try setUp(sources: [.me: me], model: nil)
+        let session = setup.session
 
         let starting = Task { try await session.start() }
         try await Task.sleep(for: .milliseconds(50))
         await session.stop()
         try await starting.value
-        await recording.value
+        await setup.recording.value
         #expect(me.stops == 1)
         #expect(await !session.isRunning)
         #expect(
-            recorder.all.first
+            setup.recorder.all.first
                 == .started(channels: [
                     ChannelInfo(speaker: .me, backend: "fake", device: "none", nativeFormat: "16 kHz")
                 ]))
-        #expect(recorder.stoppedDirectories.count == 1)
+        #expect(setup.recorder.stoppedDirectories.count == 1)
     }
 
     @Test func theCallIsSavedBeforeItsSummaryIsWritten() async throws {
         // A summary takes a minute or more. The next call must not wait for it, and the
         // record says one is still due in case the app quits before it is written.
         let setup = try setUp(model: tradeModel(firstTokenDelay: .milliseconds(500)))
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.session.start()
         await waitForReplay(setup.sources)
         let stopping = Task { await setup.session.stop() }
@@ -272,7 +270,6 @@ struct CallSessionTests {
     @Test func hotkeysOutsideACallAreIgnored() async throws {
         let model = tradeModel()
         let setup = try setUp(model: model)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         await setup.session.requestAnswer(.quick)
         await setup.session.cancelAnswer()
         try await setup.run()
@@ -287,7 +284,6 @@ struct CallSessionTests {
         let silentMe = ConversationScript(
             title: "monologue", lines: [.init(speaker: .them, start: 1, end: 3, text: "Hello?")])
         let setup = try setUp(script: silentMe, seconds: 31, model: nil)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         let warnings = setup.recorder.warnings
         #expect(warnings.count == 1)
@@ -300,7 +296,6 @@ struct CallSessionTests {
         let silentThem = ConversationScript(
             title: "waiting", lines: [.init(speaker: .me, start: 1, end: 3, text: "Are you there?")])
         let setup = try setUp(script: silentThem, seconds: 31, model: nil)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         #expect(
             setup.recorder.warnings == [
@@ -320,7 +315,6 @@ struct CallSessionTests {
                 .init(speaker: .them, start: 2.65, end: 3.5, text: "were affected?"),
             ])
         let setup = try setUp(script: script, seconds: 5, model: nil)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         #expect(await setup.session.transcript.turns.map(\.text) == ["Which accounts were affected?"])
     }
@@ -338,8 +332,6 @@ struct CallSessionTests {
                 .init(speaker: .me, start: 5.6, end: 5.9, text: "Okay."),
                 .init(speaker: .them, start: 6.0, end: 8.0, text: "Can you tell us why?"),
             ])
-        let root = try temporaryDirectory("typing")
-        defer { try? FileManager.default.removeItem(at: root) }
         let typing = Synth.keystrokes(seconds: 10, perSecond: keysPerSecond, levelDBFS: levelDBFS)
         let sources = [
             Speaker.me: try ReplaySource(
@@ -347,10 +339,7 @@ struct CallSessionTests {
             .them: try ReplaySource(
                 audio: scriptAudio(script, speaker: .them, seconds: 10), speaker: .them, pacing: .unpaced),
         ]
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: sources, speech: ScriptedSpeechToText(script: script), languageModel: nil))
+        let session = try setUp(script: script, sources: sources, model: nil).session
         try await session.start()
         await waitForReplay(sources)
         await session.stop()
@@ -362,7 +351,6 @@ struct CallSessionTests {
 
     @Test func speechToTextErrorsDoNotEndTheCall() async throws {
         let setup = try setUp(speech: FlakySpeech(script: tradeScript))
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         #expect(setup.recorder.lastTranscript?.turns.map(\.text) == tradeScript.lines.map(\.text))
         let warnings = setup.recorder.warnings
@@ -375,7 +363,6 @@ struct CallSessionTests {
     @Test func aNewRequestOrEscapeCancelsTheAnswerInFlight() async throws {
         let model = tradeModel(firstTokenDelay: .milliseconds(20), tokenInterval: .milliseconds(30))
         let setup = try setUp(pacing: .realTime(speed: 1), model: model)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         let session = setup.session
         try await session.start()
 
@@ -400,7 +387,6 @@ struct CallSessionTests {
 
     @Test func aFailedAnswerKeepsNoText() async throws {
         let setup = try setUp(pacing: .realTime(speed: 1), model: RefusingModel())
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.session.start()
         await setup.session.requestAnswer(.quick)
         #expect(await eventually { await setup.session.answers.count == 1 })
@@ -414,13 +400,8 @@ struct CallSessionTests {
     }
 
     @Test func aDraftMadeWhenThemFinishesIsShownAtOnce() async throws {
-        let script = ConversationScript(
-            title: "draft", lines: [.init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?")])
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
-        let setup = try setUp(script: script, seconds: 4, pacing: .realTime(speed: 8), model: model) {
-            $0.answers.draftAhead = true
-        }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
+        let setup = try draftSetUp(model: model)
         try await setup.session.start()
         await waitForReplay(setup.sources)
         // The session has taken in the draft's last event once its usage is costed.
@@ -441,13 +422,8 @@ struct CallSessionTests {
     }
 
     @Test func aDraftStillStreamingIsShownAndCarriesOn() async throws {
-        let script = ConversationScript(
-            title: "draft", lines: [.init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?")])
         let model = tradeModel(firstTokenDelay: .milliseconds(100), tokenInterval: .milliseconds(20))
-        let setup = try setUp(script: script, seconds: 4, pacing: .realTime(speed: 8), model: model) {
-            $0.answers.draftAhead = true
-        }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
+        let setup = try draftSetUp(model: model)
         try await setup.session.start()
         #expect(await eventually { model.requests.count == 1 })
 
@@ -480,7 +456,6 @@ struct CallSessionTests {
         ) {
             $0.answers.draftAhead = true
         }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.session.start()
         #expect(await eventually { model.requests.count == 1 })
         await waitForReplay(setup.sources)
@@ -500,22 +475,13 @@ struct CallSessionTests {
     }
 
     @Test func aCallWithDocumentsCachesItsPromptsAtStart() async throws {
-        let root = try temporaryDirectory("session")
-        defer { try? FileManager.default.removeItem(at: root) }
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
         let call = CallContext(
             callType: "Work call", documents: [CallContext.Document(name: "runbook.pdf", text: "Restart the bridge.")])
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: [.me: FakeSource(.me)], speech: ScriptedSpeechToText(script: tradeScript),
-                languageModel: model),
-            call: call)
-        let recording = EventRecorder().record(session)
-        try await session.start()
-        #expect(await eventually { await session.cost.modelUsage.count == 2 })
-        await session.stop()
-        await recording.value
+        let setup = try setUp(sources: [.me: FakeSource(.me)], model: model, call: call)
+        try await setup.session.start()
+        #expect(await eventually { await setup.session.cost.modelUsage.count == 2 })
+        await setup.stop()
 
         let warmUps = model.requests.filter { $0.settings.maxTokens == 1 }
         #expect(warmUps.map(\.settings.model).sorted() == ["claude-haiku-5-5", "claude-sonnet-5-5"])
@@ -525,7 +491,6 @@ struct CallSessionTests {
     @Test func aCallWithoutDocumentsSendsNoWarmUps() async throws {
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
         let setup = try setUp(model: model)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         #expect(!model.requests.contains { $0.settings.maxTokens == 1 })
     }
@@ -538,13 +503,8 @@ struct CallSessionTests {
     }
 
     @Test func aRecapNeverUsesTheDraft() async throws {
-        let script = ConversationScript(
-            title: "draft", lines: [.init(speaker: .them, start: 0.5, end: 1.5, text: "Are the fills in?")])
         let model = tradeModel(firstTokenDelay: .zero, tokenInterval: .zero)
-        let setup = try setUp(script: script, seconds: 4, pacing: .realTime(speed: 8), model: model) {
-            $0.answers.draftAhead = true
-        }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
+        let setup = try draftSetUp(model: model)
         try await setup.session.start()
         await waitForReplay(setup.sources)
         #expect(await eventually { model.requests.count == 1 })
@@ -564,7 +524,6 @@ struct CallSessionTests {
         let speech = HeldFinalsSpeech(script: script)
         let model = tradeModel()
         let setup = try setUp(script: script, seconds: 3, pacing: .realTime(speed: 4), speech: speech, model: model)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         let session = setup.session
         try await session.start()
         #expect(await eventually { await session.endOfSpeech != nil })
@@ -597,7 +556,6 @@ struct CallSessionTests {
 
     @Test func costEventsAreThrottled() async throws {
         let setup = try setUp(pacing: .realTime(speed: 8))
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         let started = ContinuousClock.now
         try await setup.run()
         let elapsed = (ContinuousClock.now - started).inSeconds
@@ -611,7 +569,6 @@ struct CallSessionTests {
         let script = ConversationScript(
             title: "one line", lines: [.init(speaker: .them, start: 2.0, end: 3.0, text: "Just this.")])
         let setup = try setUp(script: script, seconds: 10, model: nil) { $0.speech.skipSilence = true }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         let seconds = await setup.session.cost.speechSeconds
         #expect((seconds["Them"] ?? 0) > 2.2 && (seconds["Them"] ?? 0) < 2.6)
@@ -630,13 +587,8 @@ struct CallSessionTests {
                 .init(speaker: .them, start: 0.5, end: 1.8, text: "Before the lid closed."),
                 .init(speaker: .them, start: 4.5, end: 5.5, text: "After it opened again."),
             ])
-        let root = try temporaryDirectory("sleep")
-        defer { try? FileManager.default.removeItem(at: root) }
         let them = FeedSource(speaker: .them)
-        let session = CallSession(
-            settings: sessionSettings(directory: root),
-            components: SessionComponents(
-                sources: [.them: them], speech: ScriptedSpeechToText(script: script), languageModel: nil))
+        let session = try setUp(script: script, sources: [.them: them], model: nil).session
         try await session.start()
 
         them.deliver(Synth.track(seconds: 2, bursts: [0.5...1.8], frequency: 200, amplitude: 0.2), endingAt: 2)
@@ -655,7 +607,6 @@ struct CallSessionTests {
 
     @Test func withoutALanguageModelThereAreNoAnswersOrSummary() async throws {
         let setup = try setUp(model: nil)
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.session.start()
         await setup.session.requestAnswer(.quick)
         await waitForReplay(setup.sources)
@@ -669,7 +620,6 @@ struct CallSessionTests {
 
     @Test func savesBothChannelsWhenAsked() async throws {
         let setup = try setUp(model: nil) { $0.storage.saveAudio = true }
-        defer { try? FileManager.default.removeItem(at: setup.root) }
         try await setup.run()
         let directory = try #require(await setup.session.directory)
         for name in ["me.wav", "them.wav"] {

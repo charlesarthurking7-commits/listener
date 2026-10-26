@@ -3,12 +3,21 @@ import Testing
 
 @testable import ListenerCore
 
-struct SessionStoreTests {
+final class SessionStoreTests {
+    private let root: URL
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/London")!
         return calendar
     }()
+
+    init() throws {
+        root = try temporaryDirectory("store")
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: root)
+    }
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 9, _ minute: Int = 30, _ second: Int = 5)
         -> Date
@@ -46,8 +55,6 @@ struct SessionStoreTests {
     }
 
     @Test func writesEveryFileAndReadsThemBack() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let startedAt = Date(timeIntervalSince1970: 1_790_000_000)
         let store = try SessionStore(root: root, startedAt: startedAt, saveAudio: true)
         #expect(store.directory.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL)
@@ -90,8 +97,6 @@ struct SessionStoreTests {
     }
 
     @Test func anAnswerSavedAgainReadsBackAsItsLastVersion() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let store = try SessionStore(root: root)
         var first = AnswerRecord(id: 1, tier: .quick, model: "claude-haiku-5-5", askedAt: 2, text: "Yes.")
         let second = AnswerRecord(id: 2, tier: .quick, model: "claude-haiku-5-5", askedAt: 5, text: "No.")
@@ -105,8 +110,6 @@ struct SessionStoreTests {
     }
 
     @Test func noAudioFilesUnlessAsked() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let store = try SessionStore(root: root)
         try store.appendAudio([1], for: .me)
         try store.close()
@@ -115,8 +118,6 @@ struct SessionStoreTests {
     }
 
     @Test func theCallTypeIsSavedForWritingTheSummaryAgain() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let store = try SessionStore(root: root)
         #expect(SessionStore.readCall(in: store.directory) == .none)
         let call = CallContext(
@@ -132,8 +133,6 @@ struct SessionStoreTests {
     }
 
     @Test func sessionsStartedInTheSameSecondGetTheirOwnDirectories() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let now = Date()
         let first = try SessionStore(root: root, startedAt: now)
         let second = try SessionStore(root: root, startedAt: now)
@@ -142,8 +141,6 @@ struct SessionStoreTests {
     }
 
     @Test func aTruncatedLastLineIsSkipped() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let store = try SessionStore(root: root)
         try store.append(Turn(id: 1, speaker: .me, text: "Kept", start: 0, end: 1))
         try store.close()
@@ -156,8 +153,6 @@ struct SessionStoreTests {
     }
 
     @Test func listsSessionsNewestFirst() throws {
-        let root = try temporaryDirectory("store")
-        defer { try? FileManager.default.removeItem(at: root) }
         let older = Date(timeIntervalSince1970: 1_790_000_000)
         let newer = older.addingTimeInterval(3_600)
 
@@ -195,8 +190,6 @@ struct SessionStoreTests {
     }
 
     @Test func retentionDeletesOnlyOldSessionDirectories() throws {
-        let root = try temporaryDirectory("retention")
-        defer { try? FileManager.default.removeItem(at: root) }
         let now = date(2026, 10, 20)
         let fileManager = FileManager.default
         func make(_ name: String, directory: Bool = true) throws {
@@ -231,8 +224,6 @@ struct SessionStoreTests {
     /// `storage.directory` can point anywhere, so a folder that is merely named like a
     /// session must survive: only folders Listener wrote a session into are deleted.
     @Test func retentionLeavesFoldersThatHoldNoSession() throws {
-        let root = try temporaryDirectory("retention")
-        defer { try? FileManager.default.removeItem(at: root) }
         let folder = root.appendingPathComponent(SessionStore.directoryName(for: date(2025, 1, 1), calendar: .current))
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data("holiday".utf8).write(to: folder.appendingPathComponent("photo.jpg"))

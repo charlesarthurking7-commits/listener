@@ -3,7 +3,17 @@ import Testing
 
 @testable import ListenerCore
 
-struct SettingsLoaderTests {
+final class SettingsLoaderTests {
+    private let home: URL
+
+    init() throws {
+        home = try temporaryDirectory("home")
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: home)
+    }
+
     @Test func emptyFileGivesDefaults() throws {
         let (settings, warnings) = try decode("{}")
         #expect(settings == Settings())
@@ -82,7 +92,6 @@ struct SettingsLoaderTests {
     }
 
     @Test func missingDefaultFileGivesDefaults() throws {
-        let home = try makeHome()
         let loaded = try SettingsLoader(paths: ListenerPaths(home: home)).load()
         #expect(loaded.settings == Settings())
         #expect(!loaded.fileExists)
@@ -90,14 +99,12 @@ struct SettingsLoaderTests {
     }
 
     @Test func missingExplicitFileIsAnError() throws {
-        let home = try makeHome()
         let loader = SettingsLoader(paths: ListenerPaths(home: home))
         let error = try #require(throws: SettingsError.self) { try loader.load(explicitPath: "~/nope.json") }
         #expect(error.description == "~/nope.json: does not exist")
     }
 
     @Test func loadsTheFileAndExpandsTildes() throws {
-        let home = try makeHome()
         let paths = ListenerPaths(home: home)
         try FileManager.default.createDirectory(at: paths.supportDirectory, withIntermediateDirectories: true)
         try Data(#"{"storage": {"directory": "~/Calls"}, "speech": {"googleCredentialsFile": "~/key.json"}}"#.utf8)
@@ -138,7 +145,7 @@ struct SettingsLoaderTests {
     }
 
     @Test func starterFileNeverReplacesAnExistingFile() throws {
-        let paths = ListenerPaths(home: try makeHome())
+        let paths = ListenerPaths(home: home)
         let loader = SettingsLoader(paths: paths)
         let file = try loader.createSettingsFileIfMissing()
         #expect(try Data(contentsOf: file) == SettingsLoader.starterFile())
@@ -197,10 +204,4 @@ struct SettingsLoaderTests {
             Issue.record("Unexpected error \(error)", sourceLocation: sourceLocation)
         }
     }
-}
-
-func makeHome() throws -> URL {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent("listener-home-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-    return home
 }

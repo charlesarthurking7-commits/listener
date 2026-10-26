@@ -3,9 +3,17 @@ import Testing
 
 @testable import ListenerCore
 
-struct CallTypeLibraryTests {
-    private func library() throws -> CallTypeLibrary {
-        CallTypeLibrary(directory: try temporaryDirectory("call-types").appendingPathComponent("Call Types"))
+final class CallTypeLibraryTests {
+    private let directory: URL
+    private let library: CallTypeLibrary
+
+    init() throws {
+        directory = try temporaryDirectory("call-types")
+        library = CallTypeLibrary(directory: directory.appendingPathComponent("Call Types"))
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: directory)
     }
 
     private func write(_ text: String, to url: URL) throws {
@@ -13,8 +21,6 @@ struct CallTypeLibraryTests {
     }
 
     @Test func theBuiltInTypesAreCreatedOnceAndDeletionsStick() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         try library.createIfMissing()
         #expect(library.names() == ["Meeting", "Work call"])
         let meeting = library.load("Meeting")
@@ -27,8 +33,6 @@ struct CallTypeLibraryTests {
     }
 
     @Test func documentsComeBriefAndStoriesFirstWithoutTheirComments() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         try library.createIfMissing()
         let folder = library.folder(for: "Work call")
         try write("Acme runs three MT5 servers.", to: folder.appendingPathComponent("acme servers.md"))
@@ -45,8 +49,6 @@ struct CallTypeLibraryTests {
     }
 
     @Test func aNewStoriesFileIsOnlyItsNoteUntilFilledIn() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         let url = try library.createStoriesIfMissing(for: "Work call")
         #expect(try CallTypeLibrary.readPlainText(url).contains("Good for:"))
         #expect(library.load("Work call").files.map(\.problem) == ["Empty"])
@@ -57,8 +59,6 @@ struct CallTypeLibraryTests {
     }
 
     @Test func emptyAndUnreadableFilesAreShownButNotSent() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         try library.createBriefIfMissing(for: "Work call")
         try write("scan", to: library.folder(for: "Work call").appendingPathComponent("scan.pdf"))
 
@@ -76,8 +76,6 @@ struct CallTypeLibraryTests {
     }
 
     @Test func backgroundOverTheBudgetIsCutThenLeftOut() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
         let folder = library.folder(for: "Work call")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let budgetBytes = CallTypeLibrary.documentBudgetTokens * TokenEstimate.bytesPerToken
@@ -92,9 +90,7 @@ struct CallTypeLibraryTests {
     }
 
     @Test func addedFilesAndTextNeverOverwrite() throws {
-        let library = try library()
-        defer { try? FileManager.default.removeItem(at: library.directory.deletingLastPathComponent()) }
-        let source = library.directory.deletingLastPathComponent().appendingPathComponent("runbook.pdf")
+        let source = directory.appendingPathComponent("runbook.pdf")
         try write("pdf", to: source)
 
         let added = try library.add(files: [source, source], to: "Work call")
