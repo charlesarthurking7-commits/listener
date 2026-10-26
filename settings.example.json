@@ -30,7 +30,7 @@
       "maxTokens": 4000
     },
     "recap": {
-      "model": "claude-haiku-5-5",
+      "model": "claude-sonnet-5-5",
       "effort": "low",
       "thinking": "off",
       "maxTokens": 1000

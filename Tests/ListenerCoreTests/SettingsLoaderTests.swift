@@ -219,6 +219,13 @@ struct SettingsLoaderTests {
         }
     }
 
+    @Test func exampleSettingsFileShowsTheDefaults() throws {
+        var (example, _) = try SettingsLoader.decode(Data(contentsOf: exampleFile))
+        example.speech.googleProjectID = nil
+        example.answers.context = ""
+        #expect(example == Settings())
+    }
+
     private var exampleFile: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
