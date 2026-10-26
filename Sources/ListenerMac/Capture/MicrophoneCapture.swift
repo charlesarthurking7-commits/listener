@@ -24,7 +24,8 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     private var inputListener: PropertyListener?
     private var sleepListener: SleepWakeListener?
     private var pacer = RestartPacer()
-    private var restartPending = false
+    /// Why the restart that is waiting to run was asked for.
+    private var pendingRestart: CaptureRestartReason?
     private var lastFailure: String?
 
     /// - Parameter voiceProcessing: turn on Apple's echo cancellation. Only useful when
@@ -195,13 +196,22 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     /// Returns the delay, or nil when stopped or when a restart is already scheduled.
     @discardableResult
     private func scheduleRestart(_ reason: CaptureRestartReason) -> Duration? {
-        if feed == nil || restartPending {
+        guard feed != nil else {
             return nil
         }
-        restartPending = true
+        if let pending = pendingRestart {
+            // A configuration change is skipped while the engine runs, so a device change
+            // that comes in behind one must take its place or it is lost.
+            if pending == .audioConfigurationChanged {
+                pendingRestart = reason
+            }
+            return nil
+        }
+        pendingRestart = reason
         let delay = pacer.delay(at: .now)
         controlQueue.asyncAfter(deadline: .now() + CaptureSupport.dispatchInterval(delay)) {
-            self.restartPending = false
+            let reason = self.pendingRestart ?? reason
+            self.pendingRestart = nil
             self.restart(reason)
         }
         return delay
