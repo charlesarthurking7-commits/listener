@@ -88,6 +88,22 @@ struct FixtureCallTests {
         }
     }
 
+    /// AirPods in a call deliver speech at about -40 dBFS, not far above the detector's
+    /// threshold. Every line is still heard there, the one-word ones too.
+    @Test(arguments: FixtureCall.all)
+    func quietSpeechIsStillHeard(_ call: FixtureCall) throws {
+        let script = try call.script()
+        // Me's lines are at -21 dBFS and Them's at -23, so this puts them at -40 and -42.
+        let gain = pow(10, -19.0 / 20)
+        for speaker in Speaker.allCases {
+            let samples = try call.audio(speaker).samples.map { Int16((Double($0) * gain).rounded()) }
+            let speech = voiceActivity(in: samples)
+            for line in script.lines where line.speaker == speaker {
+                #expect(speech.contains { $0.overlaps(line.start...line.end) }, "no speech heard for \(line.text)")
+            }
+        }
+    }
+
     @Test(arguments: FixtureCall.all)
     func theWholeCallReplaysThroughThePipeline(_ call: FixtureCall) async throws {
         let script = try call.script()

@@ -42,6 +42,30 @@ struct VoiceActivityDetectorTests {
         #expect(detect(justLongEnough) == [.speechStarted(at: 0.5), .speechEnded(at: 0.66)])
     }
 
+    /// Each key is loud for a frame or two, and steady typing puts a key well inside the
+    /// hangover of the one before, whatever the level.
+    @Test(arguments: [5.0, 6, 8, 10, 12], [-40.0, -35, -30, -20])
+    func typingIsNotSpeech(keysPerSecond: Double, levelDBFS: Double) {
+        let typing = Synth.keystrokes(seconds: 10, perSecond: keysPerSecond, levelDBFS: levelDBFS)
+        #expect(detect(typing).isEmpty)
+    }
+
+    /// Typing that goes on after the speaker stops does not keep their speech going. A key
+    /// within the 200 ms that confirms speech can still count as part of it.
+    @Test(arguments: [(6.0, -40.0), (8, -35), (10, -30)])
+    func typingThroughSpeechEndsWhereTheSpeechDoes(keysPerSecond: Double, levelDBFS: Double) throws {
+        let speech = Synth.track(seconds: 6, bursts: [0.5...1.5], amplitude: 0.05)
+        let typing = Synth.keystrokes(seconds: 6, perSecond: keysPerSecond, levelDBFS: levelDBFS)
+        let events = detect(Synth.mix(speech, typing))
+        try #require(events.count == 2)
+        guard case .speechStarted(let start) = events[0], case .speechEnded(let end) = events[1] else {
+            Issue.record("unexpected events \(events)")
+            return
+        }
+        #expect(start > 0.3 && start <= 0.5)
+        #expect(end >= 1.5 && end < 1.7)
+    }
+
     @Test func shortDipsBetweenWordsDoNotSplitSpeech() {
         let samples = Synth.track(seconds: 3, bursts: [0.5...1.0, 1.1...1.5])
         #expect(detect(samples) == [.speechStarted(at: 0.5), .speechEnded(at: 1.5)])

@@ -325,6 +325,41 @@ struct CallSessionTests {
         #expect(await setup.session.transcript.turns.map(\.text) == ["Which accounts were affected?"])
     }
 
+    /// The user types notes while Them answers. The keys on Me are not speech, so Them's
+    /// short pauses do not split the answer, and an "Okay." the recogniser makes up from
+    /// the keys is dropped rather than kept as something the user said.
+    @Test(arguments: [(6.0, -40.0), (8, -35), (10, -30)])
+    func typingWhileThemAnswersIsNotSpeech(keysPerSecond: Double, levelDBFS: Double) async throws {
+        let script = ConversationScript(
+            title: "typing",
+            lines: [
+                .init(speaker: .them, start: 1.0, end: 3.0, text: "We saw the fills arrive late,"),
+                .init(speaker: .them, start: 3.5, end: 5.5, text: "some by thirty seconds."),
+                .init(speaker: .me, start: 5.6, end: 5.9, text: "Okay."),
+                .init(speaker: .them, start: 6.0, end: 8.0, text: "Can you tell us why?"),
+            ])
+        let root = try temporaryDirectory("typing")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let typing = Synth.keystrokes(seconds: 10, perSecond: keysPerSecond, levelDBFS: levelDBFS)
+        let sources = [
+            Speaker.me: try ReplaySource(
+                audio: WAVAudio(sampleRate: 16_000, channelCount: 1, samples: typing), speaker: .me, pacing: .unpaced),
+            .them: try ReplaySource(
+                audio: scriptAudio(script, speaker: .them, seconds: 10), speaker: .them, pacing: .unpaced),
+        ]
+        let session = CallSession(
+            settings: sessionSettings(directory: root),
+            components: SessionComponents(
+                sources: sources, speech: ScriptedSpeechToText(script: script), languageModel: nil))
+        try await session.start()
+        await waitForReplay(sources)
+        await session.stop()
+
+        let turns = await session.transcript.turns
+        #expect(turns.map(\.speaker) == [.them])
+        #expect(turns.map(\.text) == ["We saw the fills arrive late, some by thirty seconds. Can you tell us why?"])
+    }
+
     @Test func speechToTextErrorsDoNotEndTheCall() async throws {
         let setup = try setUp(speech: FlakySpeech(script: tradeScript))
         defer { try? FileManager.default.removeItem(at: setup.root) }

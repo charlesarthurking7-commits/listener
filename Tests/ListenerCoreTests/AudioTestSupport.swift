@@ -34,6 +34,35 @@ enum Synth {
         return samples
     }
 
+    /// Typing: 15 ms bursts of noise at `levelDBFS`, `perSecond` of them give or take 30%
+    /// of the interval, over a noise floor at -70 dBFS. The same for the same seed.
+    static func keystrokes(seconds: Double, perSecond: Double, levelDBFS: Double, seed: UInt64 = 1) -> [Int16] {
+        var random = SplitMix(state: seed)
+        func gaussian() -> Double {
+            let u = Double.random(in: Double.ulpOfOne..<1, using: &random)
+            let v = Double.random(in: 0..<1, using: &random)
+            return (-2 * log(u)).squareRoot() * cos(2 * Double.pi * v)
+        }
+        let rate = Double(AudioChunk.sampleRate)
+        let floor = 32768 * pow(10, -70.0 / 20)
+        var samples = (0..<Int(seconds * rate)).map { _ in gaussian() * floor }
+        let amplitude = 32768 * pow(10, levelDBFS / 20)
+        var time = 0.2
+        while time < seconds {
+            let start = Int(time * rate)
+            for index in start..<min(start + Int(0.015 * rate), samples.count) {
+                samples[index] += gaussian() * amplitude
+            }
+            time += Double.random(in: 0.7...1.3, using: &random) / perSecond
+        }
+        return samples.map { Int16(clamping: Int($0.rounded())) }
+    }
+
+    /// Two tracks played together, cut to the shorter.
+    static func mix(_ first: [Int16], _ second: [Int16]) -> [Int16] {
+        zip(first, second).map { Int16(clamping: Int($0) + Int($1)) }
+    }
+
     static func interleave(_ channels: [[Int16]]) -> [Int16] {
         let frames = channels.map(\.count).min() ?? 0
         var samples: [Int16] = []
