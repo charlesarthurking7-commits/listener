@@ -78,8 +78,8 @@ struct Report {
             return row
         }
 
-        var text = Self.table([header] + rows)
-        text += "\n\nWords per min counts minutes of speech, not of the call. Repeats are words said twice in a row"
+        var text = TextTable.render(headers: header, rows: rows, leftAligned: [0])
+        text += "\nWords per min counts minutes of speech, not of the call. Repeats are words said twice in a row"
         text += "\n(\"to to\"). Speed is seconds of audio per second of work; the segment times are the extra wait"
         text += "\nafter a speaker pauses before an engine's words would appear live."
 
@@ -94,7 +94,7 @@ struct Report {
                             ? "-" : Self.percent(WordErrorRate(reference: row.text, hypothesis: column.text).rate)
                     }
             }
-            text += Self.table([[""] + finished.map(\.engine)] + matrix)
+            text += TextTable.render(headers: [""] + finished.map(\.engine), rows: matrix, leftAligned: [0])
         }
         return text
     }
@@ -173,18 +173,6 @@ struct Report {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
-    }
-
-    private static func table(_ rows: [[String]]) -> String {
-        let widths = rows[0].indices.map { column in rows.map { $0[column].count }.max() ?? 0 }
-        return rows.map { row in
-            row.enumerated().map { column, cell in
-                let padding = String(repeating: " ", count: widths[column] - cell.count)
-                return column == 0 ? cell + padding : padding + cell
-            }
-            .joined(separator: "  ")
-        }
-        .joined(separator: "\n")
     }
 
     static func clock(_ seconds: Double, tenths: Bool = false) -> String {
