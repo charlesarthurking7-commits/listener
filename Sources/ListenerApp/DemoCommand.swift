@@ -70,11 +70,19 @@ enum DemoAnswers {
         """
 
     static let recap = """
-        A broker is asking why copy trades reached their followers late after the US open.
-        - Delays of up to 30 seconds started at half two.
-        - The fix went in at 2:40 and delays are now under a second.
+        A broker is asking why copy trades reached their followers late after the US open, and the call \
+        has moved on to what happens before tomorrow's open.
+        - Delays of up to 30 seconds started at half two, when volume was about six times normal.
+        - The follower order queue backed up; nothing was lost, every trade was copied in the end.
+        - Workers were scaled out at 2:40 and delays have been under a second since.
+        - The broker's dealing desk had complaints from around 40 followers.
+        - They want to know whether slippage on the late fills will be refunded.
         **Open for you:**
         - Send the list of affected accounts this afternoon.
+        - Say whether the late fills qualify for a slippage refund.
+        **Agreed:**
+        - You will add workers before tomorrow's open.
+        - The broker will forward the complaints with account numbers.
         """
 
     static let summary = """

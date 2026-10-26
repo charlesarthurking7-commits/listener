@@ -1,14 +1,16 @@
 import ListenerCore
 import SwiftUI
 
-/// The floating window, top to bottom: listening state and Start/Stop, banners, the
-/// answer card (or how the last call ended), the transcript or what to do before a
-/// call, and the cost and hotkeys.
+/// The floating window, top to bottom: listening state and Start/Stop, the answer card
+/// (or how the last call ended), banners, the transcript or what to do before a call,
+/// and the cost and hotkeys. Banners go under the card so they never move an answer
+/// while it is read.
 ///
 /// During a call it is only the bar and the answer card, sized to fit, unless the
 /// transcript is turned on: on a single screen anything more is in the way.
 struct ListenerWindowView: View {
     let model: CallModel
+    let room: PanelRoom
     let hide: @MainActor () -> Void
     /// The height the compact window needs, or nil for the full window.
     let fitHeight: @MainActor (CGFloat?) -> Void
@@ -16,7 +18,7 @@ struct ListenerWindowView: View {
     var body: some View {
         Group {
             if model.isCompact {
-                CompactCallView(model: model, hide: hide)
+                CompactCallView(model: model, room: room, hide: hide)
                     .fixedSize(horizontal: false, vertical: true)
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.size.height
@@ -27,7 +29,6 @@ struct ListenerWindowView: View {
             } else {
                 VStack(spacing: 0) {
                     HeaderBar(model: model, hide: hide)
-                    NoticeStack(model: model)
                     Hairline()
                     WindowContent(model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -65,22 +66,35 @@ private struct WindowBackground: View {
     }
 }
 
-/// The bar and, when there is one, the answer card under it.
+/// The bar, the answer card when there is one, then any banners.
 private struct CompactCallView: View {
     let model: CallModel
+    let room: PanelRoom
     let hide: @MainActor () -> Void
+    @State private var noticesHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderBar(model: model, hide: hide)
-            NoticeStack(model: model)
             if let id = model.answerID {
-                AnswerCardView(model: model, maxTextHeight: 320)
+                AnswerCardView(model: model, maxTextHeight: maxTextHeight)
                     .id(id)
                     .padding(.horizontal, Theme.cardInset)
                     .padding(.bottom, Theme.cardInset)
             }
+            NoticeStack(model: model)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    noticesHeight = height
+                }
         }
+    }
+
+    /// A recap or a deep answer gets all the screen below the bar that the card's own
+    /// header and the banners leave, so it is cut short only when the screen runs out.
+    private var maxTextHeight: CGFloat {
+        max(160, room.height - Theme.headerHeight - AnswerCardView.chromeHeight - Theme.cardInset - noticesHeight)
     }
 }
 
@@ -113,6 +127,7 @@ private struct WindowContent: View {
                     CallOutcomeCard(model: model)
                         .modifier(CardPlacement(reduceMotion: reduceMotion))
                 }
+                NoticeStack(model: model, spacingAbove: card == .none ? 8 : 4)
                 MainContent(model: model)
                     .frame(maxHeight: .infinity)
             }
@@ -346,6 +361,7 @@ private struct StartStopButton: View {
 
 private struct NoticeStack: View {
     let model: CallModel
+    var spacingAbove: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -360,6 +376,7 @@ private struct NoticeStack: View {
             }
         }
         .padding(.horizontal, Theme.cardInset)
+        .padding(.top, appNotices.isEmpty && callNotices.isEmpty ? 0 : spacingAbove)
         .padding(.bottom, appNotices.isEmpty && callNotices.isEmpty ? 0 : 8)
         .animation(
             reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.1),

@@ -16,14 +16,18 @@ final class FloatingPanel: NSPanel {
     private static let defaultSize = NSSize(width: 400, height: 720)
     private static let minimumSize = NSSize(width: 320, height: 360)
     private static let margin: CGFloat = 24
+    /// Kept clear between the compact window and the bottom of the screen.
+    private static let screenGap: CGFloat = 8
 
     private let glass = FloatingPanel.makeGlass()
+    private let room: PanelRoom
     /// The size to go back to when a call's compact bar gives way to the full window.
     private var expandedFrame: NSRect?
     /// The latest height asked for, applied once SwiftUI has finished laying out.
     private var pendingFit: CGFloat??
 
-    init(rootView: some View, window: WindowSettings) {
+    init(rootView: some View, window: WindowSettings, room: PanelRoom) {
+        self.room = room
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.borderless, .resizable, .nonactivatingPanel],
@@ -69,6 +73,25 @@ final class FloatingPanel: NSPanel {
             placeForFirstLaunch()
         }
         setFrameAutosaveName(Self.frameName)
+
+        for name in [NSWindow.didMoveNotification, NSWindow.didChangeScreenNotification] {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(measureRoom), name: name, object: self)
+        }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(measureRoom), name: NSApplication.didChangeScreenParametersNotification,
+            object: nil)
+        measureRoom()
+    }
+
+    @objc private func measureRoom() {
+        guard let visible = (screen ?? NSScreen.main)?.visibleFrame else {
+            return
+        }
+        let height = max(0, frame.maxY - visible.minY - Self.screenGap)
+        if room.height != height {
+            room.height = height
+        }
     }
 
     // Nothing in the window takes typing, and a key panel would take the keyboard from
@@ -109,7 +132,7 @@ final class FloatingPanel: NSPanel {
                 setFrameAutosaveName("")
                 minSize = NSSize(width: Self.minimumSize.width, height: 1)
             }
-            setFrame(topAnchored(height: height), display: true)
+            setFrame(topAnchored(height: min(height, room.height)), display: true)
         } else if let expanded = expandedFrame {
             expandedFrame = nil
             minSize = Self.minimumSize
@@ -194,6 +217,14 @@ final class FloatingPanel: NSPanel {
         let origin = NSPoint(x: screen.maxX - size.width - Self.margin, y: screen.maxY - size.height - Self.margin)
         setFrame(NSRect(origin: origin, size: size), display: false)
     }
+}
+
+/// How tall the compact window may grow: from its top edge down to the bottom of its
+/// screen. The panel keeps it up to date as it moves.
+@MainActor
+@Observable
+final class PanelRoom {
+    var height: CGFloat = 800
 }
 
 /// Buttons in a window that is not key would otherwise swallow the first click.

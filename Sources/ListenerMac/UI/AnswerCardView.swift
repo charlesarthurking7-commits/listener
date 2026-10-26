@@ -8,18 +8,26 @@ struct AnswerCardView: View {
     let model: CallModel
     let maxTextHeight: CGFloat
 
+    private static let headerHeight: CGFloat = 24
+    private static let spacing: CGFloat = 8
+    private static let topPadding: CGFloat = 10
+    private static let bottomPadding: CGFloat = 14
+    /// Everything but the words: the header, the space under it and the padding.
+    static let chromeHeight = headerHeight + spacing + topPadding + bottomPadding
+
     var body: some View {
         if let card = model.answer {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Self.spacing) {
                 AnswerHeader(card: card, model: model)
+                    .frame(height: Self.headerHeight)
                 AnswerContent(card: card, blocks: model.answerBlocks, maxTextHeight: maxTextHeight) {
                     model.ask(card.tier)
                 }
             }
             .padding(.leading, 14)
             .padding(.trailing, 8)
-            .padding(.top, 10)
-            .padding(.bottom, 14)
+            .padding(.top, Self.topPadding)
+            .padding(.bottom, Self.bottomPadding)
             .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
@@ -69,7 +77,6 @@ private struct AnswerHeader: View {
             .help(card.isActive ? "Stop and dismiss" : "Dismiss")
             .accessibilityLabel("\(card.isActive ? "Stop and dismiss" : "Dismiss") the \(card.tier.noun)")
         }
-        .frame(height: 24)
     }
 
     private var detail: String? {
@@ -169,12 +176,14 @@ private struct AnswerContent: View {
     }
 }
 
-/// Sized to the words up to `maxHeight`, then scrolls. Each block is its own equatable
-/// view and blocks only ever append, so a new word redraws the last block alone.
+/// Sized to the words up to `maxHeight`, then scrolls, with the last line fading out
+/// and a chevron while there is more below. Each block is its own equatable view and
+/// blocks only ever append, so a new word redraws the last block alone.
 private struct AnswerText: View {
     let blocks: [AnswerBlock]
     let maxHeight: CGFloat
     @State private var height: CGFloat = 0
+    @State private var moreBelow = false
 
     var body: some View {
         ScrollView {
@@ -203,7 +212,30 @@ private struct AnswerText: View {
             }
         }
         .frame(height: min(max(height, 24), maxHeight))
-        .scrollIndicators(height > maxHeight ? .automatic : .never)
+        .scrollIndicators(height > maxHeight ? .visible : .never)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 4
+        } action: { _, more in
+            moreBelow = more
+        }
+        .mask {
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(
+                    colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 28)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if moreBelow {
+                Image(systemName: "chevron.compact.down")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("More below")
+            }
+        }
     }
 
     /// When nothing was asked, the prompt has the answer open with a note saying so; any

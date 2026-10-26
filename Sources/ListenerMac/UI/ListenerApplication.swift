@@ -37,11 +37,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = environment.launchSettings.settings
+        let room = PanelRoom()
         let rootView = ListenerWindowView(
-            model: model,
+            model: model, room: room,
             hide: { [weak self] in self?.panel?.orderOut(nil) },
             fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
-        panel = FloatingPanel(rootView: rootView, window: settings.window)
+        panel = FloatingPanel(rootView: rootView, window: settings.window, room: room)
 
         statusItem = StatusItemController(
             model: model,
