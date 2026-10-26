@@ -118,10 +118,19 @@ public struct TurnDetector: Sendable {
         }
 
         /// Where the speech behind a final ending at `end` began: the first speech heard
-        /// after the previous final, else the recogniser's start, else the speech that
-        /// was going on, but never before the previous final.
+        /// from the recogniser's start on, else the recogniser's start, else the speech
+        /// that was going on, but never before the previous final.
+        ///
+        /// Recognisers put the start early: Apple counts seconds of the silence before
+        /// the first word, Chirp 3 reports the previous final's end. The first sound
+        /// since the previous final could be a cough or a keyboard minutes before the
+        /// words, which would stretch a "Yeah." over the other side's whole answer.
         func speechStart(before end: Double, reported: Double?) -> Double {
-            if let fresh = speech.first(where: { $0.start >= lastFinalEnd - Self.slack && $0.start < end }) {
+            let from = max(lastFinalEnd, reported ?? lastFinalEnd)
+            let fresh = speech.first {
+                $0.start >= lastFinalEnd - Self.slack && $0.start < end && ($0.end ?? .infinity) > from
+            }
+            if let fresh {
                 return fresh.start
             }
             if let reported {

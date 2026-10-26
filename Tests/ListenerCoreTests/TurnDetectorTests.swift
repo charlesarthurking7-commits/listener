@@ -389,6 +389,30 @@ struct TurnDetectorTests {
         #expect(near(harness.turns.last?.start, 3.0))
     }
 
+    @Test func soundsLongBeforeTheRecognisersStartAreNotTheSpeech() {
+        // The mic picks up sounds while the other side talks for a minute. A reply after
+        // that starts at its words, not at the first sound, so it follows what it answers.
+        // Apple's start includes some of the silence before the first word.
+        var harness = Harness()
+        harness.speech(.me, 0.5...1.5)
+        harness.play(to: 1.6)
+        harness.final(.me, "Sounds good.", 0.5...1.5)
+        for sound in stride(from: 6.0, to: 68, by: 3) {
+            harness.speech(.me, sound...(sound + 0.4))
+        }
+        harness.speech(.them, 8.0...34.0)
+        harness.play(to: 35)
+        harness.final(.them, "So the next ticket is the regulation change.", 8.0...34.0)
+        harness.speech(.me, 72.0...73.2)
+        harness.play(to: 74)
+        harness.final(.me, "Yeah, that makes sense.", 70.6...73.1)
+        #expect(
+            harness.turns.map(\.text) == [
+                "Sounds good.", "So the next ticket is the regulation change.", "Yeah, that makes sense.",
+            ])
+        #expect(near(harness.turns.last?.start, 72.0))
+    }
+
     @Test func speechTheRecogniserSplitsWithoutAPauseStaysOneTurn() {
         var harness = Harness()
         harness.started(.them, at: 0.5)
