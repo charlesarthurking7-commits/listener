@@ -19,8 +19,6 @@ final class SpeechChannel: Sendable {
         var drainTimeout = Duration.seconds(1)
         /// Audio kept for resending after a failure, in seconds.
         var bufferSeconds = 30.0
-
-        static let standard = RetryPolicy()
     }
 
     private let input: AsyncStream<Message>.Continuation
@@ -29,7 +27,7 @@ final class SpeechChannel: Sendable {
     init(
         speaker: Speaker,
         provider: any SpeechToTextProvider,
-        retry: RetryPolicy = .standard,
+        retry: RetryPolicy = RetryPolicy(),
         output: @escaping @Sendable (Output) async -> Void
     ) {
         let (messages, input) = AsyncStream.makeStream(of: Message.self)
@@ -93,7 +91,7 @@ private struct Loop {
     /// A failed stream whose reader may still hand over finals.
     private var drainingID: Int?
     private var backoffPending = false
-    private var retryDelay: Duration
+    private var backoff: Backoff
     /// The current stream's audio clock onto the channel's.
     private var clock = TimeMap(tolerance: 0.001)
     private var streamSeconds = 0.0
@@ -114,7 +112,7 @@ private struct Loop {
         self.retry = retry
         self.input = input
         self.output = output
-        retryDelay = retry.initialDelay
+        backoff = Backoff(initial: retry.initialDelay, maximum: retry.maximumDelay)
     }
 
     mutating func run(_ messages: AsyncStream<Message>) async {
@@ -231,7 +229,7 @@ private struct Loop {
     }
 
     private mutating func deliver(_ event: SpeechEvent) async {
-        retryDelay = retry.initialDelay
+        backoff.reset()
         var converted = event
         converted.audioStart = event.audioStart.map { clock.map($0) }
         converted.audioEnd = event.audioEnd.map { clock.mapEnd($0) }
@@ -275,8 +273,7 @@ private struct Loop {
             return
         }
         backoffPending = true
-        let delay = retryDelay
-        retryDelay = min(retryDelay * 2, retry.maximumDelay)
+        let delay = backoff.next()
         Task { [input] in
             try? await Task.sleep(for: delay)
             input.yield(.retry)

@@ -5,13 +5,6 @@ public struct LatencyStats: Sendable, Codable, Equatable {
         public var count: Int
         public var p50: Double
         public var p90: Double
-
-        static func percentile(_ sorted: [Double], _ fraction: Double) -> Double {
-            let rank = fraction * Double(sorted.count - 1)
-            let lower = Int(rank.rounded(.down))
-            let upper = min(lower + 1, sorted.count - 1)
-            return sorted[lower] + (sorted[upper] - sorted[lower]) * (rank - Double(lower))
-        }
     }
 
     public var endOfSpeechToHotkey: Percentiles?
@@ -38,6 +31,15 @@ extension LatencyStats.Percentiles {
             return nil
         }
         let sorted = values.sorted()
-        self.init(count: sorted.count, p50: Self.percentile(sorted, 0.5), p90: Self.percentile(sorted, 0.9))
+        self.init(count: sorted.count, p50: percentile(sorted, 0.5), p90: percentile(sorted, 0.9))
     }
+}
+
+/// The value `fraction` of the way through `sorted`, which must not be empty,
+/// interpolating between the nearest ranks.
+func percentile(_ sorted: [Double], _ fraction: Double) -> Double {
+    let rank = fraction * Double(sorted.count - 1)
+    let lower = Int(rank.rounded(.down))
+    let upper = min(lower + 1, sorted.count - 1)
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (rank - Double(lower))
 }

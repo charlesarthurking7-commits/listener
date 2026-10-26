@@ -41,17 +41,16 @@ final class SessionStoreTests {
     }
 
     @Test func rootsFollowSettings() {
-        let home = URL(fileURLWithPath: "/Users/trader", isDirectory: true)
+        let paths = ListenerPaths(home: URL(fileURLWithPath: "/Users/trader", isDirectory: true))
+        let defaultRoot = "/Users/trader/Library/Application Support/Listener/sessions"
         var storage = StorageSettings()
-        #expect(
-            SessionStore.root(for: storage, home: home).path
-                == "/Users/trader/Library/Application Support/Listener/sessions")
+        #expect(SessionStore.root(for: storage, paths: paths).path == defaultRoot)
         storage.directory = "~/Calls"
-        #expect(SessionStore.root(for: storage, home: home).path == "/Users/trader/Calls")
+        #expect(SessionStore.root(for: storage, paths: paths).path == "/Users/trader/Calls")
         storage.directory = "/Volumes/Archive/calls"
-        #expect(SessionStore.root(for: storage, home: home).path == "/Volumes/Archive/calls")
+        #expect(SessionStore.root(for: storage, paths: paths).path == "/Volumes/Archive/calls")
         storage.directory = ""
-        #expect(SessionStore.root(for: storage, home: home) == SessionStore.defaultRoot(home: home))
+        #expect(SessionStore.root(for: storage, paths: paths).path == defaultRoot)
     }
 
     @Test func writesEveryFileAndReadsThemBack() throws {

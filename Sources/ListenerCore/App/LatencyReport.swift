@@ -38,17 +38,8 @@ public enum LatencyReport {
         return output
     }
 
-    public static func median(_ values: [Double]) -> Double? {
-        if values.isEmpty {
-            return nil
-        }
-        let sorted = values.sorted()
-        let middle = sorted.count / 2
-        return sorted.count.isMultiple(of: 2) ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
-    }
-
     private static func summaryLine(_ title: String, _ values: [Double]) -> String {
-        guard let median = median(values), let worst = values.max() else {
+        guard let median = LatencyStats.Percentiles(values)?.p50, let worst = values.max() else {
             return "\(title): no measurements\n"
         }
         return
@@ -115,43 +106,6 @@ public enum AskSchedule {
             return Double(minutes) * 60 + seconds
         default:
             return nil
-        }
-    }
-}
-
-/// Every answer of a session, collected from its events. Failed and cancelled
-/// answers are kept too, with their error, so the latency table shows them.
-public struct AnswerLog: Sendable {
-    public private(set) var records: [AnswerRecord] = []
-    private var pending: [Int: AnswerRecord] = [:]
-
-    public init() {}
-
-    /// `now` is session seconds, used as the asking time of answers that fail
-    /// before the session reports one.
-    public mutating func apply(_ event: SessionEvent, now: Double) {
-        switch event {
-        case .answerStarted(let id, let tier, let model):
-            pending[id] = AnswerRecord(id: id, tier: tier, model: model, askedAt: now)
-        case .answerFinished(let record):
-            pending[record.id] = nil
-            store(record)
-        case .answerFailed(let id, let message):
-            guard var record = pending.removeValue(forKey: id) else {
-                return
-            }
-            record.error = message
-            store(record)
-        default:
-            break
-        }
-    }
-
-    private mutating func store(_ record: AnswerRecord) {
-        if let index = records.firstIndex(where: { $0.id == record.id }) {
-            records[index] = record
-        } else {
-            records.append(record)
         }
     }
 }

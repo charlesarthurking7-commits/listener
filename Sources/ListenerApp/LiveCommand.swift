@@ -32,7 +32,6 @@ struct LiveCommand: AsyncParsableCommand {
         Console.write("Starting. The first time, macOS asks for microphone and system audio access.\n")
         try await session.start()
         Console.write(TerminalSession.keyHint)
-        _ = await TerminalSession(session: session, style: Console.style, acceptsTyping: true)
-            .run(extraInputs: [notices])
+        await TerminalSession(session: session, style: Console.style, acceptsTyping: true).run(extraInputs: [notices])
     }
 }

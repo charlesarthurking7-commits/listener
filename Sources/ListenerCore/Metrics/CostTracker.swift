@@ -20,13 +20,7 @@ public struct CostTracker: Sendable {
     /// missing from the price table are recorded at zero cost.
     @discardableResult
     public mutating func addModelUsage(_ usage: TokenUsage, model: String) -> Double {
-        var total = summary.modelUsage[model] ?? TokenUsage()
-        total.inputTokens += usage.inputTokens
-        total.outputTokens += usage.outputTokens
-        total.cacheReadInputTokens += usage.cacheReadInputTokens
-        total.cacheCreationInputTokens += usage.cacheCreationInputTokens
-        summary.modelUsage[model] = total
-
+        summary.modelUsage[model, default: TokenUsage()] += usage
         let cost = prices.models[model]?.cost(of: usage) ?? 0
         summary.modelCost += cost
         return cost

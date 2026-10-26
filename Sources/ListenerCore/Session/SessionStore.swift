@@ -56,8 +56,8 @@ public final class SessionStore {
             }
         }
         self.directory = directory
-        transcript = try Self.createFile(directory.appendingPathComponent(Self.transcriptFile))
-        answers = try Self.createFile(directory.appendingPathComponent(Self.answersFile))
+        transcript = try FileHandle.creatingFile(at: directory.appendingPathComponent(Self.transcriptFile))
+        answers = try FileHandle.creatingFile(at: directory.appendingPathComponent(Self.answersFile))
         if saveAudio {
             for speaker in Speaker.allCases {
                 let url = directory.appendingPathComponent(Self.audioFile(for: speaker))
@@ -119,13 +119,6 @@ public final class SessionStore {
         try handle.write(contentsOf: line)
     }
 
-    private static func createFile(_ url: URL) throws -> FileHandle {
-        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
-            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
-        }
-        return try FileHandle(forWritingTo: url)
-    }
-
     static func encoder(pretty: Bool) -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting =
@@ -142,72 +135,46 @@ public final class SessionStore {
 }
 
 extension SessionStore {
-    /// `~/Library/Application Support/Listener/sessions` on every platform.
-    public static func defaultRoot(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        home.appendingPathComponent("Library/Application Support/Listener/sessions", isDirectory: true)
-    }
-
-    /// `storage.directory` with `~` expanded, or the default root.
-    public static func root(
-        for storage: StorageSettings, home: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> URL {
+    /// `storage.directory` with `~` expanded, or `sessions` in the support directory.
+    public static func root(for storage: StorageSettings, paths: ListenerPaths = .current) -> URL {
         guard let path = storage.directory, !path.isEmpty else {
-            return defaultRoot(home: home)
+            return paths.supportDirectory.appendingPathComponent("sessions", isDirectory: true)
         }
-        if path == "~" {
-            return home
-        }
-        if path.hasPrefix("~/") {
-            return home.appendingPathComponent(String(path.dropFirst(2)), isDirectory: true)
-        }
-        return URL(fileURLWithPath: path, isDirectory: true)
+        return URL(fileURLWithPath: paths.expandingTilde(path), isDirectory: true)
     }
 
     /// "2026-10-20 17.40.05" in the local time zone. Dots, not colons, because Finder
     /// shows colons as slashes.
     public static func directoryName(for date: Date, calendar: Calendar = .current) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        func pad(_ value: Int?, _ width: Int) -> String {
-            let digits = String(value ?? 0)
-            return String(repeating: "0", count: max(0, width - digits.count)) + digits
-        }
-        return "\(pad(parts.year, 4))-\(pad(parts.month, 2))-\(pad(parts.day, 2)) "
-            + "\(pad(parts.hour, 2)).\(pad(parts.minute, 2)).\(pad(parts.second, 2))"
+        directoryNameFormatter(calendar).string(from: date)
     }
 
     /// The start time encoded in a session directory's name, or nil when the name is
     /// not a session's (with or without a " (2)" style suffix).
     public static func startDate(fromDirectoryName name: String, calendar: Calendar = .current) -> Date? {
-        let characters = Array(name)
-        guard characters.count >= 19 else {
-            return nil
-        }
-        let suffix = String(characters[19...])
+        let base = String(name.prefix(19))
+        let suffix = name.dropFirst(19)
         if !suffix.isEmpty {
             guard suffix.hasPrefix(" ("), suffix.hasSuffix(")"), Int(suffix.dropFirst(2).dropLast()) != nil else {
                 return nil
             }
         }
-        let separators: [Int: Character] = [4: "-", 7: "-", 10: " ", 13: ".", 16: "."]
-        for (offset, separator) in separators where characters[offset] != separator {
+        // Requiring the date to format back to the same name keeps out anything else
+        // the parser would accept.
+        let formatter = directoryNameFormatter(calendar)
+        guard let date = formatter.date(from: base), formatter.string(from: date) == base else {
             return nil
         }
-        func number(_ range: Range<Int>) -> Int? {
-            let text = String(characters[range])
-            return text.allSatisfy(\.isASCII) && text.allSatisfy(\.isNumber) ? Int(text) : nil
-        }
-        guard let year = number(0..<4), let month = number(5..<7), let day = number(8..<10),
-            let hour = number(11..<13), let minute = number(14..<16), let second = number(17..<19)
-        else {
-            return nil
-        }
-        let components = DateComponents(
-            calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour,
-            minute: minute, second: second)
-        guard components.isValidDate(in: calendar) else {
-            return nil
-        }
-        return calendar.date(from: components)
+        return date
+    }
+
+    private static func directoryNameFormatter(_ calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return formatter
     }
 }
 

@@ -62,16 +62,16 @@ public struct SpeechSegmenter: Sendable {
         }
 
         let sorted = levels.sorted()
-        func percentile(_ fraction: Double) -> Double {
-            sorted.isEmpty ? LevelMeter.floorDBFS : sorted[Int(Double(sorted.count - 1) * fraction)]
+        func level(_ fraction: Double) -> Double {
+            sorted.isEmpty ? LevelMeter.floorDBFS : percentile(sorted, fraction)
         }
         return SpeechSegmentation(
             duration: duration,
             bursts: bursts,
             segments: segments,
-            quietDBFS: percentile(0.1),
-            medianDBFS: percentile(0.5),
-            loudDBFS: percentile(0.9)
+            quietDBFS: level(0.1),
+            medianDBFS: level(0.5),
+            loudDBFS: level(0.9)
         )
     }
 

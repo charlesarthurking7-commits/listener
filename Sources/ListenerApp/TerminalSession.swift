@@ -51,8 +51,8 @@ struct TerminalSession {
     /// Live calls take commands from the keyboard; replays don't.
     let acceptsTyping: Bool
 
-    /// Returns once the session has stopped and saved, with every answer it gave.
-    func run(extraInputs: [AsyncStream<TerminalInput>] = []) async -> [AnswerRecord] {
+    /// Returns once the session has stopped and saved.
+    func run(extraInputs: [AsyncStream<TerminalInput>] = []) async {
         let (inputs, continuation) = AsyncStream.makeStream(of: TerminalInput.self)
         let session = session
         let interrupts = InterruptSignal()
@@ -88,11 +88,9 @@ struct TerminalSession {
         }
 
         var renderer = TerminalRenderer(style: style)
-        var answers = AnswerLog()
         var eventLog = SessionEventLog()
         var stopping = false
         var lastNotice: String?
-        let started = ContinuousClock.now
 
         func stopOnce() {
             if !stopping {
@@ -107,7 +105,6 @@ struct TerminalSession {
             switch input {
             case .event(let event):
                 eventLog.record(event)
-                answers.apply(event, now: (ContinuousClock.now - started).inSeconds)
                 Console.write(renderer.render(event))
             case .eventsEnded:
                 break loop
@@ -163,6 +160,5 @@ struct TerminalSession {
         for feed in feeds {
             feed.cancel()
         }
-        return answers.records
     }
 }

@@ -83,10 +83,9 @@ struct ReplayCommand: AsyncParsableCommand {
         try await session.start()
 
         let inputs = [schedule(askTimes, from: .now), endOfAudio(replay.sources), notices]
-        let answers = await TerminalSession(session: session, style: Console.style, acceptsTyping: false)
-            .run(extraInputs: inputs)
+        await TerminalSession(session: session, style: Console.style, acceptsTyping: false).run(extraInputs: inputs)
         if !askTimes.isEmpty {
-            Console.write("\n" + LatencyReport.render(answers))
+            Console.write("\n" + LatencyReport.render(await session.answers))
         }
     }
 

@@ -66,10 +66,8 @@ public enum SessionSummarizer {
 
         if var record = saved {
             if let usage = summary.usage {
-                var tracker = CostTracker(prices: settings.prices, speechProvider: settings.speech.provider)
-                record.cost.modelCost += tracker.addModelUsage(usage, model: summary.model)
-                record.cost.modelUsage[summary.model] = sum(
-                    record.cost.modelUsage[summary.model] ?? TokenUsage(), usage)
+                record.cost.modelCost += settings.prices.models[summary.model]?.cost(of: usage) ?? 0
+                record.cost.modelUsage[summary.model, default: TokenUsage()] += usage
             }
             record.summaryFile = SessionStore.summaryFile
             record.summaryDue = nil
@@ -109,12 +107,4 @@ public enum SessionSummarizer {
         try SessionStore.encoder(pretty: true).encode(record)
             .write(to: directory.appendingPathComponent(SessionStore.recordFile), options: .atomic)
     }
-}
-
-private func sum(_ lhs: TokenUsage, _ rhs: TokenUsage) -> TokenUsage {
-    TokenUsage(
-        inputTokens: lhs.inputTokens + rhs.inputTokens,
-        outputTokens: lhs.outputTokens + rhs.outputTokens,
-        cacheReadInputTokens: lhs.cacheReadInputTokens + rhs.cacheReadInputTokens,
-        cacheCreationInputTokens: lhs.cacheCreationInputTokens + rhs.cacheCreationInputTokens)
 }

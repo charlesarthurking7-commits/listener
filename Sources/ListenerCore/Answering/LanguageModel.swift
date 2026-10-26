@@ -76,6 +76,13 @@ public struct TokenUsage: Sendable, Codable, Equatable {
 
     /// Everything the model read, cached or not. Pricing tiers key off this.
     public var promptTokens: Int { inputTokens + cacheReadInputTokens + cacheCreationInputTokens }
+
+    public static func += (lhs: inout TokenUsage, rhs: TokenUsage) {
+        lhs.inputTokens += rhs.inputTokens
+        lhs.outputTokens += rhs.outputTokens
+        lhs.cacheReadInputTokens += rhs.cacheReadInputTokens
+        lhs.cacheCreationInputTokens += rhs.cacheCreationInputTokens
+    }
 }
 
 public enum ModelEvent: Sendable, Equatable {

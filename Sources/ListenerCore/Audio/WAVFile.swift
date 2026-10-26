@@ -27,20 +27,14 @@ public final class WAVWriter {
     private var finished = false
 
     public init(url: URL, sampleRate: Int) throws {
-        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
-            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
-        }
-        handle = try FileHandle(forWritingTo: url)
+        handle = try FileHandle.creatingFile(at: url)
         self.sampleRate = sampleRate
         try handle.write(contentsOf: WAVHeader.make(sampleRate: sampleRate, channelCount: 1, dataByteCount: 0))
     }
 
     public func append(_ samples: [Int16]) throws {
-        #if _endian(big)
-            let bytes = samples.map(\.littleEndian).withUnsafeBytes { Data($0) }
-        #else
-            let bytes = samples.withUnsafeBytes { Data($0) }
-        #endif
+        // Every machine Listener runs on is little-endian, as WAV is.
+        let bytes = samples.withUnsafeBytes { Data($0) }
         try handle.write(contentsOf: bytes)
         dataByteCount += bytes.count
     }
@@ -160,15 +154,17 @@ enum WAVHeader {
 }
 
 extension Data {
-    mutating func appendLittleEndian(_ value: UInt16) {
-        append(UInt8(value & 0xFF))
-        append(UInt8(value >> 8))
+    mutating func appendLittleEndian(_ value: some FixedWidthInteger) {
+        Swift.withUnsafeBytes(of: value.littleEndian) { append(contentsOf: $0) }
     }
+}
 
-    mutating func appendLittleEndian(_ value: UInt32) {
-        append(UInt8(value & 0xFF))
-        append(UInt8((value >> 8) & 0xFF))
-        append(UInt8((value >> 16) & 0xFF))
-        append(UInt8(value >> 24))
+extension FileHandle {
+    /// Creates an empty file at `url`, replacing one that is there, and opens it for writing.
+    static func creatingFile(at url: URL) throws -> FileHandle {
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        return try FileHandle(forWritingTo: url)
     }
 }
