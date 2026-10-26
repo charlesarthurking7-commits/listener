@@ -1,33 +1,29 @@
 import Foundation
 import ListenerCore
 
-/// The JSON body of POST /v1/messages for one streamed, single-turn request.
-struct MessagesRequest: Encodable, Equatable {
-    struct TextBlock: Encodable, Equatable {
+/// The JSON body of POST /v1/messages for one streamed, single-turn request, encoded
+/// with snake-case keys.
+struct MessagesRequest: Encodable {
+    struct TextBlock: Encodable {
         var type = "text"
         var text: String
         var cacheControl: CacheControl?
-
-        enum CodingKeys: String, CodingKey {
-            case type, text
-            case cacheControl = "cache_control"
-        }
     }
 
-    struct CacheControl: Encodable, Equatable {
+    struct CacheControl: Encodable {
         var type = "ephemeral"
     }
 
-    struct Message: Encodable, Equatable {
+    struct Message: Encodable {
         var role: String
         var content: [TextBlock]
     }
 
-    struct Thinking: Encodable, Equatable {
+    struct Thinking: Encodable {
         var type: String
     }
 
-    struct OutputConfig: Encodable, Equatable {
+    struct OutputConfig: Encodable {
         var effort: String
     }
 
@@ -41,12 +37,6 @@ struct MessagesRequest: Encodable, Equatable {
     /// Server-side fallback when the model declines: "default" lets the API pick the
     /// fallback model by refusal category. Needs `ModelProfile.fallbackBetaHeader`.
     var fallbacks: String?
-
-    enum CodingKeys: String, CodingKey {
-        case model, stream, system, messages, thinking, fallbacks
-        case maxTokens = "max_tokens"
-        case outputConfig = "output_config"
-    }
 
     init(_ request: ModelRequest) {
         let settings = request.settings
@@ -76,37 +66,32 @@ struct MessagesRequest: Encodable, Equatable {
 }
 
 /// What a model accepts, where models differ in ways the request has to respect.
-struct ModelProfile: Equatable {
+struct ModelProfile {
     enum ThinkingType: String {
         case adaptive
         case disabled
         case betweenTools = "between_tools"
     }
 
-    enum ThinkingOff: Equatable {
-        /// `{"type": "disabled"}`, accepted at effort high or below.
-        case disabled
-        /// Sonnet 5.5 rejects "disabled"; `between_tools` is its lowest setting, also
-        /// only at effort high or below.
-        case betweenTools
-        /// Opus 5.5 always thinks. Omit the field and let effort set the depth.
-        case unsupported
-    }
-
     static let fallbackBetaHeader = "server-side-fallback-2026-07-01"
 
-    var thinkingOff: ThinkingOff
+    /// What turning thinking off sends, or nil to leave the field out.
+    var thinkingOff: ThinkingType?
     /// Only Sonnet 5.5 and Opus 5.5 offer server-side fallback; Haiku 5.5 rejects it.
     var supportsServerSideFallback: Bool
 
     init(model: String) {
         if model.hasPrefix("claude-sonnet-5-5") {
+            // Sonnet 5.5 rejects "disabled"; `between_tools` is its lowest setting, also
+            // only at effort high or below.
             thinkingOff = .betweenTools
             supportsServerSideFallback = true
         } else if model.hasPrefix("claude-opus-5-5") {
-            thinkingOff = .unsupported
+            // Opus 5.5 always thinks. Omit the field and let effort set the depth.
+            thinkingOff = nil
             supportsServerSideFallback = true
         } else {
+            // `{"type": "disabled"}`, accepted at effort high or below.
             thinkingOff = .disabled
             supportsServerSideFallback = false
         }
@@ -120,14 +105,7 @@ struct ModelProfile: Equatable {
         case .off:
             // Neither "disabled" nor "between_tools" is allowed above effort high, so
             // thinking stays on there rather than failing the request.
-            if effort == "xhigh" || effort == "max" {
-                return .adaptive
-            }
-            switch thinkingOff {
-            case .disabled: return .disabled
-            case .betweenTools: return .betweenTools
-            case .unsupported: return nil
-            }
+            return effort == "xhigh" || effort == "max" ? .adaptive : thinkingOff
         }
     }
 

@@ -12,7 +12,11 @@ struct MessageStreamParser {
     private(set) var stopReason: String?
     private(set) var isFinished = false
     private var stopCategory: String?
-    private let decoder = JSONDecoder()
+    private let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
 
     /// Feeds one line. Returns the event it produced, if any. Throws `ClaudeError`
     /// for `error` events, refusals and data it cannot read.
@@ -113,7 +117,7 @@ struct MessageStreamParser {
     }
 }
 
-/// The union of the fields we read from any stream event.
+/// The union of the fields we read from any stream event, whose keys are in snake case.
 struct StreamEvent: Decodable {
     struct Message: Decodable {
         var usage: Usage?
@@ -129,12 +133,6 @@ struct StreamEvent: Decodable {
         var text: String?
         var stopReason: String?
         var stopDetails: StopDetails?
-
-        enum CodingKeys: String, CodingKey {
-            case type, text
-            case stopReason = "stop_reason"
-            case stopDetails = "stop_details"
-        }
     }
 
     struct StopDetails: Decodable {
@@ -146,13 +144,6 @@ struct StreamEvent: Decodable {
         var outputTokens: Int?
         var cacheReadInputTokens: Int?
         var cacheCreationInputTokens: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case inputTokens = "input_tokens"
-            case outputTokens = "output_tokens"
-            case cacheReadInputTokens = "cache_read_input_tokens"
-            case cacheCreationInputTokens = "cache_creation_input_tokens"
-        }
     }
 
     struct APIError: Decodable {
@@ -166,11 +157,6 @@ struct StreamEvent: Decodable {
     var delta: Delta?
     var usage: Usage?
     var error: APIError?
-
-    enum CodingKeys: String, CodingKey {
-        case type, message, delta, usage, error
-        case contentBlock = "content_block"
-    }
 }
 
 /// The body of a non-2xx response: `{"type": "error", "error": {"type": ..., "message": ...}}`.

@@ -121,11 +121,4 @@ struct RequestEncodingTests {
         #expect(thinkingType(sent) == "disabled")
         #expect(sent["fallbacks"] == nil)
     }
-
-    @Test func customBaseURLIsUsed() throws {
-        let proxied = ClaudeClient(
-            apiKey: "k", baseURL: URL(string: "https://proxy.example.com/anthropic")!, transport: FakeTransport([]))
-        let http = try proxied.httpRequest(for: request(model: "claude-haiku-5-5"))
-        #expect(http.url.absoluteString == "https://proxy.example.com/anthropic/v1/messages")
-    }
 }

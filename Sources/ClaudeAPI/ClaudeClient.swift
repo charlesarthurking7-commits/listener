@@ -23,21 +23,16 @@ public final class ClaudeClient: LanguageModelProvider {
             warmUpInterval: .seconds(60))
     }
 
-    public static let defaultBaseURL = URL(string: "https://api.anthropic.com")!
+    static let baseURL = URL(string: "https://api.anthropic.com")!
     static let apiVersion = "2023-06-01"
 
     private let apiKey: String
-    private let baseURL: URL
     private let transport: any HTTPStreamingTransport
     private let timing: Timing
     private let lastWarmUp = Mutex<ContinuousClock.Instant?>(nil)
 
-    public init(
-        apiKey: String, baseURL: URL = ClaudeClient.defaultBaseURL, transport: any HTTPStreamingTransport,
-        timing: Timing = .standard
-    ) {
+    public init(apiKey: String, transport: any HTTPStreamingTransport, timing: Timing = .standard) {
         self.apiKey = apiKey
-        self.baseURL = baseURL
         self.transport = transport
         self.timing = timing
     }
@@ -74,7 +69,8 @@ public final class ClaudeClient: LanguageModelProvider {
         guard isDue else {
             return
         }
-        let url = baseURL.appending(path: "v1/models").appending(queryItems: [URLQueryItem(name: "limit", value: "1")])
+        let url = Self.baseURL.appending(path: "v1/models")
+            .appending(queryItems: [URLQueryItem(name: "limit", value: "1")])
         let request = HTTPRequest(method: "GET", url: url, headers: commonHeaders)
         if let response = try? await send(request) {
             _ = try? await response.readBody()
@@ -90,8 +86,9 @@ public final class ClaudeClient: LanguageModelProvider {
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.keyEncodingStrategy = .convertToSnakeCase
         return HTTPRequest(
-            method: "POST", url: baseURL.appending(path: "v1/messages"), headers: headers,
+            method: "POST", url: Self.baseURL.appending(path: "v1/messages"), headers: headers,
             body: try encoder.encode(body))
     }
 
