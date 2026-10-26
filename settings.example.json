@@ -46,7 +46,7 @@
       "model": "claude-sonnet-5-5",
       "effort": "medium",
       "thinking": "adaptive",
-      "maxTokens": 8000
+      "maxTokens": 16000
     }
   },
   "capture": {

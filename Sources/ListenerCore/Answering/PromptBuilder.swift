@@ -96,7 +96,8 @@ public struct PromptBuilder: Sendable {
         text += "Write the notes."
 
         return ModelRequest(
-            settings: settings.model, system: Self.summarySystemPrompt + Self.callSection(call),
+            settings: settings.model,
+            system: Self.summarySystemPrompt + Self.aboutMe(answers.context) + Self.callSection(call),
             user: [PromptBlock(text)])
     }
 
@@ -163,17 +164,18 @@ public struct PromptBuilder: Sendable {
 
 extension PromptBuilder {
     static func answerSystemPrompt(tier: AnswerTier, context: String) -> String {
-        var prompt =
+        let prompt =
             switch tier {
             case .quick: callIntro + "\n\n" + answerRules + "\n\n" + quickLength
             case .deep: callIntro + "\n\n" + answerRules + "\n\n" + deepLength
             case .recap: callIntro + "\n\n" + recapRules
             }
+        return prompt + aboutMe(context)
+    }
+
+    static func aboutMe(_ context: String) -> String {
         let context = context.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !context.isEmpty {
-            prompt += "\n\nAbout Me, in their own words:\n\(context)"
-        }
-        return prompt
+        return context.isEmpty ? "" : "\n\nAbout Me, in their own words:\n\(context)"
     }
 
     /// The call type and its documents, after the general rules. The user's instructions

@@ -150,6 +150,18 @@ struct WebPageImporterTests {
         return (importer, model)
     }
 
+    @Test func aPageCutOffAtTheTokenLimitSaysSo() async throws {
+        let model = ScriptedLanguageModel(
+            answer: "# Ops Engineer, Acme\n\nRun the", firstTokenDelay: .zero, tokenInterval: .zero,
+            stopReason: "max_tokens")
+        let body = Data(posting.utf8)
+        let importer = WebPageImporter(
+            fetch: { _ in WebPageImporter.Response(body: body, status: 200, mimeType: "text/html") }, model: model,
+            settings: AnswerSettings().webPageImport)
+        let markdown = try await importer.importPage(url)
+        #expect(markdown.hasPrefix("# Ops Engineer, Acme\n\nRun the\n\n\(WebPageImporter.cutShortNote)\n\nSource: "))
+    }
+
     @Test func aPostingBecomesMarkdownWithItsSource() async throws {
         let (importer, model) = importer()
         let date = try #require(ISO8601DateFormatter().date(from: "2026-10-21T12:00:00Z"))

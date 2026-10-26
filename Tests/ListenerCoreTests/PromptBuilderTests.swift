@@ -189,6 +189,14 @@ struct PromptBuilderTests {
         #expect(request.user.last?.text.hasSuffix("Recap the call so far.") == true)
     }
 
+    @Test func theSummaryKnowsWhoMeIs() {
+        var answers = AnswerSettings()
+        answers.context = "I'm Charlie King. People on my calls call me Charlie."
+        let request = PromptBuilder(answers: answers).summaryRequest(turns: turns, settings: SummarySettings())
+        #expect(request.system.contains("About Me, in their own words:\nI'm Charlie King."))
+        #expect(!builder.summaryRequest(turns: turns, settings: SummarySettings()).system.contains("About Me"))
+    }
+
     @Test func summaryHasTitleTranscriptAndStructure() {
         var settings = SummarySettings()
         settings.model.maxTokens = 5_000

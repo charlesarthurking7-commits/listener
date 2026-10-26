@@ -12,7 +12,12 @@ public enum SessionSummarizer {
         public var markdown: String
         public var model: String
         public var usage: TokenUsage?
+        /// The model hit the token limit, so the end of the notes is missing.
+        public var cutShort = false
     }
+
+    static let cutShortNote =
+        "*The notes stop here: the summary reached its token limit (summary.model.maxTokens), so the rest is missing.*"
 
     /// Streams the summary request for `turns` to the end. `startedAt` and `duration`
     /// (seconds) title the notes; without them the call is taken to have just ended.
@@ -27,17 +32,22 @@ public enum SessionSummarizer {
             .summaryRequest(turns: turns, settings: settings.summary, startedAt: startedAt, duration: duration)
         var markdown = ""
         var usage: TokenUsage?
+        var stopReason: String?
         for try await event in model.stream(request) {
             switch event {
             case .text(let text): markdown += text
-            case .finished(let finalUsage, _): usage = finalUsage
+            case .finished(let finalUsage, let reason): (usage, stopReason) = (finalUsage, reason)
             }
         }
         try Task.checkCancellation()
         guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SessionSummarizerError.emptySummary
         }
-        return Summary(markdown: markdown, model: request.settings.model, usage: usage)
+        let cutShort = stopReason == "max_tokens"
+        if cutShort {
+            markdown += "\n\n" + cutShortNote
+        }
+        return Summary(markdown: markdown, model: request.settings.model, usage: usage, cutShort: cutShort)
     }
 
     /// Re-reads a saved session's transcript, writes its summary.md and adds the cost to

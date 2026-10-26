@@ -50,4 +50,14 @@ struct SessionSummarizerTests {
         }
         #expect(model.requests.count == 1)
     }
+
+    @Test func aSummaryCutOffAtTheTokenLimitSaysSo() async throws {
+        let model = ScriptedLanguageModel(
+            answer: "## Summary\n\nThe report", firstTokenDelay: .zero, tokenInterval: .zero, stopReason: "max_tokens")
+        let turns = [Turn(id: 1, speaker: .them, text: "Can you send the report?", start: 0, end: 2)]
+        let summary = try await SessionSummarizer.generate(turns: turns, settings: Settings(), model: model)
+        #expect(summary.cutShort)
+        #expect(summary.markdown.hasPrefix("## Summary\n\nThe report\n\n"))
+        #expect(summary.markdown.hasSuffix(SessionSummarizer.cutShortNote))
+    }
 }

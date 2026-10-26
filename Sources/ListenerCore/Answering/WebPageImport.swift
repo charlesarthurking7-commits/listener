@@ -122,6 +122,10 @@ public struct WebPageImporter: Sendable {
     /// sign-in wall.
     static let minimumCharacters = 200
 
+    /// Ends a document the model stopped at its token limit, so answers don't take what
+    /// is missing for something the page never said.
+    static let cutShortNote = "[The rest of the page was cut off here.]"
+
     public var fetch: Fetch
     public var model: any LanguageModelProvider
     public var settings: ModelSettings
@@ -147,14 +151,19 @@ public struct WebPageImporter: Sendable {
         }
 
         var markdown = ""
+        var cutShort = false
         for try await event in model.stream(PromptBuilder.webPageRequest(url: url, page: page, settings: settings)) {
-            if case .text(let text) = event {
-                markdown += text
+            switch event {
+            case .text(let text): markdown += text
+            case .finished(_, let stopReason): cutShort = stopReason == "max_tokens"
             }
         }
         markdown = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !markdown.isEmpty, markdown != PromptBuilder.noContentReply else {
             throw WebPageImportError.noContent
+        }
+        if cutShort {
+            markdown += "\n\n" + Self.cutShortNote
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_GB")

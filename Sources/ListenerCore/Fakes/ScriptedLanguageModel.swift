@@ -12,6 +12,7 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
     /// Reported in the final event. Nil estimates it from the text: about four
     /// characters per input token and one output token per word.
     public let usage: TokenUsage?
+    public let stopReason: String
     private let reply: Reply
     private let state = Mutex(State())
 
@@ -26,20 +27,24 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
         firstTokenDelay: Duration = .milliseconds(150),
         tokenInterval: Duration = .milliseconds(15),
         usage: TokenUsage? = nil,
+        stopReason: String = "end_turn",
         reply: @escaping Reply
     ) {
         self.firstTokenDelay = firstTokenDelay
         self.tokenInterval = tokenInterval
         self.usage = usage
+        self.stopReason = stopReason
         self.reply = reply
     }
 
     /// Always gives the same answer.
     public convenience init(
         answer: String, firstTokenDelay: Duration = .milliseconds(150), tokenInterval: Duration = .milliseconds(15),
-        usage: TokenUsage? = nil
+        usage: TokenUsage? = nil, stopReason: String = "end_turn"
     ) {
-        self.init(firstTokenDelay: firstTokenDelay, tokenInterval: tokenInterval, usage: usage) { _ in answer }
+        self.init(
+            firstTokenDelay: firstTokenDelay, tokenInterval: tokenInterval, usage: usage, stopReason: stopReason
+        ) { _ in answer }
     }
 
     /// Every request so far, oldest first.
@@ -69,7 +74,7 @@ public final class ScriptedLanguageModel: LanguageModelProvider, Sendable {
                     continuation.yield(.text(token))
                 }
                 let usage = usage ?? Self.estimatedUsage(request: request, outputTokens: tokens.count)
-                continuation.yield(.finished(usage, stopReason: "end_turn"))
+                continuation.yield(.finished(usage, stopReason: stopReason))
                 continuation.finish()
                 state.withLock { $0.finished += 1 }
             } catch is CancellationError {

@@ -698,6 +698,9 @@ public actor CallSession {
                 summaryFile = SessionStore.summaryFile
                 writeRecord()
             }
+            if summary.cutShort {
+                emit(.warning("The summary reached its token limit, so its end is missing."))
+            }
         } catch {
             emit(.warning("The summary failed: \(error)"))
         }

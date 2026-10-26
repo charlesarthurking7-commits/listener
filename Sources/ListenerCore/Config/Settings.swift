@@ -75,7 +75,7 @@ public struct AnswerSettings: Sendable, Codable, Equatable {
     /// Tidying a web page for a call's background: the quick model, with room for a
     /// long job posting.
     public var webPageImport: ModelSettings {
-        ModelSettings(model: quick.model, effort: quick.effort, thinking: .off, maxTokens: 4_000)
+        ModelSettings(model: quick.model, effort: quick.effort, thinking: .off, maxTokens: 8_000)
     }
 
     public func settings(for tier: AnswerTier) -> ModelSettings {
@@ -90,7 +90,7 @@ public struct AnswerSettings: Sendable, Codable, Equatable {
 public struct SummarySettings: Sendable, Codable, Equatable {
     public var enabled = true
     public var model = ModelSettings(
-        model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 8_000)
+        model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 16_000)
 
     public init() {}
 }
