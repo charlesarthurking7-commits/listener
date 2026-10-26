@@ -27,14 +27,9 @@ public struct CostTracker: Sendable {
         total.cacheCreationInputTokens += usage.cacheCreationInputTokens
         summary.modelUsage[model] = total
 
-        let cost = cost(of: usage, model: model)
+        let cost = prices.models[model]?.cost(of: usage) ?? 0
         summary.modelCost += cost
         return cost
-    }
-
-    /// What a response with this usage costs, without recording it.
-    public func cost(of usage: TokenUsage, model: String) -> Double {
-        prices.models[model]?.cost(of: usage) ?? 0
     }
 }
 

@@ -22,8 +22,7 @@ struct HotkeyTests {
     @Test func caseSpacingAndAliasesDoNotMatter() throws {
         let hotkey = try Hotkey(parsing: " Shift + ALT + Control + Enter ")
         #expect(hotkey == (try Hotkey(parsing: "ctrl+option+shift+return")))
-        #expect(hotkey.description == "ctrl+option+shift+return")
-        #expect(try Hotkey(parsing: "⌘+⇧+k").description == "shift+cmd+k")
+        #expect(try Hotkey(parsing: "⌘+⇧+k") == (try Hotkey(parsing: "shift+cmd+k")))
         #expect(try Hotkey(parsing: "cmd+shift+k").displayString == "⇧⌘K")
     }
 
@@ -47,7 +46,7 @@ struct HotkeyTests {
     @Test func functionKeysMayStandAlone() throws {
         let hotkey = try Hotkey(parsing: "f6")
         #expect(hotkey.modifiers.isEmpty)
-        #expect(hotkey.key.menuKeyEquivalent == "\u{F709}")
+        #expect(hotkey.key.keyCode == 0x61)
         #expect(hotkey.displayString == "F6")
     }
 

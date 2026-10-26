@@ -3,6 +3,10 @@ import Testing
 
 @testable import ListenerCore
 
+extension CallViewState {
+    fileprivate var rows: [TranscriptRow] { settledRows + liveRows }
+}
+
 struct CallViewStateTests {
     private let start = Date(timeIntervalSinceReferenceDate: 1_000)
     private let channels = [
@@ -16,12 +20,11 @@ struct CallViewStateTests {
 
         state.beginStarting()
         #expect(state.phase == .starting)
-        #expect(state.isBusy && !state.canStart)
+        #expect(!state.canStart)
 
         state.apply(.started(channels: channels), now: start)
         #expect(state.phase == .listening)
         #expect(state.listeningSince == start)
-        #expect(state.channels == channels)
         #expect(state.canStop && state.canAsk && !state.canStart)
     }
 
@@ -160,7 +163,6 @@ struct CallViewStateTests {
         #expect(state.canStart)
         #expect(state.listeningSince == nil)
         #expect(state.rows.isEmpty)
-        #expect(state.sessionDirectory == "/s/2026-10-20 14.03.11")
         #expect(state.notices.isEmpty)
         #expect(
             state.outcome
@@ -275,7 +277,7 @@ struct CallViewStateTests {
         state.beginStarting()
         #expect(state.rows.isEmpty)
         #expect(state.notices.isEmpty)
-        #expect(state.sessionDirectory == nil)
+        #expect(state.outcome == nil)
         #expect(state.phase == .starting)
     }
 

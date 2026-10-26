@@ -56,9 +56,6 @@ public final class ReplaySource: AudioCaptureSource, Sendable {
             name: url.lastPathComponent)
     }
 
-    /// Seconds of audio in the file.
-    public var duration: Double { Double(audio.frameCount) / Double(audio.sampleRate) }
-
     public func start(onChunk: @escaping @Sendable (AudioChunk) -> Void) async throws -> ChannelInfo {
         let (samples, speaker, pacing) = (monoSamples(), speaker, pacing)
 

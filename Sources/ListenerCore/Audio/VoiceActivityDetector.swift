@@ -80,10 +80,6 @@ public struct VoiceActivityDetector: Sendable {
         samples.withUnsafeBufferPointer { consume($0) }
     }
 
-    public mutating func process(_ samples: ArraySlice<Int16>) -> [VoiceActivity] {
-        samples.withUnsafeBufferPointer { consume($0) }
-    }
-
     /// The channel has ended: closes speech that is still going.
     public mutating func finish() -> VoiceActivity? {
         guard isSpeaking else {

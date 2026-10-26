@@ -1,18 +1,13 @@
 import Foundation
 
-/// Settings as loaded, plus where they came from.
+/// Settings as loaded, with the problems that did not stop loading.
 public struct LoadedSettings: Sendable {
     public var settings: Settings
-    /// The settings file that was read, or that would be read if it existed.
-    public var file: URL
-    public var fileExists: Bool
-    /// Problems that did not stop loading, such as misspelt keys that were ignored.
+    /// Such as misspelt keys that were ignored.
     public var warnings: [String]
 
-    public init(settings: Settings, file: URL, fileExists: Bool, warnings: [String] = []) {
+    public init(settings: Settings, warnings: [String] = []) {
         self.settings = settings
-        self.file = file
-        self.fileExists = fileExists
         self.warnings = warnings
     }
 }
@@ -67,7 +62,7 @@ public struct SettingsLoader: Sendable {
         if !problems.isEmpty {
             throw SettingsError(source: source, problems: problems)
         }
-        return LoadedSettings(settings: settings, file: file, fileExists: exists, warnings: warnings)
+        return LoadedSettings(settings: settings, warnings: warnings)
     }
 
     /// Decodes a settings file. Keys it leaves out keep their defaults at every level;

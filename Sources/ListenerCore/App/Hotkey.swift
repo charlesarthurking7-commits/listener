@@ -33,11 +33,11 @@ public struct HotkeyModifiers: OptionSet, Sendable, Hashable {
     public static let command = HotkeyModifiers(rawValue: 1 << 3)
 
     /// In the order macOS menus show them.
-    static let ordered: [(modifier: HotkeyModifiers, name: String, symbol: String, spoken: String)] = [
-        (.control, "ctrl", "⌃", "Control"),
-        (.option, "option", "⌥", "Option"),
-        (.shift, "shift", "⇧", "Shift"),
-        (.command, "cmd", "⌘", "Command"),
+    static let ordered: [(modifier: HotkeyModifiers, symbol: String, spoken: String)] = [
+        (.control, "⌃", "Control"),
+        (.option, "⌥", "Option"),
+        (.shift, "⇧", "Shift"),
+        (.command, "⌘", "Command"),
     ]
 
     static let aliases: [String: HotkeyModifiers] = [
@@ -56,8 +56,6 @@ public struct HotkeyKey: Sendable, Hashable {
     public let keyCode: UInt16
     /// How menus and hints show it, e.g. "Space" or "K".
     public let display: String
-    /// What NSMenuItem.keyEquivalent expects for this key.
-    public let menuKeyEquivalent: String
 
     public var isFunctionKey: Bool {
         name.count >= 2 && name.first == "f" && Int(name.dropFirst()) != nil
@@ -74,7 +72,7 @@ public struct HotkeyKey: Sendable, Hashable {
             table[alias] = table[name]
         }
         for key in punctuation {
-            table[key.menuKeyEquivalent] = key
+            table[key.display] = key
         }
         return table
     }()
@@ -84,33 +82,30 @@ public struct HotkeyKey: Sendable, Hashable {
         ("h", 0x04), ("i", 0x22), ("j", 0x26), ("k", 0x28), ("l", 0x25), ("m", 0x2E), ("n", 0x2D),
         ("o", 0x1F), ("p", 0x23), ("q", 0x0C), ("r", 0x0F), ("s", 0x01), ("t", 0x11), ("u", 0x20),
         ("v", 0x09), ("w", 0x0D), ("x", 0x07), ("y", 0x10), ("z", 0x06),
-    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.0.uppercased(), menuKeyEquivalent: $0.0) }
+    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.0.uppercased()) }
 
     private static let digits: [HotkeyKey] = [
         ("0", 0x1D), ("1", 0x12), ("2", 0x13), ("3", 0x14), ("4", 0x15),
         ("5", 0x17), ("6", 0x16), ("7", 0x1A), ("8", 0x1C), ("9", 0x19),
-    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.0, menuKeyEquivalent: $0.0) }
+    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.0) }
 
     private static let named: [HotkeyKey] = [
-        HotkeyKey(name: "space", keyCode: 0x31, display: "Space", menuKeyEquivalent: " "),
-        HotkeyKey(name: "return", keyCode: 0x24, display: "Return", menuKeyEquivalent: "\r"),
-        HotkeyKey(name: "tab", keyCode: 0x30, display: "Tab", menuKeyEquivalent: "\t"),
-        HotkeyKey(name: "escape", keyCode: 0x35, display: "Esc", menuKeyEquivalent: "\u{1B}"),
+        HotkeyKey(name: "space", keyCode: 0x31, display: "Space"),
+        HotkeyKey(name: "return", keyCode: 0x24, display: "Return"),
+        HotkeyKey(name: "tab", keyCode: 0x30, display: "Tab"),
+        HotkeyKey(name: "escape", keyCode: 0x35, display: "Esc"),
     ]
 
     private static let punctuation: [HotkeyKey] = [
         ("minus", 0x1B, "-"), ("equal", 0x18, "="), ("leftbracket", 0x21, "["), ("rightbracket", 0x1E, "]"),
         ("semicolon", 0x29, ";"), ("quote", 0x27, "'"), ("backslash", 0x2A, "\\"), ("comma", 0x2B, ","),
         ("period", 0x2F, "."), ("slash", 0x2C, "/"), ("grave", 0x32, "`"),
-    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.2, menuKeyEquivalent: $0.2) }
+    ].map { HotkeyKey(name: $0.0, keyCode: $0.1, display: $0.2) }
 
-    // NSF1FunctionKey is U+F704 and the rest follow in order.
     private static let functionKeys: [HotkeyKey] = [
         0x7A, 0x78, 0x63, 0x76, 0x60, 0x61, 0x62, 0x64, 0x65, 0x6D, 0x67, 0x6F,
     ].enumerated().map { index, code in
-        HotkeyKey(
-            name: "f\(index + 1)", keyCode: code, display: "F\(index + 1)",
-            menuKeyEquivalent: String(UnicodeScalar(0xF704 + UInt32(index))!))
+        HotkeyKey(name: "f\(index + 1)", keyCode: code, display: "F\(index + 1)")
     }
 }
 
@@ -141,7 +136,7 @@ public enum HotkeyError: Error, Equatable, CustomStringConvertible {
 }
 
 /// A global keyboard shortcut written like "ctrl+option+space".
-public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
+public struct Hotkey: Sendable, Hashable {
     public var key: HotkeyKey
     public var modifiers: HotkeyModifiers
 
@@ -184,12 +179,6 @@ public struct Hotkey: Sendable, Hashable, CustomStringConvertible {
             }
         }
         self.init(key: key, modifiers: modifiers)
-    }
-
-    /// The settings spelling, e.g. "ctrl+option+space".
-    public var description: String {
-        let names = HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.name)
-        return (names + [key.name]).joined(separator: "+")
     }
 
     /// The menu spelling, e.g. "⌃⌥Space".

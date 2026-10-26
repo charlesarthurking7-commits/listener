@@ -17,8 +17,7 @@ struct SpeechProviderChoiceTests {
     }
 
     @Test func defaultSettingsResolveToARealProvider() {
-        let loaded = LoadedSettings(
-            settings: Settings(), file: URL(fileURLWithPath: "/tmp/settings.json"), fileExists: false)
+        let loaded = LoadedSettings(settings: Settings())
         #expect(Settings().speech.provider == "auto")
         #expect(loaded.resolvingSpeechProvider(onDeviceAvailable: true).settings.speech.provider == "apple")
         #expect(loaded.resolvingSpeechProvider(onDeviceAvailable: false).settings.speech.provider == "google")

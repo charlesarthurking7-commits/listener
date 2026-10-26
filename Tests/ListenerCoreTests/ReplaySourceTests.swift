@@ -81,7 +81,6 @@ struct ReplaySourceTests {
         await source.waitUntilFinished()
         #expect(info.device == "call.wav")
         #expect(info.nativeFormat == "16 kHz, 1 ch, int16")
-        #expect(abs(source.duration - 1) < 1e-9)
         #expect(collector.samples == tone)
     }
 

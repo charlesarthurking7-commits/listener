@@ -94,7 +94,7 @@ struct VoiceActivityDetectorTests {
             var detector = VoiceActivityDetector()
             var events: [VoiceActivity] = []
             for part in Synth.split(samples, sizes: sizes) {
-                events += detector.process(part)
+                events += detector.process(Array(part))
             }
             if let end = detector.finish() {
                 events.append(end)
@@ -108,7 +108,7 @@ struct VoiceActivityDetectorTests {
         let samples = Synth.track(seconds: 3, bursts: [1.0...2.0])
         var reportedAt: [Double] = []
         for frame in Synth.split(samples, sizes: [320]) {
-            if !detector.process(frame).isEmpty {
+            if !detector.process(Array(frame)).isEmpty {
                 reportedAt.append(detector.position)
             }
         }

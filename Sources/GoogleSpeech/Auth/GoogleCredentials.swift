@@ -64,7 +64,7 @@ public enum GoogleCredentials {
     static func credentialsPath(settings: SpeechSettings, environment: [String: String]) -> String {
         let home = environment["HOME"] ?? NSHomeDirectory()
         if let configured = settings.googleCredentialsFile.nilIfBlank {
-            return configured.hasPrefix("~/") ? home + configured.dropFirst() : configured
+            return ListenerPaths(home: URL(fileURLWithPath: home)).expandingTilde(configured)
         }
         if let fromEnvironment = environment["GOOGLE_APPLICATION_CREDENTIALS"].nilIfBlank {
             return fromEnvironment

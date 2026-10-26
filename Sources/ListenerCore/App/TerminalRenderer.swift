@@ -19,7 +19,7 @@ public struct TerminalStyle: Sendable, Equatable {
     public static let plain = TerminalStyle(color: false, liveLine: false)
 }
 
-/// Turns session events into terminal output for `listener live --terminal` and
+/// Turns session events into terminal output for `listener live` and
 /// `listener replay`. Settled turns print once, with a time and speaker label; what
 /// people are saying right now sits on a live line below them that is rewritten in
 /// place. Transcript output is held back while an answer streams, so the answer is

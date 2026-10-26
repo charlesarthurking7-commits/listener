@@ -26,11 +26,6 @@ public struct ListenerPaths: Sendable, Equatable {
         supportDirectory.appendingPathComponent(".env")
     }
 
-    /// Where `gcloud auth application-default login` writes its credentials.
-    public var googleApplicationDefaultCredentials: URL {
-        home.appendingPathComponent(".config/gcloud/application_default_credentials.json")
-    }
-
     /// "~" and "~/..." resolved against `home`. Other paths are returned unchanged.
     public func expandingTilde(_ path: String) -> String {
         if path == "~" {

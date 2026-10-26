@@ -138,7 +138,6 @@ public struct CallViewState: Sendable, Equatable {
 
     public private(set) var phase = Phase.idle
     public private(set) var listeningSince: Date?
-    public private(set) var channels: [ChannelInfo] = []
     /// Turns that have settled. Only changes when a turn is added or its final text
     /// grows, so the window redraws the long part of the transcript rarely.
     public private(set) var settledRows: [TranscriptRow] = []
@@ -150,7 +149,6 @@ public struct CallViewState: Sendable, Equatable {
     /// Hotkey to first token of the last finished answer, in milliseconds.
     public private(set) var lastLatencyMs: Double?
     private var noticeList = NoticeList()
-    public private(set) var sessionDirectory: String?
     public private(set) var summaryFile: String?
     /// Set when a call ends, until it is dismissed or the next call starts.
     public private(set) var outcome: CallOutcome?
@@ -163,10 +161,8 @@ public struct CallViewState: Sendable, Equatable {
 
     public init() {}
 
-    public var rows: [TranscriptRow] { settledRows + liveRows }
     public var notices: [Notice] { noticeList.items }
     public var isListening: Bool { phase == .listening }
-    public var isBusy: Bool { phase == .starting || phase == .stopping }
     public var canStart: Bool { phase == .idle || phase == .finished }
     public var canStop: Bool { phase == .listening }
     public var canAsk: Bool { phase == .listening }
@@ -247,10 +243,9 @@ public struct CallViewState: Sendable, Equatable {
 
     public mutating func apply(_ event: SessionEvent, now: Date) {
         switch event {
-        case .started(let channels):
+        case .started:
             phase = .listening
             listeningSince = now
-            self.channels = channels
         case .transcript(let snapshot):
             updateRows(snapshot)
         case .channelActivity(let speaker, let isSpeaking):
@@ -312,7 +307,6 @@ public struct CallViewState: Sendable, Equatable {
         liveRows = []
         interimOrder = []
         hearing = nil
-        sessionDirectory = directory
         if answer?.isActive == true {
             answer = nil
         }

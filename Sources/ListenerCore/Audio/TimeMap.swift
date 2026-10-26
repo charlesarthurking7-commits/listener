@@ -18,8 +18,6 @@ public struct TimeMap: Sendable, Equatable {
         self.tolerance = tolerance
     }
 
-    public var isEmpty: Bool { anchors.isEmpty }
-
     /// Records that `from` on the source clock is `to` on the target clock. Points must
     /// arrive in increasing `from` order; one that goes backwards is ignored.
     public mutating func record(from: Double, to: Double) {

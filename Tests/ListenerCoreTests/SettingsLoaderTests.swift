@@ -94,8 +94,7 @@ final class SettingsLoaderTests {
     @Test func missingDefaultFileGivesDefaults() throws {
         let loaded = try SettingsLoader(paths: ListenerPaths(home: home)).load()
         #expect(loaded.settings == Settings())
-        #expect(!loaded.fileExists)
-        #expect(loaded.file == home.appendingPathComponent("Library/Application Support/Listener/settings.json"))
+        #expect(loaded.warnings.isEmpty)
     }
 
     @Test func missingExplicitFileIsAnError() throws {
@@ -111,7 +110,6 @@ final class SettingsLoaderTests {
             .write(to: paths.settingsFile)
 
         let loaded = try SettingsLoader(paths: paths).load()
-        #expect(loaded.fileExists)
         #expect(loaded.settings.storage.directory == home.appendingPathComponent("Calls").path)
         #expect(loaded.settings.speech.googleCredentialsFile == home.appendingPathComponent("key.json").path)
     }

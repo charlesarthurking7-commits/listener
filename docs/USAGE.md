@@ -229,7 +229,7 @@ another.
 ## Live in the terminal
 
 ```sh
-listener live --terminal
+listener live
 ```
 
 Settled turns print once with their time and speaker. What someone is saying right now
@@ -293,7 +293,7 @@ listener replay me.wav them.wav --ask-at 0:24 --call-type Meeting
   and `--tier recap` asks for recaps.
 - `--call-type Meeting` uses that call type's instructions and files, as Start does with
   the one picked in the window. A path to a folder laid out the same way works too.
-  `listener live --terminal` takes it as well.
+  `listener live` takes it as well.
   At the end a table shows, per answer, the time from the end of speech and from the
   hotkey to the first token and to the end, the cost, and the medians against the 1.5 s
   target.

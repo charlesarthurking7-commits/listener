@@ -18,15 +18,6 @@ struct LiveCommand: AsyncParsableCommand {
     @OptionGroup var options: GlobalOptions
     @OptionGroup var callType: CallTypeOptions
 
-    @Flag(help: "Show the transcript in this terminal. (For the window, run listener without arguments.)")
-    var terminal = false
-
-    func validate() throws {
-        if !terminal {
-            throw ValidationError("listener live needs --terminal. For the window, run listener without arguments.")
-        }
-    }
-
     func run() async throws {
         let settings = try options.loadSettings().settings
         let (notices, noticeContinuation) = AsyncStream.makeStream(of: TerminalInput.self)

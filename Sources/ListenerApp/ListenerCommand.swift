@@ -45,8 +45,7 @@ struct ListenerCommand: AsyncParsableCommand {
         } catch {
             let message = "Using default settings for now. \(ErrorText.describe(error))"
             Console.error(message)
-            launchSettings = LoadedSettings(
-                settings: Settings(), file: paths.settingsFile, fileExists: true, warnings: [message])
+            launchSettings = LoadedSettings(settings: Settings(), warnings: [message])
         }
 
         let settings = launchSettings.settings

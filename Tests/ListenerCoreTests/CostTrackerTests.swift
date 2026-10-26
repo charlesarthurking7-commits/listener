@@ -3,6 +3,9 @@ import Testing
 @testable import ListenerCore
 
 struct CostTrackerTests {
+    private let haiku = PriceTable.standard.models["claude-haiku-5-5"]!
+    private let sonnet = PriceTable.standard.models["claude-sonnet-5-5"]!
+
     @Test func haikuAppliesEveryRate() {
         var tracker = CostTracker(prices: .standard, speechProvider: "google")
         let usage = TokenUsage(
@@ -12,27 +15,24 @@ struct CostTrackerTests {
     }
 
     @Test func longPromptRatesApplyToTheWholeRequest() {
-        let tracker = CostTracker(prices: .standard, speechProvider: "google")
         // 110k prompt tokens, cached ones included, is over Haiku's 100k threshold:
         // 50000 x 0.50 + 60000 x 0.05 + 1000 x 2.50 = 30500 dollars per million tokens
         let long = TokenUsage(inputTokens: 50_000, outputTokens: 1_000, cacheReadInputTokens: 60_000)
-        #expect(near(tracker.cost(of: long, model: "claude-haiku-5-5"), 0.0305))
+        #expect(near(haiku.cost(of: long), 0.0305))
     }
 
     @Test func thresholdItselfStillGetsTheNormalRates() {
-        let tracker = CostTracker(prices: .standard, speechProvider: "google")
         let atThreshold = TokenUsage(inputTokens: 100_000)
         let justOver = TokenUsage(inputTokens: 100_001)
-        #expect(near(tracker.cost(of: atThreshold, model: "claude-haiku-5-5"), 0.01))
-        #expect(near(tracker.cost(of: justOver, model: "claude-haiku-5-5"), 0.050_000_5))
+        #expect(near(haiku.cost(of: atThreshold), 0.01))
+        #expect(near(haiku.cost(of: justOver), 0.050_000_5))
     }
 
     @Test func sonnetHasNoLongPromptRates() {
-        let tracker = CostTracker(prices: .standard, speechProvider: "google")
         // 1000 x 2.00 + 5000 x 0.20 + 400 x 10.00 = 7000; then 200000 x 2.00 = 400000
         let cached = TokenUsage(inputTokens: 1_000, outputTokens: 400, cacheReadInputTokens: 5_000)
-        #expect(near(tracker.cost(of: cached, model: "claude-sonnet-5-5"), 0.007))
-        #expect(near(tracker.cost(of: TokenUsage(inputTokens: 200_000), model: "claude-sonnet-5-5"), 0.4))
+        #expect(near(sonnet.cost(of: cached), 0.007))
+        #expect(near(sonnet.cost(of: TokenUsage(inputTokens: 200_000)), 0.4))
     }
 
     @Test func missingLongRatesFallBackToNormalRates() {

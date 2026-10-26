@@ -17,10 +17,6 @@ public struct AudioChunk: Sendable {
         self.samples = samples
         self.capturedAt = capturedAt
     }
-
-    public var duration: Duration {
-        .seconds(Double(samples.count) / Double(Self.sampleRate))
-    }
 }
 
 extension Duration {
