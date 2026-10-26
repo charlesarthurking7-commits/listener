@@ -62,11 +62,7 @@ struct CallOutcomeCard: View {
         .padding(.leading, 12)
         .padding(.trailing, 8)
         .padding(.vertical, 12)
-        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                .strokeBorder(Theme.cardStroke, lineWidth: 0.5)
-        }
+        .panel()
         .accessibilityElement(children: .contain)
     }
 

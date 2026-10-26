@@ -47,11 +47,7 @@ private struct SetupChecklist: View {
                         ChecklistRow(item: item, perform: model.perform)
                     }
                 }
-                .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                        .strokeBorder(Theme.cardStroke, lineWidth: 0.5)
-                }
+                .panel()
                 .padding(.top, 14)
                 HStack {
                     Text("Changed something?")
@@ -146,11 +142,7 @@ private struct FixControl: View {
             .padding(.leading, 10)
             .padding(.trailing, 2)
             .frame(height: 28)
-            .background(Theme.fill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(Theme.cardStroke, lineWidth: 0.5)
-            }
+            .panel(Theme.fill, radius: 7)
             .padding(.top, 8)
         case .openPrivacySettings, .editSettings:
             if status == .blocking {
@@ -266,11 +258,7 @@ private struct ReadyView: View {
                     .accessibilityLabel("\(item.title): \(item.summary)")
                 }
             }
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                    .strokeBorder(Theme.cardStroke, lineWidth: 0.5)
-            }
+            .panel()
             .padding(Theme.gutter)
         }
     }

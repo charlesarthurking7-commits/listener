@@ -417,13 +417,7 @@ private struct NoticeBanner: View {
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .padding(.vertical, 9)
-        .background(background, in: RoundedRectangle(cornerRadius: Theme.bannerRadius, style: .continuous))
-        .overlay {
-            if notice.kind != .error {
-                RoundedRectangle(cornerRadius: Theme.bannerRadius, style: .continuous)
-                    .strokeBorder(Theme.cardStroke, lineWidth: 0.5)
-            }
-        }
+        .panel(background, radius: Theme.bannerRadius, stroke: notice.kind == .error ? .clear : Theme.cardStroke)
         .transition(.move(edge: .top).combined(with: .opacity))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(kindName): \(notice.message)")

@@ -28,11 +28,7 @@ struct AnswerCardView: View {
             .padding(.trailing, 8)
             .padding(.top, Self.topPadding)
             .padding(.bottom, Self.bottomPadding)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                    .strokeBorder(border(card).opacity(0.4), lineWidth: 1)
-            }
+            .panel(stroke: border(card).opacity(0.4), lineWidth: 1)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(card.tier == .recap ? "Recap so far" : "Suggested answer")
         }

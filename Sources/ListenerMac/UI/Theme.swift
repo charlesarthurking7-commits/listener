@@ -123,6 +123,17 @@ struct Hairline: View {
     }
 }
 
+extension View {
+    /// A rounded panel behind the view, `fill` inside a hairline `stroke`.
+    func panel(
+        _ fill: Color = Theme.cardFill, radius: CGFloat = Theme.cardRadius, stroke: Color = Theme.cardStroke,
+        lineWidth: CGFloat = 0.5
+    ) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return background(fill, in: shape).overlay { shape.strokeBorder(stroke, lineWidth: lineWidth) }
+    }
+}
+
 /// A key drawn as a keycap, e.g. "⌥" or "Space".
 struct Keycap: View {
     let label: String
@@ -135,11 +146,7 @@ struct Keycap: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, large ? 6 : 5)
             .frame(minWidth: large ? 22 : 18, minHeight: large ? 22 : 18)
-            .background(Theme.keycapFill, in: RoundedRectangle(cornerRadius: large ? 5 : 4, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: large ? 5 : 4, style: .continuous)
-                    .strokeBorder(Theme.keycapEdge, lineWidth: 0.5)
-            }
+            .panel(Theme.keycapFill, radius: large ? 5 : 4, stroke: Theme.keycapEdge)
     }
 }
 

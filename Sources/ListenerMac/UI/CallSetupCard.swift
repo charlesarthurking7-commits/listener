@@ -33,11 +33,7 @@ struct CallSetupCard: View {
             Hairline()
             actions
         }
-        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                .strokeBorder(isTargeted ? Color.accentColor : Theme.cardStroke, lineWidth: isTargeted ? 1.5 : 0.5)
-        }
+        .panel(stroke: isTargeted ? Color.accentColor : Theme.cardStroke, lineWidth: isTargeted ? 1.5 : 0.5)
         .dropDestination(for: URL.self) { urls, _ in
             model.addFiles(urls)
             return true
