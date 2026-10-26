@@ -25,6 +25,7 @@ var targets: [Target] = [
             "GoogleSpeech",
             .product(name: "GRPCCore", package: "grpc-swift-2"),
             .product(name: "GRPCInProcessTransport", package: "grpc-swift-2"),
+            .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
         ]
     ),
     .testTarget(name: "ClaudeAPITests", dependencies: ["ClaudeAPI"]),

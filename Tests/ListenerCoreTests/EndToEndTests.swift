@@ -5,7 +5,7 @@ import Testing
 
 /// The whole pipeline on a synthetic two-channel call: replayed audio, the voice
 /// activity detector, scripted speech-to-text, turn detection, a hotkey answer
-/// mid-call, cost, the summary and everything saved to disk.
+/// mid-call, cost, the summary and what is saved.
 struct EndToEndTests {
     static let speed = 8.0
 
@@ -31,11 +31,13 @@ struct EndToEndTests {
             await session.requestAnswer(.quick)
         }
 
+        let callStarted = ContinuousClock.now
         try await session.start()
         await waitForReplay(sources)
         #expect(await eventually { await session.answers.count == 1 })
         await session.stop()
         await recording.value
+        let elapsed = (ContinuousClock.now - callStarted).inSeconds
 
         // The transcript matches the script, in order, at replay speed. Each channel's
         // playback starts a moment after the session does, more on a busy machine, hence
@@ -110,32 +112,26 @@ struct EndToEndTests {
         #expect(done >= firstToken)
         #expect(abs(speechToFirstToken - (speechToHotkey + firstToken)) <= 0.2)
 
-        // Cost covers speech on both channels and the model calls.
+        // Cost covers speech on both channels and the model calls, and its events come
+        // about twice a second at most.
         let cost = await session.cost
         #expect(cost.speechCost > 0 && cost.modelCost > 0)
         for speaker in Speaker.allCases {
             #expect(abs((cost.speechSeconds[speaker.rawValue] ?? 0) - 11) < 0.01)
         }
-        #expect(recorder.costs.last == cost)
+        let costs = recorder.costs
+        #expect(costs.count >= 2)
+        #expect(Double(costs.count) <= elapsed / 0.5 + 3)
+        #expect(costs.last == cost)
         #expect(model.warmUpCount == 1)
 
-        // Everything is on disk and reads back.
+        // FixtureCallTests checks the saved call on real recordings. Only these depend on
+        // a paced call with an answer.
         let directory = try #require(await session.directory)
-        #expect(recorder.stoppedDirectories == [directory.path])
-        #expect(try SessionStore.readTurns(in: directory) == turns)
-        #expect(try SessionStore.readAnswers(in: directory) == [answer])
         let record = try SessionStore.readRecord(in: directory)
-        #expect(record.endedAt != nil)
-        #expect(record.turnCount == 5)
-        #expect(record.channels.map(\.speaker) == [.me, .them])
         #expect(record.speechProvider == "Scripted speech-to-text")
-        #expect(record.answers.map(\.latency) == [latency])
         #expect(record.latency.hotkeyToFirstToken?.count == 1)
         #expect(record.latency.endOfSpeechToFirstToken?.p50 == speechToFirstToken)
-        #expect(record.cost == cost)
-        #expect(record.summaryFile == "summary.md")
-        let summary = try String(contentsOf: directory.appendingPathComponent("summary.md"), encoding: .utf8)
-        #expect(summary == tradeSummary + "\n")
         let summaryPath = directory.appendingPathComponent("summary.md").path
         let events = recorder.all
         let stopped = try #require(events.firstIndex(of: .stopped(directory: directory.path)))

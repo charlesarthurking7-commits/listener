@@ -1,5 +1,6 @@
 import Foundation
 import GRPCCore
+import GRPCProtobuf
 import ListenerCore
 import Testing
 
@@ -18,21 +19,8 @@ struct GoogleSpeechStreamTests {
 
             let calls = await recorder.calls
             try #require(calls.count == 1)
-            let first = try #require(calls[0].config)
-            #expect(first.recognizer == "projects/test-project/locations/eu/recognizers/_")
-            guard case .streamingConfig(let streaming) = first.streamingRequest else {
-                Issue.record("The first request carries no config")
-                return
-            }
-            #expect(streaming.config.explicitDecodingConfig.encoding == .linear16)
-            #expect(streaming.config.explicitDecodingConfig.sampleRateHertz == 16_000)
-            #expect(streaming.config.explicitDecodingConfig.audioChannelCount == 1)
-            #expect(streaming.config.model == "chirp_3")
-            #expect(streaming.config.languageCodes == ["en-GB"])
-            #expect(streaming.config.features.enableAutomaticPunctuation)
-            #expect(streaming.streamingFeatures.interimResults)
-            #expect(streaming.streamingFeatures.endpointingSensitivity == .short)
-
+            let setup = try RecognitionSetup(settings: .forTests(), quotaProjectID: "quota-project")
+            #expect(calls[0].config == setup.configRequest)
             #expect(calls[0].audioRequests.map(\.count) == [3_200, 3_200, 3_200, 1_600, 1_600])
             #expect(calls[0].samples == audio)
             #expect(calls[0].metadata[stringValues: "authorization"].map { $0 } == ["Bearer token-1"])
@@ -282,12 +270,10 @@ struct GoogleSpeechStreamTests {
 
     @Test func surfacesAPermanentErrorOnEventsAndRefusesMoreAudio() async throws {
         let disabled: CallScript = { _ in
-            var metadata = Metadata()
-            metadata.addBinary(StatusDetails.serviceDisabled, forKey: "grpc-status-details-bin")
-            throw RPCError(
+            throw GoogleRPCStatus(
                 code: .permissionDenied,
                 message: "Cloud Speech-to-Text API has not been used in project 123 before or it is disabled.",
-                metadata: metadata)
+                details: .serviceDisabled)
         }
         try await withFakeSpeech(scripts: [disabled]) { provider, recorder in
             let stream = try await provider.openStream(for: .them)

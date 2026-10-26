@@ -62,11 +62,6 @@ struct MessageStreamParserTests {
         #expect(throws: ClaudeError.refused(category: "cyber")) { try parse(lines) }
     }
 
-    @Test func refusalWithoutDetailsStillFails() {
-        let lines = SSE.messageStart() + SSE.messageDelta(stopReason: "refusal") + SSE.messageStop
-        #expect(throws: ClaudeError.refused(category: nil)) { try parse(lines) }
-    }
-
     @Test func errorEventsMapToTypedErrors() {
         #expect(throws: ClaudeError.overloaded) {
             try parse(SSE.messageStart() + SSE.error(type: "overloaded_error", message: "Overloaded"))

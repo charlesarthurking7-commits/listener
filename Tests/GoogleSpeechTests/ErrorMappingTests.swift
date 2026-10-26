@@ -1,5 +1,6 @@
 import Foundation
 import GRPCCore
+import GRPCProtobuf
 import Testing
 
 @testable import GoogleSpeech
@@ -11,12 +12,8 @@ struct ErrorMappingTests {
         if case .fail(let failure) = setup.response(to: error) { failure } else { nil }
     }
 
-    private func permissionDenied(_ message: String, details: [UInt8]? = nil) -> RPCError {
-        var metadata = Metadata()
-        if let details {
-            metadata.addBinary(details, forKey: "grpc-status-details-bin")
-        }
-        return RPCError(code: .permissionDenied, message: message, metadata: metadata)
+    private func permissionDenied(_ message: String, details: ErrorDetails...) -> RPCError {
+        RPCError(GoogleRPCStatus(code: .permissionDenied, message: message, details: details))
     }
 
     @Test(arguments: [
@@ -46,7 +43,7 @@ struct ErrorMappingTests {
     }
 
     @Test func serviceDisabledPointsAtTheActivationPage() {
-        let error = failure(permissionDenied("API has not been used", details: StatusDetails.serviceDisabled))
+        let error = failure(permissionDenied("API has not been used", details: .serviceDisabled))
         #expect(error?.kind == .apiDisabled)
         #expect(error?.message.contains("not enabled in project test-project") == true)
         #expect(
@@ -60,7 +57,7 @@ struct ErrorMappingTests {
     }
 
     @Test func billingDisabledSaysSo() {
-        let details = StatusDetails.status(code: 7, message: "Billing", reason: "BILLING_DISABLED", metadata: [:])
+        let details = ErrorDetails.errorInfo(reason: "BILLING_DISABLED", domain: "googleapis.com")
         let error = failure(permissionDenied("This API method requires billing to be enabled.", details: details))
         #expect(error?.kind == .apiDisabled)
         #expect(error?.message.contains("Billing is not enabled for project test-project") == true)
@@ -95,27 +92,5 @@ struct ErrorMappingTests {
         let error = failure(RPCError(code: .failedPrecondition, message: "Something is off"))
         #expect(error?.kind == .other)
         #expect(error?.message.contains("Something is off") == true)
-    }
-
-    /// Google's real answer to a call without credentials, captured from
-    /// eu-speech.googleapis.com. Checks the hand-written fixtures above have the
-    /// same shape as what Google sends.
-    @Test func statusDetailsFixturesMatchGooglesEncoding() throws {
-        let recorded = try #require(
-            Data(
-                base64Encoded:
-                    "CBAS1wFSZXF1ZXN0IGlzIG1pc3NpbmcgcmVxdWlyZWQgYXV0aGVudGljYXRpb24gY3JlZGVudGlhbC4gRXhwZWN0ZWQgT0F1dGggMiBhY2Nlc3MgdG9rZW4sIGxvZ2luIGNvb2tpZSBvciBvdGhlciB2YWxpZCBhdXRoZW50aWNhdGlvbiBjcmVkZW50aWFsLiBTZWUgaHR0cHM6Ly9kZXZlbG9wZXJzLmdvb2dsZS5jb20vaWRlbnRpdHkvc2lnbi1pbi93ZWIvZGV2Y29uc29sZS1wcm9qZWN0LhqwAQoodHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUucnBjLkVycm9ySW5mbxKDAQoTQ1JFREVOVElBTFNfTUlTU0lORxIOZ29vZ2xlYXBpcy5jb20aOgoGbWV0aG9kEjBnb29nbGUuY2xvdWQuc3BlZWNoLnYyLlNwZWVjaC5TdHJlYW1pbmdSZWNvZ25pemUaIAoHc2VydmljZRIVc3BlZWNoLmdvb2dsZWFwaXMuY29t"
-            ))
-        let rebuilt = StatusDetails.status(
-            code: 16,
-            message: "Request is missing required authentication credential. Expected OAuth 2 access token, login "
-                + "cookie or other valid authentication credential. See "
-                + "https://developers.google.com/identity/sign-in/web/devconsole-project.",
-            reason: "CREDENTIALS_MISSING",
-            metadata: [
-                "method": "google.cloud.speech.v2.Speech.StreamingRecognize",
-                "service": "speech.googleapis.com",
-            ])
-        #expect(rebuilt == Array(recorded))
     }
 }

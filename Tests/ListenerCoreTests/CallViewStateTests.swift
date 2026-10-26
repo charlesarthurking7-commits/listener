@@ -234,21 +234,15 @@ struct CallViewStateTests {
     @Test func channelActivityIsUnknownUntilReported() {
         var state = listening()
         #expect(state.hearing == nil)
-        state.channelActivity(.them, isSpeaking: true)
-        state.channelActivity(.me, isSpeaking: true)
-        state.channelActivity(.me, isSpeaking: false)
-        #expect(state.hearing == [.them])
-
-        state.apply(.stopped(directory: "/s/call"), now: start)
-        #expect(state.hearing == nil)
-    }
-
-    @Test func channelActivityEventsReachTheHearingChips() {
-        var state = listening()
         state.apply(.channelActivity(.them, isSpeaking: true), now: start)
+        state.apply(.channelActivity(.me, isSpeaking: true), now: start)
+        state.apply(.channelActivity(.me, isSpeaking: false), now: start)
         #expect(state.hearing == [.them])
         state.apply(.channelActivity(.them, isSpeaking: false), now: start)
         #expect(state.hearing == [])
+
+        state.apply(.stopped(directory: "/s/call"), now: start)
+        #expect(state.hearing == nil)
     }
 
     @Test func captureEventsBecomeBanners() {

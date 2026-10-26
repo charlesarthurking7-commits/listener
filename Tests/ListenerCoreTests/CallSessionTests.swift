@@ -554,17 +554,6 @@ final class CallSessionTests {
         #expect(!slow)
     }
 
-    @Test func costEventsAreThrottled() async throws {
-        let setup = try setUp(pacing: .realTime(speed: 8))
-        let started = ContinuousClock.now
-        try await setup.run()
-        let elapsed = (ContinuousClock.now - started).inSeconds
-        let costs = setup.recorder.costs
-        #expect(costs.count >= 2)
-        #expect(Double(costs.count) <= elapsed / 0.5 + 3)
-        #expect(costs.last == (await setup.session.cost))
-    }
-
     @Test func skippingSilenceSendsOnlySpeechAndItsMargins() async throws {
         let script = ConversationScript(
             title: "one line", lines: [.init(speaker: .them, start: 2.0, end: 3.0, text: "Just this.")])

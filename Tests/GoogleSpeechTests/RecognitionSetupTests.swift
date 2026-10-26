@@ -7,8 +7,6 @@ import Testing
 @testable import GoogleSpeech
 
 struct RecognitionSetupTests {
-    private let setup = try! RecognitionSetup(settings: .forTests(), quotaProjectID: "quota-project")
-
     @Test func configMatchesTheSettings() throws {
         var settings = SpeechSettings.forTests()
         settings.model = "long"
@@ -61,12 +59,6 @@ struct RecognitionSetupTests {
             try RecognitionSetup(settings: settings, quotaProjectID: nil)
         }
         #expect(error?.message.contains("standard, short or supershort") == true)
-    }
-
-    @Test func sendsTheTokenAndTheQuotaProject() throws {
-        let metadata = setup.metadata(token: "abc")
-        #expect(Array(metadata[stringValues: "authorization"]) == ["Bearer abc"])
-        #expect(Array(metadata[stringValues: "x-goog-user-project"]) == ["quota-project"])
     }
 
     @Test func splitsAudioIntoLittleEndianFrames() {

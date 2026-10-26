@@ -208,7 +208,7 @@ public struct CallViewState: Sendable, Equatable {
     }
 
     /// A channel started or stopped hearing speech.
-    public mutating func channelActivity(_ speaker: Speaker, isSpeaking: Bool) {
+    private mutating func channelActivity(_ speaker: Speaker, isSpeaking: Bool) {
         var hearing = self.hearing ?? []
         if isSpeaking {
             hearing.insert(speaker)

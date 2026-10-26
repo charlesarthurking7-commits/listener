@@ -1,7 +1,20 @@
 import Foundation
+import GRPCProtobuf
 import ListenerCore
 
 @testable import GoogleSpeech
+
+extension ErrorDetails {
+    /// What Google sends when the Speech-to-Text API is off in the project.
+    static let serviceDisabled = ErrorDetails.errorInfo(
+        reason: "SERVICE_DISABLED", domain: "googleapis.com",
+        metadata: [
+            "activationUrl":
+                "https://console.developers.google.com/apis/api/speech.googleapis.com/overview?project=123",
+            "consumer": "projects/123",
+            "service": "speech.googleapis.com",
+        ])
+}
 
 /// Builds responses the way Google shapes them: at most one final first, then interims.
 enum Response {
