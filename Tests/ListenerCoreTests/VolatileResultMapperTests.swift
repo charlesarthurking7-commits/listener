@@ -170,24 +170,6 @@ struct VolatileResultMapperTests {
     }
 }
 
-private func volatileResult(_ words: (String, Double, Double)...) -> RecognizerResult {
-    result(isFinal: false, words)
-}
-
-private func finalResult(_ words: (String, Double, Double)...) -> RecognizerResult {
-    result(isFinal: true, words)
-}
-
-private func result(isFinal: Bool, _ words: [(String, Double, Double)]) -> RecognizerResult {
-    RecognizerResult(
-        isFinal: isFinal,
-        start: words.first?.1,
-        end: words.last?.2,
-        finalizedThrough: isFinal ? words.last?.2 : words.first?.1,
-        pieces: words.map { RecognizerResult.Piece(text: $0.0, start: $0.1, end: $0.2) }
-    )
-}
-
 private func withFinalizedThrough(_ time: Double, _ result: RecognizerResult) -> RecognizerResult {
     var result = result
     result.finalizedThrough = time

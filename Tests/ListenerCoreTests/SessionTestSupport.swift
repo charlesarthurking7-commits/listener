@@ -54,6 +54,54 @@ func eventually(timeout: Duration = .seconds(10), _ condition: () async -> Bool)
     return await condition()
 }
 
+func near(_ value: Double?, _ expected: Double, within tolerance: Double = 1e-9) -> Bool {
+    abs((value ?? .nan) - expected) < tolerance
+}
+
+extension AsyncSequence {
+    func collect() async throws -> [Element] {
+        var elements: [Element] = []
+        for try await element in self {
+            elements.append(element)
+        }
+        return elements
+    }
+}
+
+/// Collects what a callback delivers, from whatever thread it calls back on.
+final class Collected<Element: Sendable>: Sendable {
+    private let elements = Mutex<[Element]>([])
+
+    var all: [Element] { elements.withLock { $0 } }
+
+    func add(_ element: Element) {
+        elements.withLock { $0.append(element) }
+    }
+}
+
+extension Collected where Element == AudioChunk {
+    var samples: [Int16] { all.flatMap(\.samples) }
+}
+
+/// A recognizer result made of `(text, start, end)` words.
+func volatileResult(_ words: (String, Double, Double)...) -> RecognizerResult {
+    result(isFinal: false, words)
+}
+
+func finalResult(_ words: (String, Double, Double)...) -> RecognizerResult {
+    result(isFinal: true, words)
+}
+
+private func result(isFinal: Bool, _ words: [(String, Double, Double)]) -> RecognizerResult {
+    RecognizerResult(
+        isFinal: isFinal,
+        start: words.first?.1,
+        end: words.last?.2,
+        finalizedThrough: isFinal ? words.last?.2 : words.first?.1,
+        pieces: words.map { RecognizerResult.Piece(text: $0.0, start: $0.1, end: $0.2) }
+    )
+}
+
 /// Keeps every event a session sends, readable while the session runs.
 final class EventRecorder: Sendable {
     private let events = Mutex<[SessionEvent]>([])
@@ -75,57 +123,31 @@ final class EventRecorder: Sendable {
     }
 
     var warnings: [String] {
-        all.compactMap { event in
-            if case .warning(let message) = event { return message }
-            return nil
-        }
+        all.compactMap { if case .warning(let message) = $0 { message } else { nil } }
     }
 
     var costs: [CostSummary] {
-        all.compactMap { event in
-            if case .cost(let summary) = event { return summary }
-            return nil
-        }
+        all.compactMap { if case .cost(let summary) = $0 { summary } else { nil } }
     }
 
     var lastTranscript: TranscriptSnapshot? {
-        all.last { event in
-            if case .transcript = event { return true }
-            return false
-        }
-        .flatMap { event in
-            if case .transcript(let snapshot) = event { return snapshot }
-            return nil
-        }
+        all.compactMap { if case .transcript(let snapshot) = $0 { snapshot } else { nil } }.last
     }
 
     func answerText(id: Int) -> String {
-        all.compactMap { event in
-            if case .answerText(id, let delta) = event { return delta }
-            return nil
-        }
-        .joined()
+        all.compactMap { if case .answerText(id, let delta) = $0 { delta } else { nil } }.joined()
     }
 
     var finishedAnswers: [AnswerRecord] {
-        all.compactMap { event in
-            if case .answerFinished(let record) = event { return record }
-            return nil
-        }
+        all.compactMap { if case .answerFinished(let record) = $0 { record } else { nil } }
     }
 
     var failedAnswers: [(id: Int, message: String)] {
-        all.compactMap { event in
-            if case .answerFailed(let id, let message) = event { return (id, message) }
-            return nil
-        }
+        all.compactMap { if case .answerFailed(let id, let message) = $0 { (id, message) } else { nil } }
     }
 
     var stoppedDirectories: [String?] {
-        all.compactMap { event in
-            if case .stopped(let directory) = event { return directory }
-            return nil
-        }
+        all.compactMap { if case .stopped(let directory) = $0 { directory } else { nil } }
     }
 }
 

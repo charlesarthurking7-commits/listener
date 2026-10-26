@@ -5,7 +5,7 @@ import Foundation
 /// Test signals. Amplitudes are fractions of full scale.
 enum Synth {
     static func tone(
-        frequency: Double, seconds: Double, amplitude: Double = 0.3, rate: Int = AudioChunk.sampleRate
+        frequency: Double = 440, seconds: Double, amplitude: Double = 0.3, rate: Int = AudioChunk.sampleRate
     ) -> [Int16] {
         let count = Int((seconds * Double(rate)).rounded())
         return (0..<count).map { index in

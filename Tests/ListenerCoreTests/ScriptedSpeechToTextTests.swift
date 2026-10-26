@@ -80,10 +80,7 @@ struct ScriptedSpeechToTextTests {
         // Sending after finish changes nothing.
         try await stream.send(AudioChunk(speaker: .me, samples: [0], capturedAt: .now))
 
-        var events: [SpeechEvent] = []
-        for try await event in stream.events {
-            events.append(event)
-        }
+        let events = try await stream.events.collect()
         #expect(events.map(\.kind) == [.interim, .interim, .final])
         #expect(events.last == SpeechEvent(kind: .final, text: "all good", audioStart: 2.5, audioEnd: 2.8))
         #expect(provider.displayName == "Scripted speech-to-text")

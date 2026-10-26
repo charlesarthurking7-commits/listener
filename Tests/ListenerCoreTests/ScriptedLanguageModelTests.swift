@@ -6,20 +6,12 @@ struct ScriptedLanguageModelTests {
     private let request = ModelRequest(
         settings: AnswerSettings().quick, system: "Be brief.", user: [PromptBlock("Them: How are the fills?")])
 
-    private func collect(_ stream: AsyncThrowingStream<ModelEvent, any Error>) async throws -> [ModelEvent] {
-        var events: [ModelEvent] = []
-        for try await event in stream {
-            events.append(event)
-        }
-        return events
-    }
-
     @Test func streamsTheReplyWordByWordThenUsage() async throws {
         let usage = TokenUsage(inputTokens: 120, outputTokens: 7)
         let model = ScriptedLanguageModel(firstTokenDelay: .zero, tokenInterval: .zero, usage: usage) { request in
             "Fills look fine,\nall within\ttolerance. (\(request.user.count) block)"
         }
-        let events = try await collect(model.stream(request))
+        let events = try await model.stream(request).collect()
         let texts = events.compactMap { event -> String? in
             if case .text(let text) = event { return text }
             return nil
@@ -32,7 +24,7 @@ struct ScriptedLanguageModelTests {
 
     @Test func estimatesUsageWhenNoneIsGiven() async throws {
         let model = ScriptedLanguageModel(answer: "one two three", firstTokenDelay: .zero, tokenInterval: .zero)
-        let events = try await collect(model.stream(request))
+        let events = try await model.stream(request).collect()
         // 9 + 24 characters of prompt.
         #expect(events.last == .finished(TokenUsage(inputTokens: 8, outputTokens: 3), stopReason: "end_turn"))
     }
@@ -67,10 +59,7 @@ struct ScriptedLanguageModelTests {
         consumer.cancel()
         let received = try await consumer.value
         #expect(received < 200)
-        let deadline = ContinuousClock.now + .seconds(1)
-        while model.cancelledCount == 0 && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await eventually(timeout: .seconds(1)) { model.cancelledCount > 0 }
         #expect(model.cancelledCount == 1)
     }
 
@@ -78,7 +67,7 @@ struct ScriptedLanguageModelTests {
         struct Overloaded: Error {}
         let model = ScriptedLanguageModel(firstTokenDelay: .zero) { _ in throw Overloaded() }
         await #expect(throws: Overloaded.self) {
-            _ = try await collect(model.stream(request))
+            _ = try await model.stream(request).collect()
         }
     }
 

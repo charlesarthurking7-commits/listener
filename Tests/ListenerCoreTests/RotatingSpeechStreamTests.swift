@@ -9,13 +9,13 @@ struct RotatingSpeechStreamTests {
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
         let session = try await recognizer.nextSession()
 
-        session.emit(volatileResult("Hello", 0.1, 0.5))
-        session.onFinish = [finalResult("Hello there.", 0.1, 0.9)]
-        try await send(speech(seconds: 1.0), to: stream)
+        session.emit(volatileResult(("Hello", 0.1, 0.5)))
+        session.onFinish = [finalResult(("Hello there.", 0.1, 0.9))]
+        try await send(Synth.tone(seconds: 1.0), to: stream)
         await stream.finish()
 
         #expect(
-            try await collect(stream) == [
+            try await stream.events.collect() == [
                 SpeechEvent(kind: .interim, text: "Hello", audioStart: 0.1, audioEnd: 0.5),
                 SpeechEvent(kind: .final, text: "Hello there.", audioStart: 0.1, audioEnd: 0.9),
             ])
@@ -27,22 +27,22 @@ struct RotatingSpeechStreamTests {
         let recognizer = FakeRecognizer()
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
         let first = try await recognizer.nextSession()
-        first.onFinish = [finalResult("One.", 0.2, 0.9)]
+        first.onFinish = [finalResult(("One.", 0.2, 0.9))]
 
         // One second of speech, then the fourth 100 ms chunk of silence completes the pause.
-        try await send(speech(seconds: 1.0) + silence(seconds: 0.4), to: stream)
+        try await send(Synth.tone(seconds: 1.0) + Synth.silence(seconds: 0.4), to: stream)
         let second = try await recognizer.nextSession()
         await stream.waitForReplacement()
-        try await send(speech(seconds: 0.5), to: stream)
-        second.emit(finalResult("Two.", 0.1, 0.4))
+        try await send(Synth.tone(seconds: 0.5), to: stream)
+        second.emit(finalResult(("Two.", 0.1, 0.4)))
         await stream.finish()
 
-        let events = try await collect(stream)
+        let events = try await stream.events.collect()
         #expect(events.map(\.kind) == [.final, .final])
         #expect(events.map(\.text) == ["One.", "Two."])
         // The second session started 1.4 s into the channel.
-        #expect(isClose(events.first?.audioStart, 0.2) && isClose(events.first?.audioEnd, 0.9))
-        #expect(isClose(events.last?.audioStart, 1.5) && isClose(events.last?.audioEnd, 1.8))
+        #expect(near(events.first?.audioStart, 0.2) && near(events.first?.audioEnd, 0.9))
+        #expect(near(events.last?.audioStart, 1.5) && near(events.last?.audioEnd, 1.8))
         #expect(first.received.count == seconds(1.4))
         #expect(second.received.count == seconds(0.5))
     }
@@ -53,14 +53,14 @@ struct RotatingSpeechStreamTests {
         let first = try await recognizer.nextSession()
         first.endsOnFinish = false
 
-        try await send(speech(seconds: 0.5) + silence(seconds: 0.4), to: stream)
-        try await send(speech(seconds: 0.3), to: stream)
+        try await send(Synth.tone(seconds: 0.5) + Synth.silence(seconds: 0.4), to: stream)
+        try await send(Synth.tone(seconds: 0.3), to: stream)
         #expect(recognizer.startedCount == 1)
 
         first.end()
         let second = try await recognizer.nextSession()
         await stream.waitForReplacement()
-        #expect(second.received == speech(seconds: 0.3))
+        #expect(second.received == Synth.tone(seconds: 0.3))
         await stream.finish()
     }
 
@@ -70,11 +70,11 @@ struct RotatingSpeechStreamTests {
         let session = try await recognizer.nextSession()
         var events = stream.events.makeAsyncIterator()
 
-        try await send(speech(seconds: 1.0), to: stream)
-        session.emit(finalResult("Done.", 0.0, 1.0))
+        try await send(Synth.tone(seconds: 1.0), to: stream)
+        session.emit(finalResult(("Done.", 0.0, 1.0)))
         let settled = try await events.next()
         #expect(settled?.text == "Done.")
-        try await send(silence(seconds: 1.0), to: stream)
+        try await send(Synth.silence(seconds: 1.0), to: stream)
         await stream.finish()
 
         #expect(recognizer.startedCount == 1)
@@ -85,14 +85,14 @@ struct RotatingSpeechStreamTests {
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
         let first = try await recognizer.nextSession()
 
-        first.emit(volatileResult("Still", 0.0, 0.3))
+        first.emit(volatileResult(("Still", 0.0, 0.3)))
         first.fail(FakeError.recognizerCrashed)
         let second = try await recognizer.nextSession()
         await stream.waitForReplacement()
-        second.emit(finalResult("going.", 0.0, 0.4))
+        second.emit(finalResult(("going.", 0.0, 0.4)))
         await stream.finish()
 
-        #expect(try await collect(stream).filter { $0.kind == .final }.map(\.text) == ["Still", "going."])
+        #expect(try await stream.events.collect().filter { $0.kind == .final }.map(\.text) == ["Still", "going."])
     }
 
     @Test func repeatedFailuresEndTheStreamWithTheError() async throws {
@@ -103,10 +103,10 @@ struct RotatingSpeechStreamTests {
         }
 
         await #expect(throws: FakeError.recognizerCrashed) {
-            _ = try await collect(stream)
+            _ = try await stream.events.collect()
         }
         await #expect(throws: FakeError.recognizerCrashed) {
-            try await stream.send(chunk(speech(seconds: 0.1)))
+            try await stream.send(chunk(Synth.tone(seconds: 0.1)))
         }
     }
 
@@ -125,14 +125,14 @@ struct RotatingSpeechStreamTests {
         _ = try await recognizer.nextSession()
 
         recognizer.startFailures = 2
-        try await send(speech(seconds: 0.5) + silence(seconds: 0.4), to: stream)
+        try await send(Synth.tone(seconds: 0.5) + Synth.silence(seconds: 0.4), to: stream)
         let replacement = try await recognizer.nextSession()
         await stream.waitForReplacement()
-        try await send(speech(seconds: 0.2), to: stream)
+        try await send(Synth.tone(seconds: 0.2), to: stream)
         await stream.finish()
 
         #expect(replacement.received.count == seconds(0.2))
-        #expect(try await collect(stream).isEmpty)
+        #expect(try await stream.events.collect().isEmpty)
     }
 
     @Test func aSessionThatWillNotFinishIsCancelled() async throws {
@@ -142,12 +142,12 @@ struct RotatingSpeechStreamTests {
         let session = try await recognizer.nextSession()
         session.endsOnFinish = false
 
-        session.emit(volatileResult("Hanging on", 0.0, 0.6))
+        session.emit(volatileResult(("Hanging on", 0.0, 0.6)))
         await stream.finish()
 
         #expect(session.cancelCalls == 1)
         #expect(
-            try await collect(stream).last
+            try await stream.events.collect().last
                 == SpeechEvent(kind: .final, text: "Hanging on", audioStart: 0, audioEnd: 0.6))
     }
 
@@ -159,11 +159,11 @@ struct RotatingSpeechStreamTests {
         session.endsOnFinish = false
         session.endsOnCancel = false
 
-        session.emit(volatileResult("Wedged", 0.0, 0.4))
+        session.emit(volatileResult(("Wedged", 0.0, 0.4)))
         await stream.finish()
-        session.emit(finalResult("Too late.", 0.0, 0.9))
+        session.emit(finalResult(("Too late.", 0.0, 0.9)))
 
-        #expect(try await collect(stream).map(\.text) == ["Wedged", "Wedged"])
+        #expect(try await stream.events.collect().map(\.text) == ["Wedged", "Wedged"])
         session.end()
     }
 
@@ -172,7 +172,7 @@ struct RotatingSpeechStreamTests {
         let stream = try await RotatingSpeechStream.open(recognizer: recognizer)
         let session = try await recognizer.nextSession()
         await stream.finish()
-        try await stream.send(chunk(speech(seconds: 0.1)))
+        try await stream.send(chunk(Synth.tone(seconds: 0.1)))
         await stream.finish()
         #expect(session.received.isEmpty)
         #expect(session.finishCalls == 1)
@@ -305,35 +305,8 @@ private final class FakeSession: RecognizerSession {
     }
 }
 
-private func volatileResult(_ text: String, _ start: Double, _ end: Double) -> RecognizerResult {
-    RecognizerResult(
-        isFinal: false, start: start, end: end, finalizedThrough: start,
-        pieces: [.init(text: text, start: start, end: end)])
-}
-
-private func finalResult(_ text: String, _ start: Double, _ end: Double) -> RecognizerResult {
-    RecognizerResult(
-        isFinal: true, start: start, end: end, finalizedThrough: end,
-        pieces: [.init(text: text, start: start, end: end)])
-}
-
-private func isClose(_ value: Double?, _ expected: Double) -> Bool {
-    guard let value else {
-        return false
-    }
-    return abs(value - expected) < 1e-9
-}
-
 private func seconds(_ value: Double) -> Int {
-    Int(value * Double(AudioChunk.sampleRate))
-}
-
-private func speech(seconds value: Double) -> [Int16] {
-    sine(amplitude: 0.3, count: seconds(value))
-}
-
-private func silence(seconds value: Double) -> [Int16] {
-    [Int16](repeating: 0, count: seconds(value))
+    Int((value * Double(AudioChunk.sampleRate)).rounded())
 }
 
 private func chunk(_ samples: [Int16]) -> AudioChunk {
@@ -346,12 +319,4 @@ private func send(_ samples: [Int16], to stream: RotatingSpeechStream) async thr
     for start in stride(from: 0, to: samples.count, by: size) {
         try await stream.send(chunk(Array(samples[start..<min(start + size, samples.count)])))
     }
-}
-
-private func collect(_ stream: RotatingSpeechStream) async throws -> [SpeechEvent] {
-    var events: [SpeechEvent] = []
-    for try await event in stream.events {
-        events.append(event)
-    }
-    return events
 }

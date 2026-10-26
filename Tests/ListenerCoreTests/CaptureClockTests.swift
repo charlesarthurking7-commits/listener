@@ -3,10 +3,6 @@ import Testing
 @testable import ListenerCore
 
 struct CaptureClockTests {
-    private func near(_ value: Double, _ expected: Double) -> Bool {
-        abs(value - expected) < 1e-9
-    }
-
     @Test func emptyClockIsTheIdentity() {
         #expect(CaptureClock().sessionTime(at: 3.5) == 3.5)
     }

@@ -86,25 +86,15 @@ actor PlannedStream: SpeechStream {
     }
 }
 
-final class OutputLog: Sendable {
-    private let outputs = Mutex<[SpeechChannel.Output]>([])
+private typealias OutputLog = Collected<SpeechChannel.Output>
 
-    func add(_ output: SpeechChannel.Output) {
-        outputs.withLock { $0.append(output) }
-    }
-
+extension Collected where Element == SpeechChannel.Output {
     var events: [SpeechEvent] {
-        outputs.withLock { $0 }.compactMap { output in
-            if case .event(let event) = output { return event }
-            return nil
-        }
+        all.compactMap { if case .event(let event) = $0 { event } else { nil } }
     }
 
     var warnings: [String] {
-        outputs.withLock { $0 }.compactMap { output in
-            if case .warning(let message) = output { return message }
-            return nil
-        }
+        all.compactMap { if case .warning(let message) = $0 { message } else { nil } }
     }
 }
 

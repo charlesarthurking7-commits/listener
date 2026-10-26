@@ -1,22 +1,11 @@
-import Synchronization
 import Testing
 
 @testable import ListenerCore
 
-private final class Log: Sendable {
-    private let entries = Mutex<[String]>([])
-
-    func add(_ entry: String) {
-        entries.withLock { $0.append(entry) }
-    }
-
-    var all: [String] { entries.withLock { $0 } }
-}
-
 struct SerialGateTests {
     @Test func workRunsOneAtATimeInTheOrderItArrives() async throws {
         let gate = SerialGate()
-        let log = Log()
+        let log = Collected<String>()
         let first = Task {
             try await gate.run {
                 log.add("first starts")

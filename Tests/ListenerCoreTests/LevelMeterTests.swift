@@ -10,13 +10,13 @@ struct LevelMeterTests {
     }
 
     @Test func sineWaveIsAboutMinusThreeDBFS() {
-        let samples = sine(amplitude: 1.0, count: 16_000)
+        let samples = Synth.tone(seconds: 1, amplitude: 1.0)
         #expect(abs(LevelMeter.rmsDBFS(samples) - (-3.01)) < 0.05)
     }
 
     @Test func halvingAmplitudeDropsSixDecibels() {
-        let loud = LevelMeter.rmsDBFS(sine(amplitude: 0.5, count: 16_000))
-        let quiet = LevelMeter.rmsDBFS(sine(amplitude: 0.25, count: 16_000))
+        let loud = LevelMeter.rmsDBFS(Synth.tone(seconds: 1, amplitude: 0.5))
+        let quiet = LevelMeter.rmsDBFS(Synth.tone(seconds: 1, amplitude: 0.25))
         #expect(abs((loud - quiet) - 6.02) < 0.05)
     }
 
@@ -26,13 +26,4 @@ struct LevelMeterTests {
         #expect(LevelMeter.isDigitalSilence([Int16](repeating: 0, count: 10)))
         #expect(!LevelMeter.isDigitalSilence([0, 0, 1]))
     }
-}
-
-func sine(amplitude: Double, count: Int, frequency: Double = 440) -> [Int16] {
-    var samples: [Int16] = []
-    for index in 0..<count {
-        let phase = 2 * Double.pi * frequency * Double(index) / Double(AudioChunk.sampleRate)
-        samples.append(Int16(amplitude * 32767 * sin(phase)))
-    }
-    return samples
 }

@@ -1,20 +1,7 @@
 import Foundation
-import Synchronization
 import Testing
 
 @testable import ListenerCore
-
-/// Collects what a capture source delivers, from whatever thread it calls back on.
-final class ChunkCollector: Sendable {
-    private let chunks = Mutex<[AudioChunk]>([])
-
-    var all: [AudioChunk] { chunks.withLock { $0 } }
-    var samples: [Int16] { all.flatMap(\.samples) }
-
-    func add(_ chunk: AudioChunk) {
-        chunks.withLock { $0.append(chunk) }
-    }
-}
 
 struct ReplaySourceTests {
     /// A tone on the left, silence on the right.
@@ -26,7 +13,7 @@ struct ReplaySourceTests {
 
     @Test func unpacedPlaysTheWholeFileMixedToMonoAsHundredMillisecondChunks() async throws {
         let source = try ReplaySource(audio: stereo(seconds: 2.03), speaker: .them, pacing: .unpaced)
-        let collector = ChunkCollector()
+        let collector = Collected<AudioChunk>()
         let info = try await source.start { collector.add($0) }
         await source.waitUntilFinished()
 
@@ -51,7 +38,7 @@ struct ReplaySourceTests {
     @Test func pacesDeliveryByTheSpeedFactor() async throws {
         let audio = WAVAudio(sampleRate: 16_000, channelCount: 1, samples: Synth.silence(seconds: 2))
         let source = try ReplaySource(audio: audio, speaker: .me, pacing: .realTime(speed: 10))
-        let collector = ChunkCollector()
+        let collector = Collected<AudioChunk>()
         let started = ContinuousClock.now
         _ = try await source.start { collector.add($0) }
         await source.waitUntilFinished()
@@ -69,12 +56,9 @@ struct ReplaySourceTests {
     @Test func stopEndsPlaybackEarly() async throws {
         let audio = WAVAudio(sampleRate: 16_000, channelCount: 1, samples: Synth.silence(seconds: 30))
         let source = try ReplaySource(audio: audio, speaker: .me)
-        let collector = ChunkCollector()
+        let collector = Collected<AudioChunk>()
         _ = try await source.start { collector.add($0) }
-        let deadline = ContinuousClock.now + .seconds(5)
-        while collector.all.isEmpty && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await eventually(timeout: .seconds(5)) { !collector.all.isEmpty }
         source.stop()
         await source.waitUntilFinished()
         let delivered = collector.samples.count
@@ -92,7 +76,7 @@ struct ReplaySourceTests {
         try wavData(tone, sampleRate: 16_000, channelCount: 1).write(to: url)
 
         let source = try ReplaySource(url: url, speaker: .them, speed: 50)
-        let collector = ChunkCollector()
+        let collector = Collected<AudioChunk>()
         let info = try await source.start { collector.add($0) }
         await source.waitUntilFinished()
         #expect(info.device == "call.wav")

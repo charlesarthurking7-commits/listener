@@ -80,10 +80,6 @@ private struct Harness {
     }
 }
 
-private func near(_ value: Double?, _ expected: Double) -> Bool {
-    abs((value ?? .nan) - expected) < 1e-9
-}
-
 struct TurnDetectorTests {
     @Test func aFinalBecomesATurnInSessionTime() throws {
         var harness = Harness()

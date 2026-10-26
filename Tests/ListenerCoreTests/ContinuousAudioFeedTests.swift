@@ -1,25 +1,8 @@
-import Synchronization
 import Testing
 
 @testable import ListenerCore
 
 struct ContinuousAudioFeedTests {
-    private final class Collector: Sendable {
-        private let chunks = Mutex<[AudioChunk]>([])
-
-        func append(_ chunk: AudioChunk) {
-            chunks.withLock { $0.append(chunk) }
-        }
-
-        var all: [AudioChunk] {
-            chunks.withLock { $0 }
-        }
-
-        var sampleCount: Int {
-            all.reduce(0) { $0 + $1.samples.count }
-        }
-    }
-
     private func audio(_ milliseconds: Int, endingAt end: ContinuousClock.Instant) -> AudioChunk {
         AudioChunk(
             speaker: .them, samples: Array(repeating: 7, count: AudioChunk.sampleRate * milliseconds / 1000),
@@ -27,12 +10,12 @@ struct ContinuousAudioFeedTests {
     }
 
     /// A tick far in the future keeps the background timer out of the way of these tests.
-    private func makeFeed(_ collector: Collector) -> ContinuousAudioFeed {
-        ContinuousAudioFeed(speaker: .them, tickInterval: .seconds(3600)) { collector.append($0) }
+    private func makeFeed(_ collector: Collected<AudioChunk>) -> ContinuousAudioFeed {
+        ContinuousAudioFeed(speaker: .them, tickInterval: .seconds(3600)) { collector.add($0) }
     }
 
     @Test func ignoresAudioBeforeStart() {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = makeFeed(collector)
         feed.accept(audio(100, endingAt: .now))
         #expect(collector.all.isEmpty)
@@ -40,7 +23,7 @@ struct ContinuousAudioFeedTests {
     }
 
     @Test func passesAudioThroughInOrderAndFillsGaps() {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = makeFeed(collector)
         let origin = ContinuousClock.now
         feed.start(at: origin)
@@ -50,7 +33,7 @@ struct ContinuousAudioFeedTests {
         feed.accept(audio(100, endingAt: origin + .milliseconds(1200)))
 
         let chunks = collector.all
-        #expect(collector.sampleCount == 16_000 * 12 / 10)
+        #expect(collector.samples.count == 16_000 * 12 / 10)
         #expect(chunks.first?.samples.first == 7)
         #expect(chunks.last?.samples.first == 7)
         #expect(zip(chunks, chunks.dropFirst()).allSatisfy { $0.capturedAt <= $1.capturedAt })
@@ -62,7 +45,7 @@ struct ContinuousAudioFeedTests {
     /// gets a short pause rather than an hour of silence in one go.
     @Test(arguments: [true, false])
     func anHourAsleepBecomesAShortPause(tickFirst: Bool) {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = makeFeed(collector)
         let origin = ContinuousClock.now
         feed.start(at: origin)
@@ -75,7 +58,7 @@ struct ContinuousAudioFeedTests {
         feed.accept(audio(100, endingAt: woke + .milliseconds(100)))
 
         let chunks = collector.all
-        #expect(collector.sampleCount == 1_600 + SampleClock.samples(in: GapFiller.maximumFill) + 1_600)
+        #expect(collector.samples.count == 1_600 + SampleClock.samples(in: GapFiller.maximumFill) + 1_600)
         #expect(chunks.last?.samples.first == 7)
         #expect(chunks.last?.capturedAt == woke + .milliseconds(100))
         #expect(zip(chunks, chunks.dropFirst()).allSatisfy { $0.capturedAt <= $1.capturedAt })
@@ -83,7 +66,7 @@ struct ContinuousAudioFeedTests {
     }
 
     @Test func deliversNothingAfterStop() {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = makeFeed(collector)
         let origin = ContinuousClock.now
         feed.start(at: origin)
@@ -95,7 +78,7 @@ struct ContinuousAudioFeedTests {
     }
 
     @Test func startAfterStopDoesNothing() {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = makeFeed(collector)
         feed.stop()
         feed.start()
@@ -104,16 +87,13 @@ struct ContinuousAudioFeedTests {
     }
 
     @Test func backgroundTickFillsSilenceWhenTheSourceGoesQuiet() async throws {
-        let collector = Collector()
+        let collector = Collected<AudioChunk>()
         let feed = ContinuousAudioFeed(speaker: .me, threshold: .milliseconds(20), tickInterval: .milliseconds(10)) {
-            collector.append($0)
+            collector.add($0)
         }
         feed.start()
 
-        let deadline = ContinuousClock.now + .seconds(10)
-        while collector.all.isEmpty && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await eventually { !collector.all.isEmpty }
         feed.stop()
 
         let chunks = collector.all
