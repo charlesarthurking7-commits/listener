@@ -22,6 +22,8 @@ public struct AppEnvironment: Sendable {
     /// Writes the summaries earlier calls still owe, because the app quit or crashed
     /// while writing them, and returns their files.
     public var finishDueSummaries: @Sendable (Settings) async -> [URL]
+    /// Claude for tidying dictation, or nil without an Anthropic key.
+    public var makeLanguageModel: @Sendable () -> (any LanguageModelProvider)?
 
     public init(
         paths: ListenerPaths,
@@ -33,7 +35,8 @@ public struct AppEnvironment: Sendable {
             @escaping @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void,
         hasAnthropicKey: @escaping @Sendable () -> Bool,
         importWebPage: @escaping @Sendable (URL, Settings) async throws -> String,
-        finishDueSummaries: @escaping @Sendable (Settings) async -> [URL]
+        finishDueSummaries: @escaping @Sendable (Settings) async -> [URL],
+        makeLanguageModel: @escaping @Sendable () -> (any LanguageModelProvider)?
     ) {
         self.paths = paths
         self.launchSettings = launchSettings
@@ -44,6 +47,7 @@ public struct AppEnvironment: Sendable {
         self.hasAnthropicKey = hasAnthropicKey
         self.importWebPage = importWebPage
         self.finishDueSummaries = finishDueSummaries
+        self.makeLanguageModel = makeLanguageModel
     }
 }
 

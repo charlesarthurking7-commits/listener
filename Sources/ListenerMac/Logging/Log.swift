@@ -17,6 +17,8 @@ public enum Log {
     public static let speech = Logger(subsystem: subsystem, category: "speech")
     /// Capture devices, restarts and failures.
     public static let capture = Logger(subsystem: subsystem, category: "capture")
+    /// Dictation's timings and failures, never its words.
+    public static let dictation = Logger(subsystem: subsystem, category: "dictation")
     /// The window, menu bar and hotkeys.
     public static let ui = Logger(subsystem: subsystem, category: "ui")
     /// Keychain reads that failed for a reason other than a missing key.

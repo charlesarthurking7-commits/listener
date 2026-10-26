@@ -73,7 +73,12 @@ Known tap pitfalls, all handled in the capture layer:
 The spec asks to document the Accessibility permission. Carbon's `RegisterEventHotKey`,
 which every mainstream Mac hotkey library uses (including sindresorhus/KeyboardShortcuts),
 needs no Accessibility or Input Monitoring permission. Only event taps and global
-`NSEvent` monitors do. We use `RegisterEventHotKey`, so there is nothing to grant.
+`NSEvent` monitors do. We use `RegisterEventHotKey`, so calls need nothing granted.
+
+Dictation is the exception. fn on its own is not a hotkey `RegisterEventHotKey` can
+take, and pasting into another app means posting Command-V, so dictation watches fn
+through a listen-only event tap and asks for Accessibility, which covers both. It looks
+only at fn, Escape, and whether another key went down.
 
 ### 2.4 The 1.5 s target includes your reaction time
 "First tokens within 1.5 s of the speaker finishing" starts the clock before you press
@@ -213,6 +218,7 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   Transcription/  SpeechToTextProvider protocol, the on-device rotating stream logic
   Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
   Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow
+  Dictation/      FnTapDetector, DictationRecorder, DictationTidier (the clean-up prompt)
   Metrics/        PriceTable, CostTracker, LatencyStats
   Session/        CallSession (the actor that wires everything), SessionStore,
                   SessionSummarizer, SessionEvent
@@ -230,11 +236,13 @@ ListenerMac   (macOS only)
   Speech/         AppleSpeechProvider (SpeechAnalyzer, macOS 26+)
   Network/        URLSessionStreamingTransport for ClaudeAPI
   Hotkeys/        RegisterEventHotKey wrapper
+  Dictation/      fn event tap, DictationController, pasting, the capsule on screen
   Secrets/        Keychain store and the standard secret chain
   UI/             floating NSPanel, SwiftUI views, menu bar item, CallModel
 
 ListenerApp   the `listener` executable: the app with no arguments, plus the
-              live, replay, sessions, summarize, read-page, demo and secrets subcommands
+              live, replay, sessions, summarize, read-page, dictate, demo and secrets
+              subcommands
 ```
 
 ### 3.2 Data flow
@@ -324,6 +332,9 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
 - Logging through Apple's unified logging (`os.Logger`) with transcript text and secrets
   marked private, so they are redacted from log output. Transcript text only leaves the
   machine to the configured STT and LLM providers.
+- Dictation keeps nothing on disk. Its audio stays on the Mac (Apple's on-device model
+  only); the words, the app's name and its window title go to Claude for tidying. The
+  last text typed is kept in memory for **Copy Last Dictation**.
 - Secrets: Anthropic key in the Keychain (`listener secrets set anthropic`) or `.env`
   (gitignored). Google uses Application Default Credentials
   (`gcloud auth application-default login`) or a service account key file whose path is

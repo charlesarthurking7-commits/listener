@@ -14,6 +14,25 @@ enum CoreAudioObjects {
         return device == unknownAudioObject ? nil : device
     }
 
+    /// The Mac's own microphone, or nil on a Mac without one.
+    static func builtInInputDevice() throws -> AudioDeviceID? {
+        let devices = try readObjectList(
+            systemAudioObject, globalAddress(kAudioHardwarePropertyDevices), "Read audio device list")
+        return devices.first { device in
+            let transport: UInt32 = (try? read(device, kAudioDevicePropertyTransportType, default: 0)) ?? 0
+            return transport == kAudioDeviceTransportTypeBuiltIn && hasInput(device)
+        }
+    }
+
+    private static func hasInput(_ device: AudioDeviceID) -> Bool {
+        let address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        return (try? readObjectList(device, address, "Read input stream list").isEmpty == false) ?? false
+    }
+
     /// The device apps play through, or nil when there is none.
     static func defaultOutputDevice() throws -> AudioDeviceID? {
         let device: AudioDeviceID = try read(

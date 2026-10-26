@@ -9,6 +9,7 @@ public struct Settings: Sendable, Codable, Equatable {
     public var storage = StorageSettings()
     public var hotkeys = HotkeySettings()
     public var window = WindowSettings()
+    public var dictation = DictationSettings()
     public var prices = PriceTable.standard
 
     public init() {}
@@ -124,4 +125,20 @@ public struct WindowSettings: Sendable, Codable, Equatable {
     public var alwaysOnTop = true
     public var opacity = 0.97
     public var showDockIcon = false
+}
+
+public struct DictationSettings: Sendable, Codable, Equatable {
+    /// Press fn twice to dictate into any app, and once more to stop: the words are
+    /// tidied up and typed where the cursor is. Needs Accessibility permission.
+    public var enabled = true
+    /// "built-in" (the Mac's own microphone, so AirPods keep playing in high quality
+    /// instead of dropping to their call mode) or "default" (the system's input).
+    public var microphone = "built-in"
+    /// Tidy the words with Claude before typing them. Off types what was heard.
+    public var tidy = true
+    public var model = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 4000)
+    /// Names and terms to spell exactly like this, e.g. colleagues and products.
+    public var vocabulary: [String] = []
+    /// A soft sound when dictation starts and stops.
+    public var sounds = true
 }

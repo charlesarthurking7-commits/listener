@@ -26,6 +26,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: FloatingPanel?
     private var statusItem: StatusItemController?
     private var hotkeys: HotkeyCenter?
+    private var dictation: DictationController?
+    private var dictationPill: DictationPill?
     private var quitSignals: [any DispatchSourceSignal] = []
     private var terminationPending = false
 
@@ -44,8 +46,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
         panel = FloatingPanel(rootView: rootView, window: settings.window, room: room)
 
+        let dictation = DictationController(environment: environment) { [model] in model.isCallRunning }
+        self.dictation = dictation
         statusItem = StatusItemController(
             model: model,
+            dictation: dictation,
             actions: .init(
                 toggleWindow: { [weak self] in self?.toggleWindow() },
                 isWindowVisible: { [weak self] in self?.panel?.isVisible ?? false },
@@ -64,12 +69,31 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let wanted = settings.hotkeys.hotkeys
         model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
         self.hotkeys = hotkeys
+        setUpDictation(dictation)
 
         quitOnSignals()
         // The model checked the setup a moment ago; checking again would read the
         // Keychain twice at launch.
         panel?.show()
         Log.ui.info("Listener started")
+    }
+
+    /// The pill, and banners for what macOS still has to allow.
+    private func setUpDictation(_ dictation: DictationController) {
+        guard dictation.isEnabled else {
+            return
+        }
+        dictationPill = DictationPill(controller: dictation)
+        DictationSetup.requestAccessibilityOnce()
+        if !dictation.isWatchingFn {
+            model.addAppNotice(.warning, DictationSetup.accessibilityNotice, action: DictationSetup.accessibilityAction)
+            dictation.onWatchingFn = { [model] in
+                model.removeAppNotice(DictationSetup.accessibilityNotice)
+            }
+        }
+        if !DictationSetup.fnKeyIsFree {
+            model.addAppNotice(.info, DictationSetup.fnKeyNotice, action: DictationSetup.keyboardAction)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

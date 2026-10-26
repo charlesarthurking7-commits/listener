@@ -12,6 +12,9 @@ call ends it writes a summary with action items.
   you and what was agreed, from the whole call.
 - **Call types**: pick Work call or Meeting before Start, and drop in files, paste a page
   or its link, or write a brief.
+- **Dictation** (fn twice, in any app): speak, press fn again, and the words are typed
+  at the cursor, tidied by Claude Haiku 5.5: fillers gone, corrections applied, laid out
+  for the email or chat they are going into. Speech is recognised on the Mac.
 - **Grounded**: answers may use general knowledge but never invent call-specific facts
   (amounts, account or ticket numbers, dates, names); they say what to check instead.
 - **Speech-to-text**: Apple's on-device recognition by default where the Mac supports it

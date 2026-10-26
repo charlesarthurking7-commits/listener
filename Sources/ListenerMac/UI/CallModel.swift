@@ -342,6 +342,20 @@ final class CallModel {
         appNotices.dismiss(id: notice.id)
     }
 
+    /// A banner about the app from outside the window, such as dictation's setup.
+    func addAppNotice(_ kind: Notice.Kind, _ message: String, action: NoticeAction? = nil) {
+        appNotices.add(kind, message, action: action)
+    }
+
+    func removeAppNotice(_ message: String) {
+        for notice in appNotices.items where notice.message == message {
+            appNotices.dismiss(id: notice.id)
+        }
+    }
+
+    /// A call is starting, running or being saved.
+    var isCallRunning: Bool { !state.canStart }
+
     func perform(_ action: NoticeAction) {
         switch action {
         case .revealInFinder(let path):

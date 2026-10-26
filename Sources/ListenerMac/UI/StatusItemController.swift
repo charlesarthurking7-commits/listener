@@ -16,10 +16,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private let statusItem: NSStatusItem
     private let model: CallModel
+    private let dictation: DictationController
     private let actions: Actions
 
-    init(model: CallModel, actions: Actions) {
+    init(model: CallModel, dictation: DictationController, actions: Actions) {
         self.model = model
+        self.dictation = dictation
         self.actions = actions
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -87,6 +89,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         for entry in entries {
             menu.addItem(item(entry, tabStop: tabStop))
         }
+        if dictation.isEnabled {
+            menu.addItem(.separator())
+            addDictationItems(to: menu, callRunning: !state.canStart)
+        }
         menu.addItem(.separator())
         menu.addItem(callTypeItem(enabled: state.canStart))
         let windowEntry = Entry(
@@ -101,6 +107,25 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(item(Entry("Open Settings File", "gearshape") { $0.model.openSettingsFile() }))
         menu.addItem(.separator())
         menu.addItem(item(Entry("Quit Listener", "power") { $0.actions.quit() }))
+    }
+
+    private func addDictationItems(to menu: NSMenu, callRunning: Bool) {
+        guard DictationSetup.hasAccessibility else {
+            let allow = Entry("Allow Dictation in Accessibility…", "mic.badge.plus") { _ in
+                DictationSetup.openAccessibilitySettings()
+            }
+            menu.addItem(item(allow))
+            return
+        }
+        let listening = dictation.phase == .listening
+        let dictate = Entry(
+            listening ? "Stop Dictating" : "Dictate", listening ? "stop.circle" : "mic", shortcut: "fn fn",
+            enabled: listening || (!dictation.isActive && !callRunning)
+        ) { $0.dictation.toggle() }
+        menu.addItem(item(dictate, tabStop: shortcutTabStop(for: [dictate])))
+        if dictation.lastText != nil {
+            menu.addItem(item(Entry("Copy Last Dictation", "doc.on.doc") { $0.dictation.copyLastText() }))
+        }
     }
 
     private func statusTitle(_ state: CallViewState) -> String {
@@ -172,18 +197,25 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let title: String
         let symbol: String
         let action: HotkeyAction?
+        /// Shown when there is no hotkey action, e.g. "fn fn".
+        let shortcut: String?
         let enabled: Bool
         let perform: (StatusItemController) -> Void
 
         init(
-            _ title: String, _ symbol: String, _ action: HotkeyAction? = nil, enabled: Bool = true,
-            perform: @escaping (StatusItemController) -> Void
+            _ title: String, _ symbol: String, _ action: HotkeyAction? = nil, shortcut: String? = nil,
+            enabled: Bool = true, perform: @escaping (StatusItemController) -> Void
         ) {
             self.title = title
             self.symbol = symbol
             self.action = action
+            self.shortcut = shortcut
             self.enabled = enabled
             self.perform = perform
+        }
+
+        @MainActor func shortcutText(_ hotkeys: [HotkeyAction: Hotkey]) -> String? {
+            action.flatMap { hotkeys[$0]?.displayString } ?? shortcut
         }
     }
 
@@ -195,8 +227,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                     entry.perform(self)
                 }
             })
-        if let tabStop, let action = entry.action, let hotkey = model.activeHotkeys[action] {
-            item.attributedTitle = Self.title(entry.title, shortcut: hotkey.displayString, tabStop: tabStop)
+        if let tabStop, let shortcut = entry.shortcutText(model.activeHotkeys) {
+            item.attributedTitle = Self.title(entry.title, shortcut: shortcut, tabStop: tabStop)
         }
         // macOS 26 menus give most items an icon; earlier menus look busy with them.
         if #available(macOS 26.0, *) {
@@ -213,9 +245,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             NSAttributedString(string: text, attributes: [.font: font]).size().width
         }
         let titles = entries.map { width($0.title) }.max() ?? 0
-        let shortcuts =
-            entries.compactMap { $0.action.flatMap { model.activeHotkeys[$0] } }
-            .map { width($0.displayString) }.max() ?? 0
+        let shortcuts = entries.compactMap { $0.shortcutText(model.activeHotkeys) }.map(width).max() ?? 0
         return ceil(titles + 32 + shortcuts)
     }
 

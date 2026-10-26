@@ -64,6 +64,7 @@ public struct ReadinessInput: Sendable, Equatable {
 public enum PrivacyPane: String, Sendable {
     case microphone = "Privacy_Microphone"
     case screenAndSystemAudioRecording = "Privacy_ScreenCapture"
+    case accessibility = "Privacy_Accessibility"
 
     public var url: String {
         "x-apple.systempreferences:com.apple.preference.security?\(rawValue)"

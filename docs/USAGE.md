@@ -69,8 +69,9 @@ summary when you stop.
    | System Audio Recording | "Them" (default tap backend) | Privacy & Security > Screen & System Audio Recording, "System Audio Recording Only" |
    | Screen Recording | "Them", only with `capture.systemAudioBackend` set to `sck` | Same pane, "Screen & System Audio Recording" |
    | Speech Recognition | Only with `speech.provider` set to `apple`, and only if macOS asks | Privacy & Security > Speech Recognition |
+   | Accessibility | [Dictation](#dictation) only: hearing fn and pasting | Privacy & Security > Accessibility |
 
-   Accessibility is not needed: the hotkeys use `RegisterEventHotKey`, which macOS
+   Calls don't need Accessibility: the hotkeys use `RegisterEventHotKey`, which macOS
    allows without it. If "Them" stays silent, the window warns you; it almost always
    means System Audio Recording is off for Listener. macOS gives apps no way to check
    that permission up front, so the checklist shows System audio as allowed once a call
@@ -231,6 +232,47 @@ the menu still works. macOS's own shortcuts, and apps that watch the keyboard di
 rather than registering hotkeys, are not reported, so if a hotkey does nothing, pick
 another.
 
+## Dictation
+
+Press **fn** twice quickly, in any app, and speak. Press **fn** once more to stop: what
+you said is tidied up and typed where the cursor is. **Escape** while dictating, or while
+it is being tidied, throws it away. A small capsule at the bottom of the screen shows the
+microphone level while it listens, then ripples while it works.
+
+- **Speech** is recognised on the Mac by Apple's on-device model, from the Mac's own
+  microphone (`dictation.microphone`), so AirPods keep playing in high quality instead
+  of dropping into their call mode. The audio never leaves the Mac.
+- **Tidying** is done by Claude Haiku 5.5, for about $0.0001 a dictation and about a
+  second after you stop. It drops fillers ("um", "you know") and stutters, keeps only
+  your correction when you change your mind ("at 3, no, 4"), punctuates, writes numbers
+  and times the usual way, and lays the text out for the app in front: an email gets its
+  greeting, paragraphs and sign-off on their own lines, a chat message stays short, and
+  things said as a list become one. Spoken "new paragraph", "full stop" and "bullet point"
+  work too. It keeps your words and never answers a question you dictate. Only the words
+  and the app's name and window title are sent; without an API key, or if Claude is slow
+  or fails, the words are typed as heard.
+- **Pasting** goes through the clipboard, which is put back a second later. If the text
+  went somewhere unexpected, **Copy Last Dictation** in the menu bar menu has it.
+- **Names and terms** that come out wrong can go in `dictation.vocabulary`, for example
+  `["Pelican", "MT5", "Charlie King"]`. Your `answers.context` is used too.
+
+Set up, once:
+
+1. Allow Listener under System Settings > Privacy & Security > Accessibility. Listener
+   asks the first time it starts, and starts listening for fn as soon as it is allowed.
+2. In System Settings > Keyboard, set **Press 🌐 key to** to **Do Nothing**, and pick a
+   Dictation shortcut that does not use 🌐. Otherwise macOS opens the emoji picker or its
+   own dictation on the same presses.
+
+Dictation is off during a call, which has the microphone. Try it without pasting
+anything:
+
+```sh
+listener dictate                                    # from the microphone, until Return
+listener dictate --file note.wav --app "Microsoft Outlook"
+listener dictate --text "um so I'll send it on friday no thursday" --app Slack
+```
+
 ## Live in the terminal
 
 ```sh
@@ -354,6 +396,7 @@ want to change: anything left out keeps its default, at every level.
 | `storage` | Sessions folder, retention in days, whether to keep the audio |
 | `hotkeys` | The five hotkeys |
 | `window` | Always on top, opacity, Dock icon |
+| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), tidying and its model, vocabulary, sounds |
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
 The window reads the file again on every Start, so changes apply to the next call.
@@ -411,6 +454,11 @@ keep the key in `~/Library/Application Support/Listener/.env` instead.
   `capture.voiceProcessing` to `true`.
 - **No microphone with the lid closed.** The built-in mics are off in clamshell mode;
   plug in a headset or USB mic.
+- **fn fn does nothing.** Check that Listener is on under Privacy & Security >
+  Accessibility; the menu bar menu shows **Allow Dictation in Accessibility…** while it
+  is not. After a rebuild with an ad hoc signature, remove Listener from that list and
+  add it again. Keyboards that handle fn themselves, as some Logitech ones do, never
+  tell macOS about it.
 - **A hotkey does nothing.** The window lists hotkeys that could not be registered.
   Pick another combination in `hotkeys`. macOS's own shortcuts win without telling
   Listener, so avoid the ones listed under System Settings > Keyboard > Keyboard

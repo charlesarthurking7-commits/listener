@@ -3,7 +3,8 @@ import CoreAudio
 import ListenerCore
 import Synchronization
 
-/// The "Me" channel: the default input device through AVAudioEngine.
+/// The "Me" channel: the default input device through AVAudioEngine, or the Mac's own
+/// microphone when asked for.
 ///
 /// AVAudioEngine stops itself when the audio hardware changes channel count or sample
 /// rate and posts AVAudioEngineConfigurationChange. Whenever that happens, the default
@@ -14,12 +15,14 @@ import Synchronization
 /// Mutable state is only touched on `controlQueue`, hence @unchecked Sendable.
 final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     private let wantsVoiceProcessing: Bool
+    private let prefersBuiltIn: Bool
     private let onEvent: (@Sendable (CaptureEvent) -> Void)?
     private let controlQueue = DispatchQueue(label: "listener.capture.microphone", qos: .userInitiated)
     private let delivery = Mutex<ContinuousAudioFeed?>(nil)
 
     private var feed: ContinuousAudioFeed?
     private var engine: AVAudioEngine?
+    private var device: AudioDeviceID?
     private var configurationObserver: (any NSObjectProtocol)?
     private var inputListener: PropertyListener?
     private var sleepListener: SleepWakeListener?
@@ -31,8 +34,12 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     /// - Parameter voiceProcessing: turn on Apple's echo cancellation. Only useful when
     ///   the call plays through speakers instead of headphones. If it cannot run with the
     ///   current devices the mic runs without it and `onEvent` says so.
-    init(voiceProcessing: Bool, onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
+    /// - Parameter preferBuiltIn: use the Mac's own microphone whatever the default
+    ///   input is, unless the lid is closed. Opening the mic of AirPods switches them to
+    ///   their call mode, which sounds far worse until the mic closes again.
+    init(voiceProcessing: Bool, preferBuiltIn: Bool = false, onEvent: (@Sendable (CaptureEvent) -> Void)? = nil) {
         wantsVoiceProcessing = voiceProcessing
+        prefersBuiltIn = preferBuiltIn
         self.onEvent = onEvent
     }
 
@@ -101,8 +108,7 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
 
     // MARK: Engine, all on controlQueue
 
-    /// Starts an engine on the current default input, with voice processing if asked for
-    /// and possible.
+    /// Starts an engine on the input to use, with voice processing if asked for and possible.
     private func startEngine(feeding feed: ContinuousAudioFeed) throws -> ChannelInfo {
         if wantsVoiceProcessing {
             do {
@@ -121,11 +127,19 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
     private func startEngine(feeding feed: ContinuousAudioFeed, voiceProcessing: Bool) throws -> ChannelInfo {
         // With no input device at all, touching the input node can raise an
         // Objective-C exception rather than an error, so check first.
-        guard let device = try CoreAudioObjects.defaultInputDevice() else {
+        guard let device = try inputDevice() else {
             throw CaptureError.noInputDevice
         }
         let engine = AVAudioEngine()
         let input = engine.inputNode
+        if device != (try CoreAudioObjects.defaultInputDevice()), let unit = input.audioUnit {
+            var id = device
+            try CoreAudioObjects.check(
+                AudioUnitSetProperty(
+                    unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id,
+                    UInt32(MemoryLayout<AudioDeviceID>.size)),
+                "Choose the microphone")
+        }
         if voiceProcessing {
             try input.setVoiceProcessingEnabled(true)
             // Voice processing ducks all other audio by default, which would turn the
@@ -166,6 +180,7 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
             throw error
         }
         self.engine = engine
+        self.device = device
         configurationObserver = observer
 
         return ChannelInfo(
@@ -185,8 +200,16 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
             return
         }
         self.engine = nil
+        device = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+    }
+
+    private func inputDevice() throws -> AudioDeviceID? {
+        if prefersBuiltIn, !CaptureSupport.isLidClosed, let builtIn = try CoreAudioObjects.builtInInputDevice() {
+            return builtIn
+        }
+        return try CoreAudioObjects.defaultInputDevice()
     }
 
     private func requestRestart(_ reason: CaptureRestartReason) {
@@ -224,6 +247,10 @@ final class MicrophoneCapture: AudioCaptureSource, @unchecked Sendable {
         // The engine stops itself before posting a configuration change. One that is
         // still running was not affected, for example by a change it caused itself.
         if reason == .audioConfigurationChanged, engine?.isRunning == true {
+            return
+        }
+        // A new default input means nothing to a mic that keeps to the built-in one.
+        if reason == .inputDeviceChanged, engine?.isRunning == true, let device, device == (try? inputDevice()) {
             return
         }
         stopEngine()

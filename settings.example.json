@@ -70,6 +70,19 @@
     "opacity": 0.97,
     "showDockIcon": false
   },
+  "dictation": {
+    "enabled": true,
+    "microphone": "built-in",
+    "tidy": true,
+    "model": {
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "thinking": "off",
+      "maxTokens": 4000
+    },
+    "vocabulary": [],
+    "sounds": true
+  },
   "prices": {
     "models": {
       "claude-haiku-5-5": {

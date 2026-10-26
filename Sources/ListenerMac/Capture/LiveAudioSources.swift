@@ -19,4 +19,9 @@ public enum LiveAudioSources {
             .them: systemAudio,
         ]
     }
+
+    /// The microphone for dictation, which never needs echo cancellation.
+    public static func dictationMicrophone(settings: DictationSettings) -> any AudioCaptureSource {
+        MicrophoneCapture(voiceProcessing: false, preferBuiltIn: settings.microphone == "built-in")
+    }
 }

@@ -18,6 +18,7 @@ struct ListenerCommand: AsyncParsableCommand {
             SessionsCommand.self,
             SummarizeCommand.self,
             ReadPageCommand.self,
+            DictateCommand.self,
             DemoCommand.self,
             SecretsCommand.self,
         ]
@@ -80,7 +81,8 @@ struct ListenerCommand: AsyncParsableCommand {
             prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
             hasAnthropicKey: { demo?.scriptedAnswers == true || secrets.secret(.anthropicAPIKey) != nil },
             importWebPage: { try await SessionFactory.importWebPage($0, settings: $1, secrets: secrets) },
-            finishDueSummaries: { demo == nil ? await SessionFactory.finishDueSummaries($0, secrets: secrets) : [] }
+            finishDueSummaries: { demo == nil ? await SessionFactory.finishDueSummaries($0, secrets: secrets) : [] },
+            makeLanguageModel: { demo?.scriptedAnswers == true ? nil : SessionFactory.languageModel(secrets) }
         )
         ListenerApplication.run(environment: environment)
     }
