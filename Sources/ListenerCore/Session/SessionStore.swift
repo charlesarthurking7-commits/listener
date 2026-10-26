@@ -28,6 +28,9 @@ public final class SessionStore {
     public static let recordFile = "session.json"
     public static let summaryFile = "summary.md"
     public static let contextFile = "context.json"
+    /// Turns still being spoken, rewritten as they grow, so a crash or force quit loses
+    /// only words not yet final. Gone once every turn has finished.
+    public static let openTurnsFile = "open-turns.json"
 
     public static func audioFile(for speaker: Speaker) -> String {
         "\(speaker.rawValue.lowercased()).wav"
@@ -72,6 +75,17 @@ public final class SessionStore {
 
     public func append(_ turn: Turn) throws {
         try appendLine(turn, to: transcript)
+    }
+
+    public func writeOpenTurns(_ turns: [Turn]) throws {
+        let url = directory.appendingPathComponent(Self.openTurnsFile)
+        guard !turns.isEmpty else {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            return
+        }
+        try Self.encoder(pretty: false).encode(turns).write(to: url, options: .atomic)
     }
 
     public func append(_ answer: AnswerRecord) throws {
@@ -181,8 +195,16 @@ extension SessionStore {
 extension SessionStore {
     /// The turns in a session's transcript.jsonl, ordered by start. A truncated last
     /// line, left by a crash mid-write, is skipped.
+    /// Every saved turn, oldest first, with any left open when the app last died.
     public static func readTurns(in directory: URL) throws -> [Turn] {
-        try readLines(Turn.self, from: directory.appendingPathComponent(transcriptFile)).sorted { $0.start < $1.start }
+        var turns = try readLines(Turn.self, from: directory.appendingPathComponent(transcriptFile))
+        if let data = try? Data(contentsOf: directory.appendingPathComponent(openTurnsFile)),
+            let open = try? decoder().decode([Turn].self, from: data)
+        {
+            let finished = Set(turns.map(\.id))
+            turns += open.filter { !finished.contains($0.id) }
+        }
+        return turns.sorted { $0.start < $1.start }
     }
 
     /// The answers in a session's answers.jsonl, by id. An answer whose timing was
@@ -220,7 +242,10 @@ extension SessionStore {
         sessionDirectories(in: root).map { directory, startedAt in
             let header = try? decoder().decode(
                 RecordHeader.self, from: Data(contentsOf: directory.appendingPathComponent(recordFile)))
-            let turnCount = header?.turnCount ?? ((try? readTurns(in: directory))?.count ?? 0)
+            // A call that never stopped (a crash) has an old count, if any; its turns say more.
+            let turnCount =
+                header.flatMap { $0.endedAt != nil ? $0.turnCount : nil }
+                ?? ((try? readTurns(in: directory))?.count ?? 0)
             let hasSummary = FileManager.default.fileExists(atPath: directory.appendingPathComponent(summaryFile).path)
             return SavedSession(
                 directory: directory,

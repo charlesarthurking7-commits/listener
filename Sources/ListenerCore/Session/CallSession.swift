@@ -101,6 +101,11 @@ public actor CallSession {
     private var storageWarned = false
     private var summaryFile: String?
     private var summaryDue = false
+    /// What open-turns.json holds now.
+    private var savedOpenTurns: [Turn] = []
+    private var recordWriter: Task<Void, Never>?
+    /// session.json is written this often during a call, so a crash leaves its count and cost.
+    static let recordInterval = Duration.seconds(30)
 
     private var costTracker: CostTracker
     private var lastCostEvent: ContinuousClock.Instant?
@@ -174,6 +179,14 @@ public actor CallSession {
             keepPromptsCached(model)
         }
         writeRecord()
+        recordWriter = Task {
+            while !Task.isCancelled && phase == .running {
+                try? await Task.sleep(for: Self.recordInterval)
+                if phase == .running {
+                    writeRecord()
+                }
+            }
+        }
     }
 
     /// A rejected key or a mistyped model would otherwise only show at the first hotkey.
@@ -355,6 +368,13 @@ public actor CallSession {
             save { try $0.append(turn) }
             if turn.speaker == .them {
                 startDraft()
+            }
+        }
+        if update.changed || !update.closed.isEmpty {
+            let open = detector.openTurns
+            if open != savedOpenTurns {
+                savedOpenTurns = open
+                save { try $0.writeOpenTurns(open) }
             }
         }
     }
@@ -694,6 +714,8 @@ public actor CallSession {
         cacheWarmer = nil
         connectionKeeper?.cancel()
         connectionKeeper = nil
+        recordWriter?.cancel()
+        recordWriter = nil
         costFlush?.cancel()
         costFlush = nil
         emitCost()

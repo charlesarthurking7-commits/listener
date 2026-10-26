@@ -321,8 +321,9 @@ Each call is saved in its own folder under
 | File | Contents |
 | --- | --- |
 | `transcript.jsonl` | One settled turn per line |
-| `session.json` | Settings used, answers with their latency and cost, total cost |
-| `summary.md` | Summary and action items, written when the call stops |
+| `open-turns.json` | During a call, the turns still being spoken. Left behind only if Listener crashed or was force quit; `listener summarize` and `listener sessions` read it |
+| `session.json` | Settings used, answers with their latency (per tier) and cost, total cost. Rewritten every 30 s during a call |
+| `summary.md` | Summary and action items, written after the call is saved |
 | `context.json` | The call type and documents the call started with |
 | `me.wav`, `them.wav` | Only with `storage.saveAudio` on |
 

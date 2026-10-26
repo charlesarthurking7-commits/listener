@@ -475,6 +475,30 @@ final class CallSessionTests {
         #expect(model.requests[1].userText.contains("Me: Let me look."))
     }
 
+    @Test func aCrashMidCallStillLeavesTheTurnBeingSpokenOnDisk() async throws {
+        // Them is still talking when the app dies: their first sentence is final, the
+        // turn it starts is still open.
+        let script = ConversationScript(
+            title: "open",
+            lines: [
+                .init(speaker: .them, start: 1, end: 2, text: "We reran the batch."),
+                .init(speaker: .them, start: 2.3, end: 4.9, text: "Can you check it finished?"),
+            ])
+        let setup = try setUp(script: script, seconds: 5)
+        try await setup.session.start()
+        await waitForReplay(setup.sources)
+        let directory = try #require(await setup.session.directory)
+        #expect(await eventually { (try? SessionStore.readTurns(in: directory))?.first?.text == "We reran the batch." })
+        let transcript = directory.appendingPathComponent(SessionStore.transcriptFile)
+        #expect(try String(contentsOf: transcript, encoding: .utf8).isEmpty)
+
+        await setup.stop()
+        #expect(
+            try SessionStore.readTurns(in: directory).map(\.text) == ["We reran the batch. Can you check it finished?"])
+        #expect(
+            !FileManager.default.fileExists(atPath: directory.appendingPathComponent(SessionStore.openTurnsFile).path))
+    }
+
     @Test func speechThatHasNotFinishedByStopIsReported() async throws {
         // A recogniser far behind (a loaded Mac) is cut off at Stop; its last words may be lost.
         final class Stuck: SpeechToTextProvider, SpeechStream, @unchecked Sendable {

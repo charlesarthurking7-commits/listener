@@ -28,6 +28,12 @@ public struct TurnDetector: Sendable {
     }
 
     public private(set) var snapshot = TranscriptSnapshot()
+
+    /// Turns that may still grow, oldest first.
+    public var openTurns: [Turn] {
+        let ids = Set(channels.values.compactMap { $0.openTurn?.id })
+        return snapshot.turns.filter { ids.contains($0.id) }
+    }
     /// Goes up whenever final text changes, so a caller can tell whether anything new
     /// has been said since it last looked.
     public private(set) var revision = 0

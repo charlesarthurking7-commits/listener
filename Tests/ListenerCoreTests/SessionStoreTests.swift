@@ -139,6 +139,33 @@ final class SessionStoreTests {
         #expect(second.directory.lastPathComponent == first.directory.lastPathComponent + " (2)")
     }
 
+    @Test func turnsStillOpenWhenTheAppDiedAreReadBack() throws {
+        // A crash or force quit mid-call: one turn finished, two still being spoken.
+        let store = try SessionStore(root: root, startedAt: date(2026, 3, 7))
+        let finished = Turn(id: 1, speaker: .them, text: "Can you check the batch?", start: 1, end: 3)
+        try store.append(finished)
+        try store.write(
+            SessionRecord(startedAt: date(2026, 3, 7), channels: [], speechProvider: "x", settings: Settings()))
+        try store.writeOpenTurns([
+            Turn(id: 3, speaker: .them, text: "And the fills", start: 6, end: 8),
+            Turn(id: 2, speaker: .me, text: "Yes, I'll look", start: 4, end: 5),
+        ])
+        #expect(try SessionStore.readTurns(in: store.directory).map(\.id) == [1, 2, 3])
+        #expect(SessionStore.list(in: root).first?.turnCount == 3)
+
+        // At Stop every turn is finished and saved, and the open ones go.
+        try store.append(Turn(id: 2, speaker: .me, text: "Yes, I'll look now.", start: 4, end: 5.5))
+        try store.append(Turn(id: 3, speaker: .them, text: "And the fills.", start: 6, end: 8.5))
+        try store.writeOpenTurns([])
+        #expect(
+            try SessionStore.readTurns(in: store.directory).map(\.text) == [
+                "Can you check the batch?", "Yes, I'll look now.", "And the fills.",
+            ])
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: store.directory.appendingPathComponent(SessionStore.openTurnsFile).path))
+    }
+
     @Test func aTruncatedLastLineIsSkipped() throws {
         let store = try SessionStore(root: root)
         try store.append(Turn(id: 1, speaker: .me, text: "Kept", start: 0, end: 1))
