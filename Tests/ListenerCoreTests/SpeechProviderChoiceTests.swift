@@ -1,25 +1,25 @@
-import Foundation
 import Testing
 
 @testable import ListenerCore
 
 struct SpeechProviderChoiceTests {
+    private func resolved(_ provider: String, onDeviceAvailable: Bool) -> String {
+        var settings = Settings()
+        settings.speech.provider = provider
+        return LoadedSettings(settings: settings).resolvingSpeechProvider(onDeviceAvailable: onDeviceAvailable)
+            .settings.speech.provider
+    }
+
     @Test func autoPrefersOnDeviceWhenAvailable() {
-        #expect(SpeechProviderChoice.resolve("auto", onDeviceAvailable: true) == "apple")
-        #expect(SpeechProviderChoice.resolve("auto", onDeviceAvailable: false) == "google")
+        #expect(Settings().speech.provider == "auto")
+        #expect(resolved("auto", onDeviceAvailable: true) == "apple")
+        #expect(resolved("auto", onDeviceAvailable: false) == "google")
     }
 
     @Test func explicitChoicesAreLeftAlone() {
         for provider in ["google", "apple", "fake"] {
-            #expect(SpeechProviderChoice.resolve(provider, onDeviceAvailable: true) == provider)
-            #expect(SpeechProviderChoice.resolve(provider, onDeviceAvailable: false) == provider)
+            #expect(resolved(provider, onDeviceAvailable: true) == provider)
+            #expect(resolved(provider, onDeviceAvailable: false) == provider)
         }
-    }
-
-    @Test func defaultSettingsResolveToARealProvider() {
-        let loaded = LoadedSettings(settings: Settings())
-        #expect(Settings().speech.provider == "auto")
-        #expect(loaded.resolvingSpeechProvider(onDeviceAvailable: true).settings.speech.provider == "apple")
-        #expect(loaded.resolvingSpeechProvider(onDeviceAvailable: false).settings.speech.provider == "google")
     }
 }

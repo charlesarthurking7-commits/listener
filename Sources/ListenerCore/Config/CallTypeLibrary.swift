@@ -48,14 +48,6 @@ public struct CallTypeLibrary: Sendable {
         directory.appendingPathComponent(name, isDirectory: true)
     }
 
-    public func briefFile(for name: String) -> URL {
-        folder(for: name).appendingPathComponent(Self.briefFile)
-    }
-
-    public func storiesFile(for name: String) -> URL {
-        folder(for: name).appendingPathComponent(Self.storiesFile)
-    }
-
     /// A call type's background files: everything but instructions.md, folders and hidden
     /// files. The brief and the stories come first, so a long PDF is what gets cut.
     public func documentFiles(of name: String) -> [URL] {
@@ -146,19 +138,20 @@ public struct CallTypeLibrary: Sendable {
     /// Creates brief.md with a note on what to put in it, unless it exists.
     @discardableResult
     public func createBriefIfMissing(for name: String) throws -> URL {
-        try createIfMissing(briefFile(for: name), template: Self.briefTemplate)
+        try createIfMissing(Self.briefFile, for: name, template: Self.briefTemplate)
     }
 
     /// Creates stories.md with a note and an example layout, unless it exists.
     @discardableResult
     public func createStoriesIfMissing(for name: String) throws -> URL {
-        try createIfMissing(storiesFile(for: name), template: Self.storiesTemplate)
+        try createIfMissing(Self.storiesFile, for: name, template: Self.storiesTemplate)
     }
 
-    private func createIfMissing(_ url: URL, template: String) throws -> URL {
+    private func createIfMissing(_ file: String, for name: String, template: String) throws -> URL {
+        let folder = folder(for: name)
+        let url = folder.appendingPathComponent(file)
         if !FileManager.default.fileExists(atPath: url.path) {
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try Data(template.utf8).write(to: url, options: .withoutOverwriting)
         }
         return url

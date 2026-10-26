@@ -101,6 +101,13 @@ struct TerminalSession {
             }
         }
 
+        func ask(_ tier: AnswerTier) {
+            if !stopping {
+                let pressedAt = ContinuousClock.now
+                Task { await session.requestAnswer(tier, pressedAt: pressedAt) }
+            }
+        }
+
         loop: for await input in inputs {
             switch input {
             case .event(let event):
@@ -112,30 +119,18 @@ struct TerminalSession {
                 Console.write(renderer.inputEchoed())
                 switch line.trimmingCharacters(in: .whitespaces).lowercased() {
                 case "":
-                    if !stopping {
-                        let pressedAt = ContinuousClock.now
-                        Task { await session.requestAnswer(.quick, pressedAt: pressedAt) }
-                    }
+                    ask(.quick)
                 case "d", "deep":
-                    if !stopping {
-                        let pressedAt = ContinuousClock.now
-                        Task { await session.requestAnswer(.deep, pressedAt: pressedAt) }
-                    }
+                    ask(.deep)
                 case "r", "recap":
-                    if !stopping {
-                        let pressedAt = ContinuousClock.now
-                        Task { await session.requestAnswer(.recap, pressedAt: pressedAt) }
-                    }
+                    ask(.recap)
                 case "q", "quit", "stop":
                     stopOnce()
                 default:
                     Console.write(renderer.clearLiveLine() + Self.keyHint)
                 }
             case .ask(let tier):
-                if !stopping {
-                    let pressedAt = ContinuousClock.now
-                    Task { await session.requestAnswer(tier, pressedAt: pressedAt) }
-                }
+                ask(tier)
             case .interrupt:
                 if stopping {
                     Console.write(renderer.clearLiveLine() + "\nQuit without waiting for the save.\n")

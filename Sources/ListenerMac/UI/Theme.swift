@@ -109,14 +109,6 @@ extension AnswerTier {
         case .recap: .teal
         }
     }
-
-    var hotkeyAction: HotkeyAction {
-        switch self {
-        case .quick: .quickAnswer
-        case .deep: .deepAnswer
-        case .recap: .recap
-        }
-    }
 }
 
 /// A one-pixel separator at any display scale.

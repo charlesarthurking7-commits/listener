@@ -37,8 +37,11 @@ final class CallTypeLibraryTests {
         let folder = library.folder(for: "Work call")
         try write("Acme runs three MT5 servers.", to: folder.appendingPathComponent("acme servers.md"))
         try write("Restart the bridge before the open.", to: folder.appendingPathComponent("Runbook.txt"))
-        try write("<!-- a note to myself -->\nThe call is with Sam and Priya.", to: library.briefFile(for: "Work call"))
-        try write("## The late fills\nGood for: incidents", to: library.storiesFile(for: "Work call"))
+        try write(
+            "<!-- a note to myself -->\nThe call is with Sam and Priya.",
+            to: folder.appendingPathComponent(CallTypeLibrary.briefFile))
+        try write(
+            "## The late fills\nGood for: incidents", to: folder.appendingPathComponent(CallTypeLibrary.storiesFile))
         try write("hidden", to: folder.appendingPathComponent(".DS_Store"))
 
         let loaded = library.load("Work call")

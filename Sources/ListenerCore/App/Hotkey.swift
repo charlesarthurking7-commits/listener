@@ -20,6 +20,16 @@ public enum HotkeyAction: String, Sendable, CaseIterable {
     public var settingKey: String { "hotkeys.\(rawValue)" }
 }
 
+extension AnswerTier {
+    public var hotkeyAction: HotkeyAction {
+        switch self {
+        case .quick: .quickAnswer
+        case .deep: .deepAnswer
+        case .recap: .recap
+        }
+    }
+}
+
 public struct HotkeyModifiers: OptionSet, Sendable, Hashable {
     public let rawValue: Int
 

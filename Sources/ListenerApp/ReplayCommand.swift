@@ -35,7 +35,7 @@ struct ReplayCommand: AsyncParsableCommand {
     var askAt: String?
 
     @Option(help: "What --ask-at asks for: quick, deep or recap.")
-    var tier: TierOption = .quick
+    var tier: AnswerTier = .quick
 
     func validate() throws {
         guard speed > 0, speed <= 20 else {
@@ -91,8 +91,7 @@ struct ReplayCommand: AsyncParsableCommand {
 
     /// Asks at each time in the recording, scaled by the playback speed.
     private func schedule(_ times: [Double], from start: ContinuousClock.Instant) -> AsyncStream<TerminalInput> {
-        let speed = speed
-        let tier = tier.answerTier
+        let (speed, tier) = (speed, tier)
         return AsyncStream { continuation in
             let task = Task {
                 for time in times {
@@ -123,16 +122,4 @@ struct ReplayCommand: AsyncParsableCommand {
     }
 }
 
-enum TierOption: String, ExpressibleByArgument, CaseIterable {
-    case quick
-    case deep
-    case recap
-
-    var answerTier: AnswerTier {
-        switch self {
-        case .quick: .quick
-        case .deep: .deep
-        case .recap: .recap
-        }
-    }
-}
+extension AnswerTier: ExpressibleByArgument {}

@@ -110,7 +110,7 @@ public struct AnswerMarkup: Sendable, Equatable {
         }
         let id = blocks.count
         if let content = Self.wholeLineNote(trimmed) {
-            blocks.append(AnswerBlock(id: id, kind: .note, spans: [AnswerSpan(String(content), .note)]))
+            blocks.append(AnswerBlock(id: id, kind: .note, spans: [AnswerSpan(content, .note)]))
         } else if let item = Self.listItem(trimmed) {
             blocks.append(AnswerBlock(id: id, kind: .bullet(item.marker), spans: Self.spans(item.content)))
         } else if let heading = Self.heading(trimmed) {
@@ -123,26 +123,18 @@ public struct AnswerMarkup: Sendable, Equatable {
 
     /// "[check the account first]" on a line of its own, or a line that opens a bracket
     /// that has not closed yet.
-    private static func wholeLineNote(_ line: Substring) -> Substring? {
+    private static func wholeLineNote(_ line: Substring) -> String? {
         guard line.first == "[" else {
             return nil
         }
         let body = line.dropFirst()
         guard let close = body.firstIndex(of: "]") else {
-            return trimmingTrailingWhitespace(body)
+            return body.trimmingCharacters(in: .whitespaces)
         }
         if body[body.index(after: close)...].allSatisfy(\.isWhitespace) {
-            return trimmingTrailingWhitespace(body[..<close])
+            return body[..<close].trimmingCharacters(in: .whitespaces)
         }
         return nil
-    }
-
-    private static func trimmingTrailingWhitespace(_ text: Substring) -> Substring {
-        var end = text.endIndex
-        while end > text.startIndex, text[text.index(before: end)].isWhitespace {
-            end = text.index(before: end)
-        }
-        return text[..<end]
     }
 
     private static func listItem(_ line: Substring) -> (marker: String, content: Substring)? {

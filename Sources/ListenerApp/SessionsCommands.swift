@@ -14,9 +14,9 @@ struct SessionsCommand: ParsableCommand {
 
     func run() throws {
         let settings = try options.loadSettings().settings
-        let root = SessionFactory.sessionsRoot(settings)
+        let root = SessionStore.root(for: settings.storage)
         let paths = ListenerPaths.current
-        let sessions = SessionFactory.listSessions(settings)
+        let sessions = SessionStore.list(in: root)
         if sessions.isEmpty {
             Console.write("No saved calls in \(paths.abbreviating(root.path)).\n")
             return
@@ -69,7 +69,7 @@ struct SummarizeCommand: AsyncParsableCommand {
             throw ValidationError("\(session) is not a session folder. listener sessions lists them.")
         }
         Console.write("Summarising \(directory.lastPathComponent) with \(settings.summary.model.model)...\n")
-        let file = try await SessionFactory.summarize(directory: directory, settings: settings, model: model)
+        let file = try await SessionSummarizer.summarize(directory: directory, settings: settings, model: model)
         Console.write("Summary: \(file.path)\n")
     }
 
@@ -79,6 +79,6 @@ struct SummarizeCommand: AsyncParsableCommand {
         if path.contains("/") {
             return URL(fileURLWithPath: path)
         }
-        return SessionFactory.sessionsRoot(settings).appendingPathComponent(path)
+        return SessionStore.root(for: settings.storage).appendingPathComponent(path)
     }
 }

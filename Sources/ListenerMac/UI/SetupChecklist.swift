@@ -378,9 +378,7 @@ private struct ShortcutTable: View {
         switch action {
         case .toggleListening: "Start or stop"
         case .toggleWindow: "Show or hide"
-        case .quickAnswer: "Quick answer"
-        case .deepAnswer: "Deep answer"
-        case .recap: "Recap so far"
+        case .quickAnswer, .deepAnswer, .recap: action.title
         }
     }
 }

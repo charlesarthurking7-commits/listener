@@ -10,6 +10,18 @@ public struct LoadedSettings: Sendable {
         self.settings = settings
         self.warnings = warnings
     }
+
+    /// The same settings with "auto" replaced by the provider it stands for on this Mac,
+    /// so everything downstream (setup checks, pricing, session) sees a real provider:
+    /// on-device recognition where the Mac supports it, because it is free and has no
+    /// network round trip, and Google Cloud everywhere else.
+    public func resolvingSpeechProvider(onDeviceAvailable: Bool) -> LoadedSettings {
+        var resolved = self
+        if settings.speech.provider == "auto" {
+            resolved.settings.speech.provider = onDeviceAvailable ? "apple" : "google"
+        }
+        return resolved
+    }
 }
 
 public struct SettingsError: Error, Equatable, CustomStringConvertible {

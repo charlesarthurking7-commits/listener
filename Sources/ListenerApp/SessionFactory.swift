@@ -6,9 +6,8 @@ import ListenerMac
 import Synchronization
 import os
 
-/// The one place that builds audio sources, providers and session storage. Every
-/// concrete type from the capture, speech, Claude and session-store code is named
-/// here and nowhere else in the app, so a rename touches this file only.
+/// Builds what a session runs on: audio sources, the speech and language model
+/// providers, and the connections they share from call to call.
 enum SessionFactory {
     struct Replay {
         var components: SessionComponents
@@ -149,23 +148,6 @@ enum SessionFactory {
         } catch {
             report(.failed(ErrorText.describe(error)))
         }
-    }
-
-    static func sessionsRoot(_ settings: Settings) -> URL {
-        SessionStore.root(for: settings.storage)
-    }
-
-    static func listSessions(_ settings: Settings) -> [SavedSession] {
-        SessionStore.list(in: sessionsRoot(settings))
-    }
-
-    @discardableResult
-    static func deleteExpiredSessions(_ settings: Settings) throws -> [URL] {
-        try SessionStore.deleteExpired(in: sessionsRoot(settings), retentionDays: settings.storage.retentionDays)
-    }
-
-    static func summarize(directory: URL, settings: Settings, model: any LanguageModelProvider) async throws -> URL {
-        try await SessionSummarizer.summarize(directory: directory, settings: settings, model: model)
     }
 
     private static func onDeviceStatus(_ state: AppleSpeechModelState) -> OnDeviceSpeechStatus {

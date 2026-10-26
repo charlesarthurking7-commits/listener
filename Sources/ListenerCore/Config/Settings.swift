@@ -18,7 +18,7 @@ public struct SpeechSettings: Sendable, Codable, Equatable {
     /// "auto" (on-device where the Mac supports it, otherwise Google), "apple" (on-device,
     /// macOS 26 and later, free), "google" (Google Cloud, EU), or "fake" to replay a
     /// fixture's script without any network.
-    public var provider = SpeechProviderChoice.automatic
+    public var provider = "auto"
     public var googleProjectID: String?
     public var googleLocation = "eu"
     public var googleEndpoint = "eu-speech.googleapis.com"

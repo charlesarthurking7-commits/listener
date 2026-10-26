@@ -51,7 +51,8 @@ struct ListenerCommand: AsyncParsableCommand {
         let settings = launchSettings.settings
         Task.detached(priority: .background) {
             do {
-                let deleted = try SessionFactory.deleteExpiredSessions(settings)
+                let deleted = try SessionStore.deleteExpired(
+                    in: SessionStore.root(for: settings.storage), retentionDays: settings.storage.retentionDays)
                 if !deleted.isEmpty {
                     Log.session.info("Deleted \(deleted.count) calls older than the retention period")
                 }
@@ -78,7 +79,7 @@ struct ListenerCommand: AsyncParsableCommand {
             googleSetup: { SessionFactory.googleSetup($0) },
             prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
             hasAnthropicKey: { demo?.scriptedAnswers == true || secrets.secret(.anthropicAPIKey) != nil },
-            sessionsDirectory: { SessionFactory.sessionsRoot($0) },
+            sessionsDirectory: { SessionStore.root(for: $0.storage) },
             importWebPage: { try await SessionFactory.importWebPage($0, settings: $1, secrets: secrets) },
             finishDueSummaries: { demo == nil ? await SessionFactory.finishDueSummaries($0, secrets: secrets) : [] }
         )

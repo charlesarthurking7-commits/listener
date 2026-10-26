@@ -56,13 +56,7 @@ public struct TerminalRenderer: Sendable {
                 output += "\n"
             }
             streamingAnswer = id
-            let title =
-                switch tier {
-                case .quick: "Quick answer"
-                case .deep: "Deep answer"
-                case .recap: "Recap so far"
-                }
-            return output + "\n" + paint(title, .boldGreen) + paint(" (\(model))", .dim) + "\n"
+            return output + "\n" + paint(tier.hotkeyAction.title, .boldGreen) + paint(" (\(model))", .dim) + "\n"
         case .answerText(let id, let delta):
             return id == streamingAnswer ? delta : ""
         case .answerFinished(let record):
