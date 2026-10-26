@@ -124,9 +124,11 @@ Before and after a call, from top to bottom:
   dropped when Listener heard no speech under them. The
   transcript follows the newest line; scroll up to read back and it stays where you
   are, with a **Jump to latest** button to return.
-- **After Stop.** A card shows the call being saved and summarised, then "Call saved"
-  with its length, turns and cost, **Open Summary**, **Show in Finder**, and **New Call**
-  to go back to the start screen and set up the next call.
+- **After Stop.** A card shows the call being saved, then "Call saved" with its length,
+  turns and cost, **Show in Finder**, and **New Call** to go back to the start screen and
+  set up the next call. The summary is written after that, which takes a minute or so:
+  **Open Summary** appears when it is ready. You can start the next call meanwhile, and
+  the summary then turns up as a notice.
 - **Footer.** The call's running cost (hover for the split between speech-to-text and
   Claude), the first-word time of the last answer, and **Quick**, **Deep** and **Recap**
   buttons with their hotkeys. Clicking one does the same as pressing its hotkey.
@@ -159,8 +161,11 @@ The waveform icon is filled while Listener is listening, with a small dot beside
 while the window is hidden from screen sharing. Its menu shows whether
 Listener is listening and for how long, then Start/Stop Listening, Quick Answer, Deep
 Answer and Recap So Far with their hotkeys, Call Type, Show or Hide Window, Window, Open
-Last Summary (after a call), Open Sessions Folder, Open Settings File and Quit Listener. Quitting during a call stops and saves it first, and so does `kill` or
-Ctrl-C in the terminal that started the app (press Ctrl-C twice to quit without waiting).
+Last Summary (after a call), Open Sessions Folder, Open Settings File and Quit Listener.
+Quitting during a call stops and saves it first, and waits up to 30 s for a summary being
+written; a summary cut off then is written the next time Listener starts. `kill`, or
+Ctrl-C in the terminal that started the app, quits the same way (press Ctrl-C twice to
+quit without waiting).
 
 ## Call types
 
