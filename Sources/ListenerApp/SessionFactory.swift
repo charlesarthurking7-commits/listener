@@ -71,7 +71,7 @@ enum SessionFactory {
         do {
             switch settings.speech.provider {
             case "google":
-                return try googleProviders.provider(for: settings.speech)
+                return try googleProviders.provider(for: settings)
             case "apple":
                 return try AppleSpeech.makeProvider(settings: settings, onModelState: callbacks.onDeviceSpeech)
             default:
@@ -148,18 +148,19 @@ enum SessionFactory {
 }
 
 /// Google's provider holds one HTTP/2 connection and is meant to live as long as the
-/// app, so calls reuse it until the speech settings change.
+/// app, so calls reuse it until the speech or turn settings change.
 private final class GoogleProviderCache: Sendable {
-    private let cached = Mutex<(settings: SpeechSettings, provider: GoogleSpeechProvider)?>(nil)
+    private let cached = Mutex<(speech: SpeechSettings, turns: TurnSettings, provider: GoogleSpeechProvider)?>(nil)
 
-    func provider(for settings: SpeechSettings) throws -> GoogleSpeechProvider {
+    func provider(for settings: Settings) throws -> GoogleSpeechProvider {
         try cached.withLock { cached in
-            if let cached, cached.settings == settings {
+            if let cached, cached.speech == settings.speech, cached.turns == settings.turns {
                 return cached.provider
             }
-            let tokens = try GoogleCredentials.tokenProvider(for: settings)
-            let provider = try GoogleSpeechProvider(settings: settings, tokenProvider: tokens)
-            cached = (settings, provider)
+            let tokens = try GoogleCredentials.tokenProvider(for: settings.speech)
+            let provider = try GoogleSpeechProvider(
+                settings: settings.speech, turns: settings.turns, tokenProvider: tokens)
+            cached = (settings.speech, settings.turns, provider)
             return provider
         }
     }

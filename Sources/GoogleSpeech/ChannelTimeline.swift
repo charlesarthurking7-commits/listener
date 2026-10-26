@@ -12,6 +12,9 @@ struct ChannelTimeline {
     /// Never keep more than this for replay. Only reached when nothing has been
     /// finalised for a long time, which in practice means silence.
     let replayLimit: Int
+    /// A pause in Google's voice activity shorter than this does not split the speech
+    /// around it, just as it would not end a turn.
+    let utterancePause: Int
 
     private(set) var received = 0
     /// End of the last final. Everything before it is settled.
@@ -27,11 +30,16 @@ struct ChannelTimeline {
     private var buffer: [Int16] = []
     private var head = 0
     private(set) var unsettledStart = 0
-    /// Where Google heard speech begin (voice activity events) since the last final.
-    private var speechStarts: [Int] = []
+    /// Where Google heard speech begin and end (voice activity events) since the last
+    /// final. The end is nil while the speech goes on.
+    private var activity: [(start: Int, end: Int?)] = []
+    /// The end of the first interim with words since the last final: the utterance
+    /// had begun by then.
+    private var firstWordsBy: Int?
 
-    init(replayLimit: Int) {
+    init(replayLimit: Int, utterancePause: Int) {
         self.replayLimit = replayLimit
+        self.utterancePause = utterancePause
     }
 
     var unsettled: ArraySlice<Int16> { buffer[head...] }
@@ -39,7 +47,7 @@ struct ChannelTimeline {
 
     /// True when Google has shown no sign of speech since the last final, so the
     /// unsettled audio is most likely silence.
-    var isIdle: Bool { interim == nil && speechStarts.isEmpty }
+    var isIdle: Bool { interim == nil && activity.isEmpty }
 
     mutating func append(_ samples: [Int16]) {
         received += samples.count
@@ -69,9 +77,20 @@ struct ChannelTimeline {
     /// Turns one response from the current stream into events, in order: at most
     /// one final, then the interim for whatever follows it.
     mutating func events(for response: Google_Cloud_Speech_V2_StreamingRecognizeResponse) -> [SpeechEvent] {
-        if response.speechEventType == .speechActivityBegin, response.hasSpeechEventOffset {
-            speechStarts.append(position(of: response.speechEventOffset))
-            return []
+        if response.hasSpeechEventOffset {
+            let offset = position(of: response.speechEventOffset)
+            switch response.speechEventType {
+            case .speechActivityBegin:
+                activity.append((offset, nil))
+                return []
+            case .speechActivityEnd:
+                if let last = activity.indices.last, activity[last].end == nil {
+                    activity[last].end = max(offset, activity[last].start)
+                }
+                return []
+            default:
+                break
+            }
         }
 
         var events: [SpeechEvent] = []
@@ -92,6 +111,7 @@ struct ChannelTimeline {
 
         if !interimTexts.isEmpty {
             let end = interimEnd ?? received
+            firstWordsBy = firstWordsBy ?? end
             let event = SpeechEvent(
                 kind: .interim,
                 text: interimTexts.joined(separator: " "),
@@ -115,7 +135,8 @@ struct ChannelTimeline {
             }
         }
         interim = nil
-        speechStarts.removeAll()
+        firstWordsBy = nil
+        activity.removeAll()
         dropUnsettled(buffer.count - head)
         return events
     }
@@ -127,11 +148,12 @@ struct ChannelTimeline {
                 dropUnsettled(min(end - unsettledStart, buffer.count - head))
             }
             settledEnd = max(settledEnd, end)
-            speechStarts.removeAll { $0 < end }
+            activity.removeAll { $0.start < end }
         }
 
         let wasShowing = interim != nil
         interim = nil
+        firstWordsBy = nil
         if text.isEmpty {
             // Google sometimes settles noise into an empty final. An empty interim
             // clears whatever guess was on screen for it.
@@ -140,11 +162,25 @@ struct ChannelTimeline {
         return [SpeechEvent(kind: .final, text: text, audioStart: seconds(start), audioEnd: end.map(seconds))]
     }
 
-    /// Without word timings (Chirp 3 has none when streaming), the best start is
-    /// where Google heard speech begin, else the end of the previous final.
+    /// Without word timings (Chirp 3 has none when streaming), the start comes from
+    /// Google's voice activity: the start of the last stretch of it, short pauses
+    /// included, to begin before the first words showed (or before the final, if it
+    /// came without an interim). Without voice activity, the end of the previous final.
+    ///
+    /// The first activity since the previous final could be a cough long before the
+    /// words, which would put them ahead of whatever the other side said in between.
     private func utteranceStart(before end: Int) -> Int {
-        let fallback = max(settledEnd, streamStart)
-        return speechStarts.filter { $0 >= settledEnd && $0 < end }.min() ?? min(fallback, end)
+        let wordsBy = min(firstWordsBy ?? end, end)
+        var start: Int?
+        var previousEnd: Int?
+        for run in activity where run.start >= settledEnd && run.start < wordsBy {
+            if let previousEnd, run.start - previousEnd >= utterancePause {
+                start = nil
+            }
+            start = start ?? run.start
+            previousEnd = run.end
+        }
+        return start ?? min(max(settledEnd, streamStart), end)
     }
 
     private mutating func dropUnsettled(_ count: Int) {

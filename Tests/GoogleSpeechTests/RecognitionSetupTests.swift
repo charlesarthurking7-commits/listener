@@ -107,7 +107,7 @@ struct RecognitionSetupTests {
             settings: .forTests(),
             tokenProvider: FakeTokens(),
             client: Google_Cloud_Speech_V2_Speech.Client(wrapping: client),
-            tuning: StreamTuning(settings: .forTests()))
+            tuning: .forTests())
         #expect(provider.displayName == "Google chirp_3 (eu)")
     }
 
@@ -115,11 +115,17 @@ struct RecognitionSetupTests {
         var settings = SpeechSettings.forTests()
         settings.googleEndpoint = "us-speech.googleapis.com"
         #expect(throws: GoogleSpeechError.self) {
-            try GoogleSpeechProvider(settings: settings, tokenProvider: FakeTokens())
+            try GoogleSpeechProvider(settings: settings, turns: TurnSettings(), tokenProvider: FakeTokens())
         }
     }
 
     @Test func rotationIntervalComesFromSettings() {
-        #expect(StreamTuning(settings: .forTests(rotateAfterSeconds: 120)).rotateAfter == .seconds(120))
+        #expect(StreamTuning.forTests(settings: .forTests(rotateAfterSeconds: 120)).rotateAfter == .seconds(120))
+    }
+
+    @Test func aPauseInsideAnUtteranceIsOneThatWouldNotEndATurn() {
+        var turns = TurnSettings()
+        turns.silenceMs = 900
+        #expect(StreamTuning(settings: .forTests(), turns: turns).utterancePause == .milliseconds(900))
     }
 }

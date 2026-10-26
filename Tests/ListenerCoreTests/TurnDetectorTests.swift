@@ -431,6 +431,37 @@ struct TurnDetectorTests {
         #expect(harness.turns.map(\.speaker) == [.them, .me, .them])
     }
 
+    @Test func aSoundBeforeTheOtherSidesTurnIsNotTheStartOfTheAnswer() {
+        // A recogniser without word timings starts the answer at a cough long before
+        // it. Me asked something in between, and the answer must come after that.
+        var harness = Harness()
+        harness.speech(.them, 9.0...10.0)
+        harness.play(to: 10.5)
+        harness.final(.them, "Earlier point.", 9.0...10.0)
+        harness.speech(.them, 15.0...15.3)
+        harness.speech(.me, 20.0...22.0)
+        harness.play(to: 22.5)
+        harness.final(.me, "Sorry, can you repeat that?", 20.0...22.0)
+        harness.speech(.them, 30.0...33.0)
+        harness.play(to: 33.5)
+        harness.final(.them, "Yes, the trade settles T plus two.", 15.0...33.0)
+        #expect(
+            harness.turns.map(\.text) == [
+                "Earlier point.", "Sorry, can you repeat that?", "Yes, the trade settles T plus two.",
+            ])
+        #expect(near(harness.turns.last?.start, 30.0))
+    }
+
+    @Test func aFinalThatSpansALongPauseStartsAtItsFirstWords() {
+        var harness = Harness()
+        harness.speech(.them, 20.0...21.2)
+        harness.speech(.them, 22.5...24.0)
+        harness.play(to: 24.5)
+        harness.final(.them, "We need to, reconcile the breaks.", 20.0...24.0)
+        #expect(harness.turns.map(\.text) == ["We need to, reconcile the breaks."])
+        #expect(near(harness.turns.first?.start, 20.0))
+    }
+
     @Test func speechTheRecogniserSplitsWithoutAPauseStaysOneTurn() {
         var harness = Harness()
         harness.started(.them, at: 0.5)

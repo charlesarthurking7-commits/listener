@@ -112,29 +112,13 @@ public struct TurnDetector: Sendable {
             }
         }
 
-        /// Where the speech behind a final ending at `end` began: the first speech heard
-        /// from the recogniser's start on, else the recogniser's start, else the speech
-        /// that was going on, but never before the previous final.
-        ///
-        /// Recognisers put the start early: Apple counts seconds of the silence before
-        /// the first word, Chirp 3 reports the previous final's end. The first sound
-        /// since the previous final could be a cough or a keyboard minutes before the
-        /// words, which would stretch a "Yeah." over the other side's whole answer.
-        func speechStart(before end: Double, reported: Double?) -> Double {
+        /// Speech heard since the previous final, from the recogniser's start on and
+        /// before `end`: what a final ending at `end` can have come from.
+        func freshSpeech(before end: Double, from reported: Double?) -> [Speech] {
             let from = max(lastFinalEnd, reported ?? lastFinalEnd)
-            let fresh = speech.first {
+            return speech.filter {
                 $0.start >= lastFinalEnd - Self.slack && $0.start < end && ($0.end ?? .infinity) > from
             }
-            if let fresh {
-                return fresh.start
-            }
-            if let reported {
-                return min(reported, end)
-            }
-            if let current = speech.last(where: { $0.start < end }) {
-                return min(max(current.start, lastFinalEnd), end)
-            }
-            return end
         }
 
         /// Whether the detector heard speech overlapping `start...end` of channel time.
@@ -268,7 +252,7 @@ public struct TurnDetector: Sendable {
         // Without an end from the recogniser, the voice activity says where the speech was.
         let fallbackEnd = channel.speaking ? channel.position : (channel.lastSpeechEnd ?? channel.position)
         let endOnChannel = audioEnd ?? fallbackEnd
-        let startOnChannel = channel.speechStart(before: endOnChannel, reported: audioStart)
+        let startOnChannel = speechStart(speaker, on: channel, before: endOnChannel, reported: audioStart)
         channel.lastFinalEnd = max(channel.lastFinalEnd, endOnChannel)
         let start = channel.clock.sessionTime(at: startOnChannel)
         let end = max(channel.clock.sessionTime(at: endOnChannel), start)
@@ -290,6 +274,43 @@ public struct TurnDetector: Sendable {
         }
         channels[speaker] = channel
         revision += 1
+    }
+
+    /// Where the speech behind `speaker`'s final ending at `end` began: the speech heard
+    /// from the recogniser's start on that leads up to the final's end, else the
+    /// recogniser's start, else the speech that was going on, but never before the
+    /// previous final.
+    ///
+    /// Recognisers put the start early: Apple counts seconds of the silence before the
+    /// first word, Chirp 3 can report the previous final's end. The first sound since
+    /// then could be a cough or a keyboard minutes before the words, which would stretch
+    /// a "Yeah." over the other side's whole answer. So the speech is followed back from
+    /// the final's end, across pauses too short to end a turn, and across longer ones
+    /// only while nobody else spoke in them. A final can span a long pause, but a sound
+    /// from before the other side spoke is no part of a reply to them.
+    private func speechStart(_ speaker: Speaker, on channel: Channel, before end: Double, reported: Double?) -> Double {
+        let heard = channel.freshSpeech(before: end, from: reported)
+        if var first = heard.last {
+            for earlier in heard.dropLast().reversed() {
+                let pauseStart = earlier.end ?? first.start
+                if first.start - pauseStart >= silence,
+                    someoneElseSpoke(
+                        after: channel.clock.sessionTime(at: pauseStart),
+                        before: channel.clock.sessionTime(at: first.start), besides: speaker)
+                {
+                    break
+                }
+                first = earlier
+            }
+            return first.start
+        }
+        if let reported {
+            return min(reported, end)
+        }
+        if let current = channel.speech.last(where: { $0.start < end }) {
+            return min(max(current.start, channel.lastFinalEnd), end)
+        }
+        return end
     }
 
     /// Whether speech starting at `startOnChannel` (`start` in session time) continues

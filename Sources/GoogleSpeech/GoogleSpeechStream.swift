@@ -6,6 +6,9 @@ import ListenerCore
 struct StreamTuning: Sendable {
     /// Move to a new stream at the first final after this long.
     var rotateAfter: Duration
+    /// A pause in Google's voice activity shorter than this stays inside an utterance,
+    /// as it would inside a turn.
+    var utterancePause: Duration
     /// Move to a new stream now, final or not. Google ends streams at five minutes.
     var hardLimit: Duration = .seconds(280)
     /// 100 ms of audio per request, as Google recommends. The limit is 15,360 bytes.
@@ -23,8 +26,9 @@ struct StreamTuning: Sendable {
     /// How long `finish()` waits for the last finals.
     var finishTimeout: Duration = .seconds(10)
 
-    init(settings: SpeechSettings) {
+    init(settings: SpeechSettings, turns: TurnSettings) {
         rotateAfter = .seconds(max(settings.rotateAfterSeconds, 0))
+        utterancePause = .milliseconds(turns.silenceMs)
     }
 
     func backoff(attempt: Int) -> Duration {
@@ -93,7 +97,9 @@ actor GoogleSpeechStream: SpeechStream {
         self.tokens = tokens
         self.setup = setup
         self.tuning = tuning
-        timeline = ChannelTimeline(replayLimit: StreamTuning.samples(in: tuning.replayLimit))
+        timeline = ChannelTimeline(
+            replayLimit: StreamTuning.samples(in: tuning.replayLimit),
+            utterancePause: StreamTuning.samples(in: tuning.utterancePause))
     }
 
     func start() {

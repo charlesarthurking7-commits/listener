@@ -15,13 +15,16 @@ public final class GoogleSpeechProvider: SpeechToTextProvider {
     private let shutdown: @Sendable () -> Void
 
     /// Connects over TLS to `settings.googleEndpoint`, verified against the system's
-    /// trusted roots.
+    /// trusted roots. `turns` gives the pause that ends a turn, which also splits
+    /// Google's voice activity into utterances.
     ///
     /// - Throws: `GoogleSpeechError` with kind `.configuration` when the settings
     ///   cannot work: no project (neither `googleProjectID` nor the token provider's
     ///   quota project), an unknown endpointing sensitivity, or an endpoint that does
     ///   not match `googleLocation`.
-    public convenience init(settings: SpeechSettings, tokenProvider: any AccessTokenProvider) throws {
+    public convenience init(
+        settings: SpeechSettings, turns: TurnSettings, tokenProvider: any AccessTokenProvider
+    ) throws {
         let setup = try RecognitionSetup(settings: settings, quotaProjectID: tokenProvider.quotaProjectID)
         let endpoint = try Endpoint(settings.googleEndpoint, location: settings.googleLocation)
         let transport = try HTTP2ClientTransport.Posix(
@@ -32,7 +35,7 @@ public final class GoogleSpeechProvider: SpeechToTextProvider {
             setup: setup,
             tokenProvider: tokenProvider,
             client: Google_Cloud_Speech_V2_Speech.Client(wrapping: grpc),
-            tuning: StreamTuning(settings: settings),
+            tuning: StreamTuning(settings: settings, turns: turns),
             shutdown: { grpc.beginGracefulShutdown() })
         Task { try? await grpc.runConnections() }
     }

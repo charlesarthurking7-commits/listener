@@ -193,7 +193,7 @@ actor FakeTokens: AccessTokenProvider {
 extension StreamTuning {
     /// Short backoffs so retry tests run in milliseconds.
     static func forTests(settings: SpeechSettings = .forTests()) -> StreamTuning {
-        var tuning = StreamTuning(settings: settings)
+        var tuning = StreamTuning(settings: settings, turns: TurnSettings())
         tuning.firstBackoff = .milliseconds(5)
         tuning.maxBackoff = .milliseconds(20)
         tuning.finishTimeout = .seconds(5)

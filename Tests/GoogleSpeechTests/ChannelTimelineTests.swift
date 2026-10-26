@@ -4,14 +4,16 @@ import Testing
 @testable import GoogleSpeech
 
 struct ChannelTimelineTests {
+    private let pause = Audio.position(0.7)
+
     private func timeline(seconds: Double, replayLimit: Int = 1_000_000) -> ChannelTimeline {
-        var timeline = ChannelTimeline(replayLimit: replayLimit)
+        var timeline = ChannelTimeline(replayLimit: replayLimit, utterancePause: pause)
         timeline.append(Audio.samples(from: 0, to: seconds))
         return timeline
     }
 
     @Test func keepsAtMostTheReplayLimitOfUnsettledAudio() {
-        var timeline = ChannelTimeline(replayLimit: 100)
+        var timeline = ChannelTimeline(replayLimit: 100, utterancePause: pause)
         timeline.append((0..<250).map { Int16($0) })
 
         #expect(timeline.received == 250)
@@ -48,6 +50,54 @@ struct ChannelTimelineTests {
         #expect(timeline.events(for: Response.speechBegin(at: 1.2)) == [])
         #expect(timeline.events(for: Response.final("So.", end: 0.9)) == [.final("So.", 0.3, 0.9)])
         #expect(timeline.events(for: Response.final("Next.", end: 1.6)) == [.final("Next.", 1.2, 1.6)])
+    }
+
+    @Test func aNoiseLongBeforeTheWordsIsNotWhereTheUtteranceStarts() {
+        var timeline = timeline(seconds: 12)
+        _ = timeline.beginStream()
+
+        _ = timeline.events(for: Response.speechBegin(at: 1.0))
+        _ = timeline.events(for: Response.speechEnd(at: 1.3))
+        _ = timeline.events(for: Response.speechBegin(at: 5.0))
+        #expect(timeline.events(for: Response.interim("the trade", end: 5.6)) == [.interim("the trade", 5.0, 5.6)])
+        _ = timeline.events(for: Response.speechEnd(at: 7.0))
+        #expect(
+            timeline.events(for: Response.final("The trade settled.", end: 7.2)) == [
+                .final("The trade settled.", 5.0, 7.2)
+            ])
+
+        // Without an interim, the stretch the final ends in.
+        _ = timeline.events(for: Response.speechBegin(at: 8.0))
+        _ = timeline.events(for: Response.speechEnd(at: 8.2))
+        _ = timeline.events(for: Response.speechBegin(at: 10.0))
+        _ = timeline.events(for: Response.speechEnd(at: 11.0))
+        #expect(timeline.events(for: Response.final("Thanks.", end: 11.2)) == [.final("Thanks.", 10.0, 11.2)])
+    }
+
+    @Test func pausesTooShortToEndATurnStayInsideTheUtterance() {
+        var timeline = timeline(seconds: 4)
+        _ = timeline.beginStream()
+
+        _ = timeline.events(for: Response.speechBegin(at: 1.0))
+        _ = timeline.events(for: Response.speechEnd(at: 1.4))
+        _ = timeline.events(for: Response.speechBegin(at: 2.0))
+        _ = timeline.events(for: Response.interim("so the", end: 2.4))
+        #expect(timeline.events(for: Response.final("So the fills.", end: 3.0)) == [.final("So the fills.", 1.0, 3.0)])
+    }
+
+    @Test func aFinalThatSpansALongPauseStartsWhereItsFirstWordsWere() {
+        var timeline = timeline(seconds: 6)
+        _ = timeline.beginStream()
+
+        _ = timeline.events(for: Response.speechBegin(at: 1.0))
+        _ = timeline.events(for: Response.interim("we need to", end: 1.8))
+        _ = timeline.events(for: Response.speechEnd(at: 2.0))
+        _ = timeline.events(for: Response.speechBegin(at: 3.5))
+        _ = timeline.events(for: Response.speechEnd(at: 5.0))
+        #expect(
+            timeline.events(for: Response.final("We need to reconcile the breaks.", end: 5.2)) == [
+                .final("We need to reconcile the breaks.", 1.0, 5.2)
+            ])
     }
 
     @Test func withoutVoiceActivityTheStartIsThePreviousFinal() {
@@ -128,7 +178,7 @@ struct ChannelTimelineTests {
     }
 
     @Test func staysCorrectAcrossBufferCompaction() {
-        var timeline = ChannelTimeline(replayLimit: 48_000)
+        var timeline = ChannelTimeline(replayLimit: 48_000, utterancePause: pause)
         _ = timeline.beginStream()
         for second in 0..<10 {
             timeline.append(Audio.samples(from: Double(second), to: Double(second + 1)))

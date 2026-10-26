@@ -44,8 +44,16 @@ enum Response {
     }
 
     static func speechBegin(at offset: Double) -> RecognizeResponse {
+        speechEvent(.speechActivityBegin, at: offset)
+    }
+
+    static func speechEnd(at offset: Double) -> RecognizeResponse {
+        speechEvent(.speechActivityEnd, at: offset)
+    }
+
+    private static func speechEvent(_ type: RecognizeResponse.SpeechEventType, at offset: Double) -> RecognizeResponse {
         var response = RecognizeResponse()
-        response.speechEventType = .speechActivityBegin
+        response.speechEventType = type
         response.speechEventOffset.seconds = Int64(offset)
         response.speechEventOffset.nanos = Int32(((offset - offset.rounded(.down)) * 1e9).rounded())
         return response
