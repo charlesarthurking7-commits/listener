@@ -24,6 +24,8 @@ struct PromptBuilderTests {
         #expect(first.system.contains("Never invent details specific to this call"))
         #expect(first.system.contains("answer the most likely reading, then add one short clarifying question"))
         #expect(first.system.contains("If nothing has been asked of Me, start with a note saying so"))
+        #expect(first.system.contains("\"I\" or \"we\" in a Them line is whoever is speaking, never Me"))
+        #expect(first.system.contains("never volunteer Me for work nobody asked Me to take on"))
         #expect(first.system.contains("one to three sentences, or up to five short bullets"))
         #expect(!first.system.contains("About Me"))
     }
@@ -181,6 +183,7 @@ struct PromptBuilderTests {
         #expect(!request.user[0].text.contains("Earlier parts of the call are not shown"))
         #expect(request.system.hasPrefix("You help the user during a live call."))
         #expect(request.system.contains("you recap the call so far for Me to read at a glance"))
+        #expect(request.system.contains("Requests between other people on the call are not for Me."))
         #expect(!request.system.contains("say it out loud"))
         #expect(request.user.last?.text.hasSuffix("Recap the call so far.") == true)
     }
