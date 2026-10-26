@@ -9,6 +9,9 @@
 ///
 /// The rate is measured over one-second spans and only acted on when two in a row agree,
 /// so a span that straddles a switch, and reads somewhere in between, never counts.
+/// Where Core Audio gives each buffer's sample time, a span counts the frames by it, so
+/// cycles lost under load count as delivered instead of reading as a lower rate. The
+/// device's clock is what runs slow when a tap misstates its rate, so that still shows.
 public struct DeliveredRateMonitor: Sendable {
     public enum Outcome: Sendable, Equatable {
         /// Frames arrive at the rate they are read at. Reported once, the first time.
@@ -42,6 +45,8 @@ public struct DeliveredRateMonitor: Sendable {
     private var settledAt: Double?
     private var lastTime: Double?
     private var spanStart: Double?
+    private var spanStartSample: Double?
+    private var lastSample: Double?
     private var framesInSpan = 0
     private var previousSpanRate: Double?
     private var hasMatched = false
@@ -54,11 +59,14 @@ public struct DeliveredRateMonitor: Sendable {
         self.maxPause = maxPause
     }
 
-    /// Takes the next buffer: its frame count and the time of its first frame, in seconds
-    /// on any steady clock. Returns an outcome when there is something to report.
-    public mutating func record(frames: Int, at time: Double) -> Outcome? {
-        defer { lastTime = time }
+    /// Takes the next buffer: its frame count, the time of its first frame in seconds on
+    /// any steady clock, and that frame's sample time on the device when known. Returns
+    /// an outcome when there is something to report.
+    public mutating func record(frames: Int, at time: Double, sampleTime: Double? = nil) -> Outcome? {
+        defer { (lastTime, lastSample) = (time, sampleTime) }
         if let lastTime, time < lastTime || time - lastTime > maxPause {
+            startOver(at: time)
+        } else if let lastSample, let sampleTime, sampleTime < lastSample {
             startOver(at: time)
         }
         let settled = settledAt ?? time + warmUp
@@ -69,7 +77,7 @@ public struct DeliveredRateMonitor: Sendable {
         // A span's rate is the frames of its buffers over the time from its first buffer
         // to the one after its last.
         guard let start = spanStart else {
-            spanStart = time
+            (spanStart, spanStartSample) = (time, sampleTime)
             framesInSpan = frames
             return nil
         }
@@ -78,8 +86,12 @@ public struct DeliveredRateMonitor: Sendable {
             framesInSpan += frames
             return nil
         }
-        let spanRate = Double(framesInSpan) / elapsed
-        spanStart = time
+        var delivered = Double(framesInSpan)
+        if let sampleTime, let startSample = spanStartSample {
+            delivered = sampleTime - startSample
+        }
+        let spanRate = delivered / elapsed
+        (spanStart, spanStartSample) = (time, sampleTime)
         framesInSpan = frames
         let previousRate = previousSpanRate
         previousSpanRate = spanRate
@@ -114,6 +126,7 @@ public struct DeliveredRateMonitor: Sendable {
     private mutating func startOver(at time: Double) {
         settledAt = time + warmUp
         spanStart = nil
+        spanStartSample = nil
         previousSpanRate = nil
     }
 }

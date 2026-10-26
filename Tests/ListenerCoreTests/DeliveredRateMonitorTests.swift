@@ -32,6 +32,42 @@ struct DeliveredRateMonitorTests {
         outcomes.compactMap { if case .corrected(_, let to, _) = $0 { to } else { nil } }
     }
 
+    /// 48 kHz in 10.7 ms cycles of which every `dropEvery`th is lost, as under heavy load,
+    /// with Core Audio's sample time for each buffer that does arrive.
+    private func deliverDroppingCycles(
+        to monitor: inout DeliveredRateMonitor, rate: Double, dropEvery: Int, sampleTimes: Bool
+    ) -> [DeliveredRateMonitor.Outcome] {
+        let frames = 512
+        var outcomes: [DeliveredRateMonitor.Outcome] = []
+        for cycle in 0..<Int(10 * rate / Double(frames)) where cycle % dropEvery != 0 {
+            let sampleTime = Double(cycle * frames)
+            let time = 100 + sampleTime / rate
+            if let outcome = monitor.record(frames: frames, at: time, sampleTime: sampleTimes ? sampleTime : nil) {
+                outcomes.append(outcome)
+            }
+        }
+        return outcomes
+    }
+
+    @Test func cyclesLostUnderLoadDoNotReadAsALowerRate() {
+        // Counting frames, losing one cycle in twelve reads 48 kHz as about 44 kHz.
+        var counting = DeliveredRateMonitor(rate: 48_000)
+        let counted = deliverDroppingCycles(to: &counting, rate: 48_000, dropEvery: 12, sampleTimes: false)
+        #expect(corrections(counted) == [44_100])
+        // The device's sample time counts the lost frames too.
+        var timed = DeliveredRateMonitor(rate: 48_000)
+        let outcomes = deliverDroppingCycles(to: &timed, rate: 48_000, dropEvery: 12, sampleTimes: true)
+        #expect(corrections(outcomes).isEmpty)
+        #expect(timed.rate == 48_000)
+    }
+
+    @Test func aTapThatRunsAtHalfItsStatedRateIsStillCaughtBySampleTime() {
+        // AirPods in call mode: the aggregate's clock, and so its sample time, runs at 24 kHz.
+        var monitor = DeliveredRateMonitor(rate: 48_000)
+        let outcomes = deliverDroppingCycles(to: &monitor, rate: 24_000, dropEvery: 1_000_000, sampleTimes: true)
+        #expect(corrections(outcomes) == [24_000])
+    }
+
     @Test func deliveryAtTheReadRateMatchesOnce() throws {
         var monitor = DeliveredRateMonitor(rate: 48_000)
         let outcomes = deliver(to: &monitor, rate: 48_000, seconds: 20)

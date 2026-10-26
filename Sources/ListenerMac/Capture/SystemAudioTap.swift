@@ -431,7 +431,8 @@ private final class TapInput: @unchecked Sendable {
             return
         }
         let time = seconds(of: inputTime.pointee, arrivedAt: capturedAt)
-        if let outcome = rateMonitor.record(frames: Int(buffer.frameLength), at: time) {
+        let sampleTime = inputTime.pointee.mFlags.contains(.sampleTimeValid) ? inputTime.pointee.mSampleTime : nil
+        if let outcome = rateMonitor.record(frames: Int(buffer.frameLength), at: time, sampleTime: sampleTime) {
             if case .corrected(_, let rate, _) = outcome, read(at: rate), let reread = buffers.buffer(from: inputData) {
                 buffer = reread
             }
