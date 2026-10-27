@@ -341,7 +341,8 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
   to 500 characters either side of the cursor go to Claude for tidying. After a paste the
   field is read for a minute, on the Mac only, to learn corrected names into
   `dictionary.txt`; only the learned words are sent, with later dictations. For the
-  stats, `dictation-stats.json` keeps per-day counts of dictations, words and seconds.
+  stats, `dictation-stats.json` keeps per-day counts of dictations, words and seconds,
+  and the words that went into each app, by its bundle ID and name.
   The last text typed is kept in memory for **Copy Last Dictation**.
 - Secrets: Anthropic key in the Keychain (`listener secrets set anthropic`) or `.env`
   (gitignored). Google uses Application Default Credentials

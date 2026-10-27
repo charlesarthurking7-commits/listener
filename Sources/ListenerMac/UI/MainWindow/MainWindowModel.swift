@@ -9,16 +9,18 @@ final class MainWindowModel {
         case calls
         case callTypes
         case dictionary
+        case insights
         case settings
 
         var id: Self { self }
 
-        /// From `--open`: "calls", "call-types", "dictionary" or "settings".
+        /// From `--open`: "calls", "call-types", "dictionary", "insights" or "settings".
         init?(argument: String) {
             switch argument.lowercased() {
             case "calls": self = .calls
             case "call-types", "calltypes": self = .callTypes
             case "dictionary": self = .dictionary
+            case "insights": self = .insights
             case "settings": self = .settings
             default: return nil
             }
@@ -29,6 +31,7 @@ final class MainWindowModel {
             case .calls: "Calls"
             case .callTypes: "Call types"
             case .dictionary: "Dictionary"
+            case .insights: "Insights"
             case .settings: "Settings"
             }
         }
@@ -38,6 +41,7 @@ final class MainWindowModel {
             case .calls: "waveform"
             case .callTypes: "square.grid.2x2"
             case .dictionary: "character.book.closed"
+            case .insights: "chart.bar.xaxis"
             case .settings: "slider.horizontal.3"
             }
         }
@@ -48,6 +52,7 @@ final class MainWindowModel {
     let calls: CallsModel
     let callTypes: CallTypesModel
     let dictionary: DictionaryModel
+    let insights: InsightsModel
     let settings: SettingsModel
     let store: SettingsStore
 
@@ -57,6 +62,7 @@ final class MainWindowModel {
         calls = CallsModel(call: call, environment: environment)
         callTypes = CallTypesModel(call: call, environment: environment)
         dictionary = DictionaryModel(dictation: dictation, store: store, environment: environment)
+        insights = InsightsModel(calls: calls, environment: environment)
         settings = SettingsModel(call: call, store: store, environment: environment)
     }
 
@@ -66,7 +72,7 @@ final class MainWindowModel {
         case .calls: calls.listedCalls.count
         case .callTypes: callTypes.names.count
         case .dictionary: dictionary.words.count
-        case .settings: nil
+        case .insights, .settings: nil
         }
     }
 
@@ -77,6 +83,7 @@ final class MainWindowModel {
         calls.refresh()
         callTypes.refresh()
         dictionary.refresh()
+        insights.refresh()
         settings.refresh()
     }
 
@@ -84,5 +91,6 @@ final class MainWindowModel {
         calls.stopWatching()
         callTypes.stopWatching()
         dictionary.stopWatching()
+        insights.stopWatching()
     }
 }

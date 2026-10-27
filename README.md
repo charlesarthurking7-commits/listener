@@ -61,13 +61,14 @@ you are waiting on. Search finds any word said on any call. Each call shows what
 
 ## Dictation, in any app
 
-<img src="docs/images/dictionary.png" width="900" alt="The Dictionary page in dark mode: learned spellings with what each was heard as, your dictation stats, and dictation's settings">
+<img src="docs/images/insights.png" width="900" alt="The Insights page in dark mode: words dictated, words per minute against typing, time saved, the apps dictated into, a streak with a square for each day, and the last 30 days of calls">
 
 Press fn twice, speak, and press fn again. The words are recognised on the Mac by
 Parakeet Ultra on the Neural Engine, then tidied by Claude for the app you are typing
 into: fillers and false starts gone, corrections applied, and lists pasted as real lists
 in Outlook, Teams, Notes and Slack. Fix a name it got wrong and it learns the spelling
-for next time. The Dictionary page counts your words and your speed.
+for next time. **Insights** shows how much you dictate, how fast, the time it saves over
+typing, the apps it goes into and your streak.
 
 ## How it works
 
@@ -99,8 +100,8 @@ from end of speech to first word, and the costs are tracked per call.
 - **Speech is recognised on the Mac** by default (macOS 26 and later); Google
   Speech-to-Text in the EU is the alternative. What was said goes to Anthropic for
   answers and summaries, and the API key lives in the Keychain.
-- **Dictation keeps no audio and nothing you dictate**: only the spellings it learned
-  and daily word counts.
+- **Dictation keeps no audio and nothing you dictate**: only the spellings it learned,
+  and daily word counts with the apps they went into.
 
 Laws on recording calls differ between countries and states, and many need everyone's
 consent. Tell the people on the call when Listener is listening.

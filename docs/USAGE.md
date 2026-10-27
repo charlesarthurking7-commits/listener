@@ -182,8 +182,8 @@ quit without waiting).
 **Open Listener** in the menu bar menu, the sidebar button in the floating window, or
 opening the app again from Finder or the Dock shows it. While it is open Listener is in
 the Dock and the app switcher; close it and Listener goes back to the menu bar (unless
-`window.showDockIcon` keeps it there). It has four sections, also under View with
-Command-1 to Command-4.
+`window.showDockIcon` keeps it there). It has five sections, also under View with
+Command-1 to Command-5.
 
 **Start call** at the top of the sidebar does what Start does, and brings up the floating
 window, which is where a call is run from: it stays on top of the call app. The menu under
@@ -215,10 +215,15 @@ a summary that is ready, show at the bottom of the sidebar.
   **Use for the next call** picks it for the next Start.
 - **Dictionary.** The words dictation spells your way, learned or added, with what each
   was heard as, and dictation's own switches: tidying, lists, learning, sounds, the
-  microphone and the recognizer. **Your dictation** above them counts the words you've
-  dictated, all time and this week, your speed in words a minute (from fn fn to fn,
-  pauses included) and the number of dictations. Only those counts are kept, per day in
-  `dictation-stats.json`, never the words.
+  microphone and the recognizer.
+- **Insights.** How much you dictate: the words, all time and this week, and the number
+  of dictations; your speed in words a minute (from fn fn to fn, pauses included) next
+  to typing at 40; the time that saves; the apps your words went into; and your streak,
+  the working days in a row you've dictated on (a weekend without dictation doesn't
+  break it), with a square for each day of the last few months. Hover a day to see its
+  words. Under them, the last 30 days of calls: how many, how long, the answers asked
+  for and your to-dos still open. Dictation's counts are kept per day in
+  `dictation-stats.json`, with each app's share; never the words.
 - **Settings.** Everything in `settings.json` that people change, as switches and menus:
   the floating window, answers and their models, speech, shortcuts (click one and press
   the new keys), storage and privacy, and the API key. Each change is saved to the file at

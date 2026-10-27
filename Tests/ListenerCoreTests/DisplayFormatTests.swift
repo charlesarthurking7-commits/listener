@@ -13,6 +13,14 @@ struct DisplayFormatTests {
         #expect(DisplayFormat.clock(.nan) == "0:00")
     }
 
+    @Test func spans() {
+        #expect(DisplayFormat.span(0) == "0m")
+        #expect(DisplayFormat.span(25) == "<1m")
+        #expect(DisplayFormat.span(45 * 60) == "45m")
+        #expect(DisplayFormat.span(3 * 3600 + 12 * 60 + 10) == "3h 12m")
+        #expect(DisplayFormat.span(.infinity) == "0m")
+    }
+
     @Test func tokenCounts() {
         #expect(DisplayFormat.tokens(0) == "0")
         #expect(DisplayFormat.tokens(850) == "850")

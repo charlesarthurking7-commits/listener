@@ -17,6 +17,8 @@ struct MainWindowView: View {
                     CallTypesView(model: model.callTypes)
                 case .dictionary:
                     DictionaryView(model: model.dictionary)
+                case .insights:
+                    InsightsView(model: model.insights)
                 case .settings:
                     SettingsView(model: model.settings)
                 }

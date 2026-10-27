@@ -221,7 +221,7 @@ final class DictationController {
                 result.text, formattingLists: settings.dictation.formattedLists, font: destination.font)
             lastPaste = paste
             let outcome = TextInserter.insert(paste)
-            recordStats(paste.text, spoken: spoken)
+            recordStats(paste.text, spoken: spoken, in: destination.target)
             switch outcome {
             case .pasted:
                 finish(generation)
@@ -302,14 +302,17 @@ final class DictationController {
         }
     }
 
-    /// Adds the dictation to the counts the main window shows. Its words are not kept.
-    private func recordStats(_ text: String, spoken: Duration) {
+    /// Adds the dictation to the counts the main window shows, with the app it went into.
+    /// Its words are not kept.
+    private func recordStats(_ text: String, spoken: Duration, in target: DictationTarget) {
         let file = environment.paths.dictationStatsFile
         guard var stats = DictationStats.load(from: file) else {
             Log.dictation.error("dictation-stats.json can't be read, so this dictation isn't counted")
             return
         }
-        stats.record(words: DictationStats.wordCount(text), seconds: spoken.inSeconds, at: Date())
+        stats.record(
+            words: DictationStats.wordCount(text), seconds: spoken.inSeconds, appID: target.bundleID,
+            appName: target.appName, at: Date())
         do {
             try stats.save(to: file)
         } catch {

@@ -14,6 +14,18 @@ public enum DisplayFormat {
         return "\(minutes):\(twoDigits(rest))"
     }
 
+    /// A length of time at a glance: "3h 12m", "45m", "<1m", "0m".
+    public static func span(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds > 0 else {
+            return "0m"
+        }
+        let minutes = Int((seconds / 60).rounded())
+        if minutes == 0 {
+            return "<1m"
+        }
+        return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h \(minutes % 60)m"
+    }
+
     /// A running total: "$0.00", "<$0.01", "$1.92".
     public static func cost(_ dollars: Double) -> String {
         if dollars <= 0 {
