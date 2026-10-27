@@ -42,12 +42,12 @@ public struct HotkeyModifiers: OptionSet, Sendable, Hashable {
     public static let shift = HotkeyModifiers(rawValue: 1 << 2)
     public static let command = HotkeyModifiers(rawValue: 1 << 3)
 
-    /// In the order macOS menus show them.
-    static let ordered: [(modifier: HotkeyModifiers, symbol: String, spoken: String)] = [
-        (.control, "⌃", "Control"),
-        (.option, "⌥", "Option"),
-        (.shift, "⇧", "Shift"),
-        (.command, "⌘", "Command"),
+    /// In the order macOS menus show them, with the name settings.json uses.
+    static let ordered: [(modifier: HotkeyModifiers, symbol: String, spoken: String, setting: String)] = [
+        (.control, "⌃", "Control", "ctrl"),
+        (.option, "⌥", "Option", "option"),
+        (.shift, "⇧", "Shift", "shift"),
+        (.command, "⌘", "Command", "cmd"),
     ]
 
     static let aliases: [String: HotkeyModifiers] = [
@@ -69,6 +69,11 @@ public struct HotkeyKey: Sendable, Hashable {
 
     public var isFunctionKey: Bool {
         name.count >= 2 && name.first == "f" && Int(name.dropFirst()) != nil
+    }
+
+    /// The key at a macOS virtual key code, if a hotkey can use it.
+    public static func key(forKeyCode keyCode: UInt16) -> HotkeyKey? {
+        all.first { $0.keyCode == keyCode }
     }
 
     static let all: [HotkeyKey] = letters + digits + named + punctuation + functionKeys
@@ -199,6 +204,12 @@ public struct Hotkey: Sendable, Hashable {
     /// One label per key to draw as keycaps, e.g. ["⌃", "⌥", "Space"].
     public var keycaps: [String] {
         HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.symbol) + [key.display]
+    }
+
+    /// How settings.json spells it, e.g. "ctrl+option+space", which parses back to it.
+    public var settingValue: String {
+        (HotkeyModifiers.ordered.filter { modifiers.contains($0.modifier) }.map(\.setting) + [key.name])
+            .joined(separator: "+")
     }
 
     /// What VoiceOver reads, e.g. "Control Option Space".

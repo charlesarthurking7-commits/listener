@@ -27,6 +27,9 @@ call ends it writes a summary with action items.
   running cost is in the window and saved with each call.
 - **Local**: calls are saved under `~/Library/Application Support/Listener/sessions`
   with 30-day retention. Raw audio is not kept unless you turn it on.
+- **Main window** (Open Listener in the menu bar): past calls with their summary, ticked
+  action items, transcript and answers, and search across everything said; call types,
+  the dictation dictionary and every setting, edited in place.
 
 ## Requirements
 
@@ -70,9 +73,18 @@ where to change them.
 
 macOS ties permissions to the app's code signature. `scripts/build-app.sh` signs ad hoc,
 which changes with every build, so macOS asks again after rebuilds. To keep permissions,
-create a stable identity once: Keychain Access > Certificate Assistant > Create a
-Certificate, name `Listener Dev`, "Self Signed Root", "Code Signing". The build script
-picks it up from then on.
+give it a stable identity once. The build script picks it up from then on.
+
+- **Apple Development certificate** (best, free with any Apple ID): in Xcode, Settings >
+  Accounts, add your Apple ID, select its team, Manage Certificates, then + and Apple
+  Development. Its Team ID also makes the Keychain's "Always Allow" for the API key
+  last across rebuilds.
+- **Self-signed**: Keychain Access > Certificate Assistant > Create a Certificate, name
+  `Listener Dev`, "Self Signed Root", "Code Signing". Permissions last, but a
+  certificate without a Team ID can't keep "Always Allow": macOS remembers it for that
+  build only, so the Keychain asks again after every rebuild.
+
+Changing from one identity to the other makes macOS ask for each permission once more.
 
 The scripts launch the app through `open` so that macOS asks on behalf of Listener. A
 command run straight from Terminal gets its permissions through your terminal app.
@@ -85,6 +97,9 @@ by moondream, a post-training of NVIDIA's
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), run through
 [FluidAudio](https://github.com/FluidInference/FluidAudio) (Apache 2.0).
 
+The window is set in [Geist and Geist Mono](https://github.com/vercel/geist-font) by
+Vercel, under the [SIL Open Font License 1.1](App/Fonts/OFL.txt).
+
 ## Development
 
 ```sh
@@ -94,6 +109,7 @@ scripts/build-app.sh        # release app bundle
 swift format lint --strict --recursive Sources Tests Package.swift Tools/SpeechBench/Sources Tools/SpeechBench/Package.swift
 swift format --in-place --recursive Sources Tests Package.swift Tools/SpeechBench/Sources Tools/SpeechBench/Package.swift
 scripts/generate-protos.sh  # regenerate the Speech-to-Text gRPC client
+python3 scripts/make-icon.py # redraw the app icon (needs rsvg-convert: brew install librsvg)
 ```
 
 Build release binaries with `scripts/build-app.sh` rather than `swift build -c release`.
@@ -114,7 +130,8 @@ Tests/                 swift-testing suites, including end-to-end runs on the fi
 Fixtures/              three mock broker calls (two channels plus script) for replay;
                        see Fixtures/README.md to regenerate them
 Protos/                trimmed Speech-to-Text v2 proto the gRPC client is generated from
-App/                   Info.plist (bundle metadata, permission prompts) and the app icon
+App/                   Info.plist (bundle metadata, permission prompts) and the app icon,
+                       which scripts/make-icon.py draws
 ```
 
 ### CI

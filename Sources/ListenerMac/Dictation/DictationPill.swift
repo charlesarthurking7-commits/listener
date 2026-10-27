@@ -1,4 +1,5 @@
 import AppKit
+import ListenerCore
 import SwiftUI
 
 /// The small capsule at the bottom of the screen while dictating: bars that follow your
@@ -28,6 +29,8 @@ final class DictationPill: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        // The capsule is dark over any app, so its colours are always dark mode's.
+        appearance = NSAppearance(named: .darkAqua)
         let host = FirstClickHostingView(rootView: DictationPillView(controller: controller))
         host.safeAreaRegions = []
         contentView = host
@@ -95,19 +98,31 @@ private struct DictationPillView: View {
     let controller: DictationController
     /// What the capsule showed last, kept while it fades out so it does not collapse.
     @State private var shown = DictationController.Phase.idle
+    /// When this dictation began, for the time beside the bars.
+    @State private var listeningSince = Date()
 
     var body: some View {
         content
             .padding(.horizontal, 14)
-            .frame(height: 30)
-            .background(Capsule().fill(Color.black.opacity(0.84)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
-            .shadow(color: .black.opacity(0.28), radius: 8, y: 2)
+            .frame(height: 34)
+            .background(Capsule().fill(Color(white: 0.067).opacity(0.95)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.11), lineWidth: 1))
+            .overlay(
+                Capsule().strokeBorder(
+                    LinearGradient(colors: [.white.opacity(0.08), .clear], startPoint: .top, endPoint: .center),
+                    lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.22), radius: 10, y: 4)
+            .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+            .environment(\.colorScheme, .dark)
             .padding([.horizontal, .top], PillLayout.shadowRoom)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, PillLayout.bottomGap)
             .animation(.snappy(duration: 0.2), value: shown)
-            .onChange(of: controller.phase, initial: true) { _, phase in
+            .onChange(of: controller.phase, initial: true) { old, phase in
+                if phase == .listening, old != .listening {
+                    listeningSince = Date()
+                }
                 if phase != .idle {
                     shown = phase
                 }
@@ -117,41 +132,55 @@ private struct DictationPillView: View {
     @ViewBuilder private var content: some View {
         switch shown {
         case .idle, .listening:
-            LevelBars(level: controller.level)
-                .accessibilityElement()
-                .accessibilityLabel("Dictating")
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(Theme.recording)
+                    .frame(width: 6, height: 6)
+                    .background(Circle().fill(Theme.recording.opacity(0.25)).frame(width: 12, height: 12))
+                LevelBars(level: controller.level)
+                TimelineView(.periodic(from: listeningSince, by: 1)) { context in
+                    Text(DisplayFormat.clock(context.date.timeIntervalSince(listeningSince)))
+                        .font(.geistMono(11.5))
+                        .foregroundStyle(Theme.tertiaryText)
+                }
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Dictating")
         case .working:
-            RippleBars()
-                .accessibilityElement()
-                .accessibilityLabel("Typing what you said")
+            HStack(spacing: 10) {
+                RippleBars()
+                note("Tidying", quiet: true)
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Typing what you said")
         case .note(let text):
-            note(text)
+            note(text, quiet: true)
         case .learned(let term):
             HStack(spacing: 10) {
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.ready)
                 note(
                     "Added \u{201C}\(term.count > 24 ? term.prefix(23) + "\u{2026}" : term)\u{201D} to your dictionary")
                 Button("Undo") {
                     controller.undoLearned()
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(.geist(12, .semibold))
+                .foregroundStyle(Theme.accentText)
                 .padding(.horizontal, 10)
-                .frame(height: 22)
-                .background(Color.white.opacity(0.14), in: Capsule())
+                .frame(height: 24)
+                .background(Color.white.opacity(0.08), in: Capsule())
                 .padding(.trailing, -9)
                 .accessibilityHint("Forgets the word again")
             }
         }
     }
 
-    private func note(_ text: String) -> some View {
+    private func note(_ text: String, quiet: Bool = false) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.white)
+            .font(.geist(12.5, .medium))
+            .foregroundStyle(quiet ? Theme.secondaryText : Theme.text)
             .lineLimit(1)
             .fixedSize()
     }
@@ -205,11 +234,11 @@ private struct RippleBars: View {
 }
 
 private enum PillBars {
-    static let weights = [0.45, 0.7, 0.9, 1, 0.9, 0.7, 0.45]
-    static let gap: CGFloat = 3
+    static let weights = [0.35, 0.55, 0.8, 0.95, 1, 0.9, 0.7, 0.5, 0.35]
+    static let gap: CGFloat = 2.5
     static let width: CGFloat = 3
     static let minHeight: CGFloat = 3
-    static let maxHeight: CGFloat = 16
+    static let maxHeight: CGFloat = 20
 
     static func height(for fraction: Double) -> CGFloat {
         minHeight + (maxHeight - minHeight) * CGFloat(min(max(fraction, 0), 1))
@@ -217,7 +246,7 @@ private enum PillBars {
 
     static func bar(height: CGFloat) -> some View {
         Capsule()
-            .fill(Color.white.opacity(0.92))
+            .fill(Color.white.opacity(0.94))
             .frame(width: width, height: height)
             .frame(height: maxHeight)
     }

@@ -21,6 +21,12 @@ struct DemoCommand: ParsableCommand {
     @Flag(help: "Canned answers instead of Claude: no API key, Keychain or network.")
     var scriptedAnswers = false
 
+    @Option(help: "Open the main window at launch: calls, call-types, dictionary or settings.")
+    var open: String?
+
+    @Option(help: "Show the app in light or dark mode, whatever the Mac uses.")
+    var appearance: String?
+
     func validate() throws {
         let folder = URL(fileURLWithPath: ListenerPaths.current.expandingTilde(call))
         for file in ["me.wav", "them.wav", "script.json"]
@@ -32,7 +38,9 @@ struct DemoCommand: ParsableCommand {
     @MainActor
     func launchApp() -> Never {
         let folder = URL(fileURLWithPath: ListenerPaths.current.expandingTilde(call)).standardizedFileURL
-        ListenerCommand.launchApp(options: options, demo: DemoCall(folder: folder, scriptedAnswers: scriptedAnswers))
+        ListenerCommand.launchApp(
+            options: options, demo: DemoCall(folder: folder, scriptedAnswers: scriptedAnswers), open: open,
+            appearance: appearance)
     }
 }
 
@@ -43,13 +51,15 @@ struct DemoCall: Sendable {
 
 /// Answers in the shape Claude gives them, for a demo without Claude.
 enum DemoAnswers {
+    static var model: ScriptedLanguageModel { ScriptedLanguageModel(reply: reply) }
+
     @Sendable static func reply(to request: ModelRequest) -> String {
         let instruction = request.user.last?.text ?? ""
         if request.settings.maxTokens == 1 {
             return "OK"
         }
         if instruction.hasSuffix("Write the notes.") {
-            return summary
+            return summary(request: instruction)
         }
         if instruction.hasSuffix("Recap the call so far.") {
             return recap
@@ -85,20 +95,50 @@ enum DemoAnswers {
         - The broker will forward the complaints with account numbers.
         """
 
-    static let summary = """
-        ## Summary
-        - Copy trades reached followers late after the US open.
+    /// The notes for Fixtures/delayed-executions, dated with the request's date line as
+    /// Claude would.
+    static func summary(request: String) -> String {
+        let firstLine = request.prefix { $0 != "\n" }
+        let dateLine = firstLine.hasPrefix("Date line: ") ? firstLine.dropFirst("Date line: ".count) : ""
+        return """
+            # Kestrelmoor Markets: delayed copy trades after the US open
+            *\(dateLine)*
 
-        ## Decisions
-        None recorded.
+            ## Summary
+            - Hannah at Kestrelmoor Markets called about a flood of complaints since the US open.
+            - From half two, copy trades reached their followers late, some by 30 seconds: volume at the open \
+            hit six times normal and backed up the follower order queue.
+            - The workers were scaled out at 2:40, and delays have been under a second since.
+            - Kestrelmoor's compliance team want numbers on the affected accounts today.
+            - The incident reference is INC-4471.
 
-        ## Action items
-        - [ ] **Me**: send the affected accounts this afternoon
+            ## Decisions
+            - Extra workers go on before tomorrow's open, so it shouldn't happen again.
 
-        ## Open questions
-        None.
+            ## Action items
+            - [ ] **Me**: send Hannah the affected accounts, and by how much (due this afternoon)
+            - [ ] **Me**: check with client services whether Pelican will cover the slippage on the late fills
+            - [ ] **Me**: send the incident report for INC-4471 (due within five working days)
 
-        ## Follow-up email
-        Subject: Today's delayed executions
-        """
+            ## Open questions
+            - Will Pelican cover the slippage on the late fills?
+
+            ## Follow-up email
+            **Subject:** INC-4471: delayed copy trades after the US open
+
+            Hi Hannah,
+
+            Thanks for the call. From half two, volume at the US open hit six times normal and backed up our \
+            follower order queue, so some copy trades reached your followers up to 30 seconds late. We scaled \
+            out the workers at 2:40, delays have been under a second since, and we're adding extra workers \
+            before tomorrow's open.
+
+            I'll send the list of affected accounts this afternoon, and I'm checking with client services \
+            whether we can cover the slippage on the late fills. You'll have the incident report within five \
+            working days. The reference is INC-4471.
+
+            Best regards,
+            [name]
+            """
+    }
 }

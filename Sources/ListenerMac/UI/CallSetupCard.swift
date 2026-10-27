@@ -10,97 +10,101 @@ struct CallSetupCard: View {
     @State private var isTargeted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Hairline()
-            if model.callFiles.isEmpty {
-                Text("Drop a CV or other files here, or copy a job description or its link and press Paste.")
-                    .font(.system(size: 12))
-                    .lineSpacing(2)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-            } else {
-                ForEach(Array(model.callFiles.enumerated()), id: \.element.id) { index, file in
-                    if index > 0 {
-                        Hairline()
-                            .padding(.leading, 36)
-                    }
-                    FileRow(file: file) { model.removeCallFile(file.url) }
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                SectionLabel("This call")
+                Spacer(minLength: 8)
+                callTypeMenu
             }
-            Hairline()
-            actions
-        }
-        .panel(stroke: isTargeted ? Color.accentColor : Theme.cardStroke, lineWidth: isTargeted ? 1.5 : 0.5)
-        .dropDestination(for: URL.self) { urls, _ in
-            model.addFiles(urls)
-            return true
-        } isTargeted: {
-            isTargeted = $0
+            VStack(spacing: 0) {
+                ForEach(model.callFiles) { file in
+                    FileRow(file: file) { model.removeCallFile(file.url) }
+                    Hairline()
+                }
+                dropZone
+                    .padding(10)
+            }
+            .panel(
+                Theme.surface, radius: Theme.cardRadius, stroke: isTargeted ? Theme.accent : Theme.border,
+                lineWidth: isTargeted ? 1.5 : 1
+            )
+            .dropDestination(for: URL.self) { urls, _ in
+                model.addFiles(urls)
+                return true
+            } isTargeted: {
+                isTargeted = $0
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("This call")
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text("This call")
-                .font(.system(size: 12, weight: .semibold))
-            Spacer(minLength: 8)
-            Menu {
-                ForEach(model.callTypes, id: \.self) { name in
-                    Button {
-                        model.selectCallType(name)
-                    } label: {
-                        if name == model.callType {
-                            Label(name, systemImage: "checkmark")
-                        } else {
-                            Text(name)
-                        }
+    private var callTypeMenu: some View {
+        SelectMenu(title: model.callType, label: "Call type") {
+            ForEach(model.callTypes, id: \.self) { name in
+                Button {
+                    model.selectCallType(name)
+                } label: {
+                    if name == model.callType {
+                        Label(name, systemImage: "checkmark")
+                    } else {
+                        Text(name)
                     }
                 }
-                Divider()
-                Button("Edit Instructions", action: model.editCallTypeInstructions)
-                Button("Edit Stories", action: model.editStories)
-                Button("Show in Finder", action: model.revealCallTypes)
-            } label: {
-                Text(model.callType)
-                    .font(.system(size: 12, weight: .medium))
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("The kind of call: it changes how answers go")
-            .accessibilityLabel("Call type: \(model.callType)")
+            Divider()
+            Button("Edit Instructions", action: model.editCallTypeInstructions)
+            Button("Edit Stories", action: model.editStories)
+            Button("Show in Finder", action: model.revealCallTypes)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 36)
+        .fixedSize()
+        .help("The kind of call: it changes how answers go")
     }
 
-    private var actions: some View {
-        HStack(spacing: 8) {
-            Button(action: model.pasteFromClipboard) {
-                Label(model.isImportingPage ? "Reading Page…" : "Paste", systemImage: "doc.on.clipboard")
+    private var dropZone: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "arrow.down.doc")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.tertiaryText)
+            Text(
+                model.callFiles.isEmpty
+                    ? "Drop a CV or notes here, or copy a job description or its link and paste it."
+                    : "Drop more files here, or paste text or a link."
+            )
+            .font(.geist(12.5))
+            .lineSpacing(2)
+            .foregroundStyle(Theme.secondaryText)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button(action: model.pasteFromClipboard) {
+                    Label(model.isImportingPage ? "Reading Page…" : "Paste", systemImage: "doc.on.clipboard")
+                }
+                .disabled(model.isImportingPage)
+                .help("Adds the copied text, files or link")
+                Button(action: model.editBrief) {
+                    Label("Edit Brief", systemImage: "square.and.pencil")
+                }
+                .help("Your notes for this call, in TextEdit")
             }
-            .disabled(model.isImportingPage)
-            .help("Adds the copied text, files or link")
-            Button(action: model.editBrief) {
-                Label("Edit Brief", systemImage: "square.and.pencil")
-            }
-            .help("Your notes for this call, in TextEdit")
-            Spacer(minLength: 8)
+            .buttonStyle(SoftButtonStyle(small: true))
             let tokens = model.callFiles.reduce(0) { $0 + $1.tokens }
             if tokens > 0 {
-                Text("\(DisplayFormat.tokens(tokens)) tokens")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                    .help(CallTypeLibrary.budgetNote)
+                Text(
+                    "\(DisplayFormat.tokens(tokens)) of \(DisplayFormat.tokens(CallTypeLibrary.documentBudgetTokens)) tokens of background"
+                )
+                .font(.geistMono(11))
+                .foregroundStyle(Theme.tertiaryText)
+                .help(CallTypeLibrary.budgetNote)
             }
         }
-        .buttonStyle(SoftButtonStyle(small: true))
-        .padding(.horizontal, 12)
-        .frame(height: 44)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Theme.strongBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        }
     }
 }
 
@@ -109,32 +113,33 @@ private struct FileRow: View {
     let remove: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.tertiaryText)
                 .frame(width: 16)
             Text(file.name)
-                .font(.system(size: 12, weight: .medium))
+                .font(.geist(13, .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 8)
             Text(file.problem ?? "\(DisplayFormat.tokens(file.tokens)) tokens")
-                .font(.system(size: 11))
-                .foregroundStyle(file.problem == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.orange))
+                .font(file.problem == nil ? .geistMono(11) : .geist(12))
+                .foregroundStyle(file.problem == nil ? Theme.tertiaryText : Theme.amber)
                 .lineLimit(1)
             Button(action: remove) {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(IconButtonStyle(size: 20))
+            .buttonStyle(IconButtonStyle(size: 22))
             .help("Move to the Bin")
             .accessibilityLabel("Remove \(file.name)")
         }
         .padding(.leading, 12)
-        .padding(.trailing, 8)
-        .frame(height: 30)
-        .help(help)
+        .padding(.trailing, 7)
+        .frame(height: 40)
+        // After combining, or VoiceOver reads the tooltip once for every part of the row.
         .accessibilityElement(children: .combine)
+        .help(help)
     }
 
     private var symbol: String {

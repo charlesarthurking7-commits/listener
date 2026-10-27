@@ -28,7 +28,8 @@ struct AnswerCardView: View {
             .padding(.trailing, 8)
             .padding(.top, Self.topPadding)
             .padding(.bottom, Self.bottomPadding)
-            .panel(stroke: border(card).opacity(0.4), lineWidth: 1)
+            .panel(stroke: border(card), lineWidth: 1)
+            .shadow(color: .black.opacity(0.16), radius: 14, y: 6)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(card.tier == .recap ? "Recap so far" : "Suggested answer")
         }
@@ -36,9 +37,9 @@ struct AnswerCardView: View {
 
     private func border(_ card: AnswerCard) -> Color {
         if case .failed = card.status {
-            return .red
+            return Theme.danger.opacity(0.45)
         }
-        return card.tier.tint
+        return Theme.border
     }
 }
 
@@ -55,13 +56,13 @@ private struct AnswerHeader: View {
                     .help(card.model)
                 if let detail {
                     Text("·")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.tertiaryText)
                     Text(detail)
                         .monospacedDigit()
                 }
             }
             .font(Theme.metaFont)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.tertiaryText)
             .lineLimit(1)
             .accessibilityElement(children: .combine)
             Spacer(minLength: 4)
@@ -103,8 +104,8 @@ private struct AnswerHeader: View {
             if copied {
                 Label("Copied", systemImage: "checkmark")
                     .labelStyle(CompactLabelStyle(spacing: 4))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.green)
+                    .font(.geist(11.5, .semibold))
+                    .foregroundStyle(Theme.ready)
                     .padding(.trailing, 4)
                     .transition(.opacity)
                     .accessibilityLabel("Copied")
@@ -158,10 +159,11 @@ private struct AnswerContent: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.danger)
                         .accessibilityHidden(true)
                     Text(message)
-                        .font(.system(size: 13))
+                        .font(.geist(13))
+                        .foregroundStyle(Theme.proseText)
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -191,12 +193,9 @@ private struct AnswerText: View {
                 let chipIn = chipInBlock
                 ForEach(blocks) { block in
                     if block.id == chipIn {
-                        Text("If you want to chip in")
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(0.4)
-                            .textCase(.uppercase)
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 10)
+                        SectionLabel("If you want to chip in")
+                            .padding(.top, 12)
+                            .padding(.bottom, 2)
                             .accessibilityHidden(true)
                     }
                     AnswerBlockView(block: block, spacingAbove: block.id == chipIn ? 4 : spacing(above: block))
@@ -231,7 +230,9 @@ private struct AnswerText: View {
             if moreBelow {
                 Image(systemName: "chevron.compact.down")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.tertiaryText)
+                    .padding(.horizontal, 10)
+                    .background(Theme.surface, in: Capsule())
                     .allowsHitTesting(false)
                     .accessibilityLabel("More below")
             }
@@ -281,7 +282,7 @@ private struct AnswerBlockView: View, Equatable {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(marker)
                     .font(Theme.answerFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.tertiaryText)
                     .frame(minWidth: 12)
                     .accessibilityHidden(true)
                 words
@@ -294,7 +295,8 @@ private struct AnswerBlockView: View, Equatable {
     private var words: some View {
         Text(Self.styled(block.spans))
             .font(Theme.answerFont)
-            .tracking(-0.2)
+            .foregroundStyle(Theme.text)
+            .tracking(-0.15)
             .lineSpacing(Theme.answerLineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -308,10 +310,9 @@ private struct AnswerBlockView: View, Equatable {
             case .plain:
                 break
             case .bold:
-                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .system(
-                    size: Theme.answerSize, weight: .semibold)
+                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .geist(Theme.answerSize, .semibold)
             case .note:
-                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .system(size: 15)
+                run[AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .geist(15)
                 run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Theme.noteLabel
             }
             text += run
@@ -327,21 +328,18 @@ private struct NoteAside: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("For you")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.4)
-                .textCase(.uppercase)
-                .foregroundStyle(Theme.noteLabel)
+            SectionLabel("For you", tint: Theme.amber)
             Text(text)
-                .font(.system(size: 13))
-                .lineSpacing(2)
+                .font(.geist(13))
+                .lineSpacing(2.5)
+                .foregroundStyle(Theme.proseText)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 7)
-        .padding(.bottom, 8)
-        .background(Theme.noteFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 11)
+        .padding(.top, 8)
+        .padding(.bottom, 9)
+        .panel(Theme.noteFill, radius: 9, stroke: Theme.noteBorder)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Note for you, not to say: \(text)")
     }

@@ -11,6 +11,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         var toggleWindow: () -> Void
         var isWindowVisible: () -> Bool
         var moveWindowToTopCentre: () -> Void
+        var openMainWindow: (MainWindowModel.Section?) -> Void
         var quit: () -> Void
     }
 
@@ -66,6 +67,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let state = model.state
 
+        menu.addItem(item(Entry("Open Listener", "macwindow") { $0.actions.openMainWindow(nil) }))
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: statusTitle(state)))
 
         let toggle: (title: String, symbol: String)
@@ -103,8 +106,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if let summary = model.lastSummaryFile {
             menu.addItem(item(Entry("Open Last Summary", "doc.text") { $0.model.perform(.openFile(path: summary)) }))
         }
-        menu.addItem(item(Entry("Open Sessions Folder", "folder") { $0.model.openSessionsFolder() }))
-        menu.addItem(item(Entry("Open Settings File", "gearshape") { $0.model.openSettingsFile() }))
+        menu.addItem(item(Entry("Calls", "waveform") { $0.actions.openMainWindow(.calls) }))
+        menu.addItem(item(Entry("Settings…", "gearshape") { $0.actions.openMainWindow(.settings) }))
         menu.addItem(.separator())
         menu.addItem(item(Entry("Quit Listener", "power") { $0.actions.quit() }))
     }
@@ -126,7 +129,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if dictation.hasLastDictation {
             menu.addItem(item(Entry("Copy Last Dictation", "doc.on.doc") { $0.dictation.copyLastText() }))
         }
-        menu.addItem(item(Entry("Open Dictionary", "character.book.closed") { $0.dictation.openDictionary() }))
+        menu.addItem(item(Entry("Dictionary", "character.book.closed") { $0.actions.openMainWindow(.dictionary) }))
     }
 
     private func statusTitle(_ state: CallViewState) -> String {

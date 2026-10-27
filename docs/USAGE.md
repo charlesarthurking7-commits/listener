@@ -33,7 +33,8 @@ summary when you stop.
    gcloud auth application-default login
    ```
 
-   Then choose **Open Settings File** in the menu bar menu and set your project ID:
+   Then choose **Settings…** in the menu bar menu, pick **Google Cloud** under Speech, and
+   fill in the project, or set it in `settings.json`:
 
    ```json
    { "speech": { "googleProjectID": "your-gcp-project-id" } }
@@ -97,17 +98,21 @@ Meet or Teams, and never takes keyboard focus from them: clicking its buttons le
 your call app active. Drag it by the empty part of its top or bottom bar and resize it
 from any edge; it reopens where you left it, on the same display if it is still there.
 
-During a call it shrinks to a slim bar: a red pill with a pulsing dot and the call's
-time, **Quick**, **Deep** and **Recap** buttons, the transcript button, **Stop** and the
-button that hides the window. An answer opens as a card under the bar and stays until
-you close it or ask for another, and the window shrinks back after. The transcript is
-still recorded and saved, and answers, recaps and the summary use it; the speech-bubble
-button shows it.
+During a call it shrinks to a slim bar: a red chip with a pulsing dot and the call's
+time, a **Quick**, **Deep** and **Recap** switch that also shows which answer is on
+screen, the transcript button, **Stop** (the red square) and the button that hides the
+window. An answer opens as a card under the bar and stays until you close it or ask for
+another, and the window shrinks back after. The transcript is still recorded and saved,
+and answers, recaps and the summary use it; the transcript button shows it.
 
 Before and after a call, from top to bottom:
 
-- **Header.** A grey dot and "Not listening", **Start**, and the button that hides the
-  window (show it again from the menu bar, or with Control-Option-H).
+- **Header.** Listener and whether it is ready, **Start** with its hotkey, the button
+  that opens the main window, and the one that hides this window (show it again from the
+  menu bar, or with Control-Option-H).
+- **This call and shortcuts.** Before a call, the call type and its background (see Call
+  types below), the hotkeys, and one line saying everything is set, which opens into
+  what was checked: the microphone, system audio, speech to text and the API key.
 - **Banners.** Warnings during the call, such as a silent channel or a capture restart.
 - **Answer card.** Appears at the top when you press an answer hotkey: a **Quick**,
   **Deep** or **Recap** badge, the model, the time from the hotkey to the first word, a
@@ -119,7 +124,7 @@ Before and after a call, from top to bottom:
   square brackets, which are for you and not to be said, are shown apart under
   "For you". Copy leaves those notes out. A failed answer offers **Try Again**. Closing
   a card that is still streaming cancels it.
-- **Transcript.** Turns are grouped by speaker under "Me" (teal) or "Them" (amber) with
+- **Transcript.** Turns are grouped by speaker under "You" (indigo) or "Them" (amber) with
   the time they started. Text still being recognised is dimmed until it settles. Short
   fillers that speech recognition makes up in near silence ("Yeah.", "Okay.") are
   dropped when Listener heard no speech under them. The
@@ -128,19 +133,19 @@ Before and after a call, from top to bottom:
 - **After Stop.** A card shows the call being saved, then "Call saved" with its length,
   turns and cost, **Show in Finder**, and **New Call** to go back to the start screen and
   set up the next call. The summary is written after that, which takes a minute or so:
-  **Open Summary** appears when it is ready. You can start the next call meanwhile, and
-  the summary then turns up as a notice.
+  **Open Summary** appears when it is ready and opens the call in the main window. You
+  can start the next call meanwhile, and the summary then turns up as a notice.
 - **Footer.** The call's running cost (hover for the split between speech-to-text and
   Claude), the first-word time of the last answer, and **Quick**, **Deep** and **Recap**
   buttons with their hotkeys. Clicking one does the same as pressing its hotkey.
 
-The window follows Light and Dark Mode. With Reduce Motion on, the dot and the answer
-placeholder stay still and cards appear without sliding; with Reduce Transparency the
-background is solid.
+The window follows Light and Dark Mode, and is set in Geist. With Reduce Motion on, the
+dot and the answer placeholder stay still and cards appear without sliding; with Reduce
+Transparency the background is solid.
 
 ### Window options
 
-Under **Window** in the menu bar:
+Under **Window** in the menu bar, and in the main window's **Settings**, General:
 
 - **Move to Top Centre** puts the window just under the menu bar, near the camera, so
   reading an answer looks like looking at the person.
@@ -160,13 +165,56 @@ Under **Window** in the menu bar:
 
 The waveform icon is filled while Listener is listening, with a small dot beside it
 while the window is hidden from screen sharing. Its menu shows whether
-Listener is listening and for how long, then Start/Stop Listening, Quick Answer, Deep
-Answer and Recap So Far with their hotkeys, Call Type, Show or Hide Window, Window, Open
-Last Summary (after a call), Open Sessions Folder, Open Settings File and Quit Listener.
+Listener is listening and for how long, with **Open Listener** above it, then Start/Stop
+Listening, Quick Answer, Deep Answer and Recap So Far with their hotkeys, the dictation
+items, Call Type, Show or Hide Window, Window, Open Last Summary (after a call), **Calls**,
+**Settings…** and Quit Listener.
 Quitting during a call stops and saves it first, and waits up to 30 s for a summary being
 written; a summary cut off then is written the next time Listener starts. `kill`, or
 Ctrl-C in the terminal that started the app, quits the same way (press Ctrl-C twice to
 quit without waiting).
+
+## The main window
+
+**Open Listener** in the menu bar menu, the sidebar button in the floating window, or
+opening the app again from Finder or the Dock shows it. While it is open Listener is in
+the Dock and the app switcher; close it and Listener goes back to the menu bar (unless
+`window.showDockIcon` keeps it there). It has four sections, also under View with
+Command-1 to Command-4.
+
+**Start call** at the top of the sidebar does what Start does, and brings up the floating
+window, which is where a call is run from: it stays on top of the call app. The menu under
+it picks the call type the next call uses. During a call, Quick, Deep and Recap sit under
+**Stop call**, and the call is at the top of Calls as **Live**, with its answer and
+transcript as they come.
+
+- **Calls.** Every saved call, newest first, by day, leaving out calls where nothing was
+  said. Each is titled by its summary (older calls by their type and date), with its
+  type, time, length and how many of your action items are still to do. Search finds
+  words in titles, summaries and transcripts, with every word of the search somewhere in
+  the call, and shows the line that matched. A call's page has three tabs:
+  - **Summary**: what the call was about, your action items and, under Waiting on
+    others, everyone else's (tick them off; the tick is saved in `summary.md`), what was
+    decided and what is still open, and the follow-up email with a Copy button. An item
+    shared with you, or with no owner, counts as yours. A call without a summary can
+    have one written there.
+  - **Transcript**: every turn, with each suggested answer placed where you asked for it.
+  - **Answers**: each answer with its model, speed and cost, and a Copy button.
+  The folder button shows the call in Finder; the menu next to it opens `summary.md`, the
+  sessions folder, or moves the call to the Bin.
+- **Call types.** The same folders as the This call card, edited in place: how answers
+  should go, the brief and the stories (each opens in an editor here instead of
+  TextEdit), and the background files, with how much of the 20k-token allowance they
+  use. Drop files on it, paste text or a link, add a call type, or rename, duplicate or
+  delete one. **Use for the next call** picks it for the next Start.
+- **Dictionary.** The words dictation spells your way, learned or added, with what each
+  was heard as, and dictation's own switches: tidying, lists, learning, sounds, the
+  microphone and the recognizer.
+- **Settings.** Everything in `settings.json` that people change, as switches and menus:
+  the floating window, answers and their models, speech, shortcuts (click one and press
+  the new keys), storage and privacy, and the API key. Each change is saved to the file at
+  once and checked the way loading checks it, so a change that would break it is refused
+  with the reason. The sidebar card adds up what calls have cost on Claude this month.
 
 ## Call types
 
@@ -271,11 +319,11 @@ microphone level while it listens, then ripples while it works.
   "fix" to "FIX", "Kestrel Moore" to "Kestrelmoor") it learns the spelling, says so in
   the capsule with **Undo**, and uses it from the next dictation on. Rewording and fixes
   to ordinary words are left alone. The words live in `dictionary.txt` in Listener's
-  folder, one per line with what it was heard as: **Open Dictionary** in the menu bar
-  opens it, and deleting a line forgets the word. Apps that don't share their text
-  through Accessibility can't be learned from. The field is read on the Mac only; just
-  the learned words go to Claude, with later dictations. `dictation.learnWords` turns it
-  off.
+  folder, one per line with what it was heard as. The main window's **Dictionary** shows
+  them, newest first: forget one there, add your own, or open the file and delete a
+  line. Apps that don't share their text through Accessibility can't be learned from.
+  The field is read on the Mac only; just the learned words go to Claude, with later
+  dictations. `dictation.learnWords` turns it off.
 - **Names and terms** can also go in `dictation.vocabulary`, for example
   `["Pelican", "MT5", "Charlie King"]`. Your `answers.context` is used too.
 
@@ -323,6 +371,7 @@ show as dimmed lines.
 listener demo                                  # a recorded call in the window, answers from Claude
 listener demo --scripted-answers               # canned answers: no API key, Keychain or network
 listener demo --call Fixtures/leverage-mirroring
+listener demo --open calls --appearance dark   # the main window too, in dark mode
 ```
 
 Opens the app with a recorded call in place of your microphone and system audio. Press
@@ -404,8 +453,9 @@ deleted when Listener starts.
 
 Listener reads `~/Library/Application Support/Listener/settings.json`, or the file given
 with `--settings` (the app and the `live`, `replay`, `sessions` and `summarize` commands
-accept it). **Open Settings File** creates a
-starter file with the values people change most. The file only needs the values you
+accept it). The main window's **Settings** changes it for you, a value at a time, and
+**Open settings.json** at the bottom of its list opens it, creating a starter file with
+the values people change most. The file only needs the values you
 want to change: anything left out keeps its default, at every level.
 [`settings.example.json`](../settings.example.json) lists every option with its default.
 
@@ -423,7 +473,8 @@ want to change: anything left out keeps its default, at every level.
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
 The window reads the file again on every Start, so changes apply to the next call.
-Hotkey and window changes need a restart.
+Hotkeys and always-on-top changed in **Settings** apply at once; edited in the file, they
+need a restart.
 
 Mistakes are reported with the key that is wrong, for example
 `storage.retentionDays should be a whole number, but is "thirty"`. Unknown keys, such as
@@ -439,6 +490,9 @@ Listener looks for `ANTHROPIC_API_KEY` in this order and uses the first it finds
 2. The environment variable `ANTHROPIC_API_KEY`.
 3. A `.env` file in the current directory.
 4. `~/Library/Application Support/Listener/.env`.
+
+Or paste it in the main window, under **Settings**, API key, which saves it in the
+Keychain (item 1).
 
 `.env` files hold `KEY=value` lines; quotes and `#` comments work as in a shell.
 `listener secrets status` shows where the key was found without printing it. Keys are

@@ -233,7 +233,7 @@ public struct LoadedCallType: Sendable, Equatable {
 }
 
 extension CallTypeLibrary {
-    static let instructionsHeader = """
+    public static let instructionsHeader = """
         <!--
         How answers should go on this kind of call. Everything outside these comment marks goes
         to Claude with every answer, recap and summary, and wins over Listener's general rules
@@ -245,7 +245,7 @@ extension CallTypeLibrary {
 
         """
 
-    static let briefTemplate = """
+    public static let briefTemplate = """
         <!--
         Notes for your next call of this kind: who it is with, what it is for, and anything
         Listener should know. Everything outside these comment marks goes to Claude with every
@@ -254,7 +254,7 @@ extension CallTypeLibrary {
 
         """
 
-    static let storiesTemplate = """
+    public static let storiesTemplate = """
         <!--
         Your stories for "tell me about a time" questions, one block per story: a heading with
         a short name, a "Good for:" line with the kinds of question it answers, then the four

@@ -3,15 +3,20 @@
 #
 # macOS ties Microphone and System Audio Recording permissions to the app's code
 # signature. An ad-hoc signature changes on every build, so macOS asks again after
-# each rebuild. A certificate named "Listener Dev" in the keychain (see README) is
-# used automatically to keep permissions across builds; LISTENER_SIGNING_IDENTITY
-# picks another.
+# each rebuild. A signing certificate in the keychain keeps them across builds (see
+# README): an Apple Development one is used first, then one named "Listener Dev";
+# LISTENER_SIGNING_IDENTITY picks another. Only the Apple one carries a Team ID, without
+# which the Keychain's "Always Allow" lasts only until the next build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 configuration="${CONFIGURATION:-release}"
 identity="${LISTENER_SIGNING_IDENTITY:-}"
-if [ -z "$identity" ] && security find-identity -p codesigning 2>/dev/null | grep '"Listener Dev"' >/dev/null; then
+identities="$(security find-identity -p codesigning 2>/dev/null || true)"
+if [ -z "$identity" ]; then
+    identity="$(sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' <<<"$identities" | head -1)"
+fi
+if [ -z "$identity" ] && grep '"Listener Dev"' <<<"$identities" >/dev/null; then
     identity="Listener Dev"
 fi
 identity="${identity:--}"
@@ -32,6 +37,9 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary" "$app/Contents/MacOS/listener"
 cp App/Info.plist "$app/Contents/Info.plist"
 cp App/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+# Geist and Geist Mono, registered by the app at launch (Fonts.swift), with their licence.
+mkdir -p "$app/Contents/Resources/Fonts"
+cp App/Fonts/*.ttf App/Fonts/OFL.txt "$app/Contents/Resources/Fonts/"
 codesign --force --sign "$identity" "$app"
 
 echo "Built $app (signed with ${identity/#-/ad-hoc identity})"

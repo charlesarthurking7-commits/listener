@@ -9,6 +9,10 @@ public enum ListenerApplication {
     /// or the main queue (and with it the main actor) would never be drained.
     public static func run(environment: AppEnvironment) -> Never {
         let app = NSApplication.shared
+        Fonts.register()
+        if let appearance = environment.appearance {
+            app.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+        }
         let delegate = AppDelegate(environment: environment)
         app.delegate = delegate
         app.setActivationPolicy(environment.launchSettings.settings.window.showDockIcon ? .regular : .accessory)
@@ -28,6 +32,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeys: HotkeyCenter?
     private var dictation: DictationController?
     private var dictationPill: DictationPill?
+    private var mainWindow: MainWindowController?
     private var quitSignals: [any DispatchSourceSignal] = []
     private var terminationPending = false
 
@@ -43,6 +48,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let rootView = ListenerWindowView(
             model: model, room: room,
             hide: { [weak self] in self?.panel?.orderOut(nil) },
+            showMain: { [weak self] in self?.showMainWindow(nil, call: $0) },
             fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
         panel = FloatingPanel(rootView: rootView, window: settings.window, room: room)
 
@@ -58,6 +64,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.showWindow()
                     self?.panel?.moveToTopCentre()
                 },
+                openMainWindow: { [weak self] in self?.showMainWindow($0) },
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
@@ -70,11 +77,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
         self.hotkeys = hotkeys
         setUpDictation(dictation)
+        NSApp.mainMenu = MainMenu.make(
+            openSettings: { [weak self] in self?.showMainWindow(.settings) },
+            showSection: { [weak self] in self?.showMainWindow($0) })
 
         quitOnSignals()
         // The model checked the setup a moment ago; checking again would read the
         // Keychain twice at launch.
         panel?.show()
+        if let name = environment.mainWindowAtLaunch {
+            showMainWindow(MainWindowModel.Section(argument: name))
+        }
         Log.ui.info("Listener started")
     }
 
@@ -100,9 +113,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    /// Opening the app again (Finder, `open`, the Dock icon) brings back a hidden window.
+    /// Opening the app again (Finder, `open`, the Dock icon) opens the main window and
+    /// brings back the floating one.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showWindow()
+        showMainWindow(nil)
         return false
     }
 
@@ -169,6 +184,49 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             model.refreshCallTypes()
         }
         panel?.show()
+    }
+
+    /// Made the first time it is asked for, so a call-only session never builds it.
+    private func showMainWindow(_ section: MainWindowModel.Section?, call: URL? = nil) {
+        guard let dictation else {
+            return
+        }
+        if mainWindow == nil {
+            let model = MainWindowModel(call: model, dictation: dictation, environment: environment)
+            model.store.onChange = { [weak self] in self?.apply($0) }
+            model.settings.pauseHotkeys = { [weak self] in self?.pauseHotkeys($0) }
+            model.calls.showFloatingWindow = { [weak self] in self?.showWindow() }
+            mainWindow = MainWindowController(model: model)
+        }
+        mainWindow?.show(call == nil ? section : .calls)
+        if let call {
+            mainWindow?.model.calls.show(call)
+        }
+    }
+
+    /// Applies what can change without a restart as soon as Settings saves it: the
+    /// hotkeys and the floating window. The rest applies from the next call.
+    private func apply(_ settings: Settings) {
+        let hotkeysChanged = settings.hotkeys != model.settings.hotkeys
+        model.settingsChanged(settings)
+        panel?.apply(window: settings.window)
+        if hotkeysChanged, let hotkeys {
+            let wanted = settings.hotkeys.hotkeys
+            model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
+        }
+    }
+
+    /// While a shortcut is being recorded, pressing it must reach the recorder, not run.
+    private func pauseHotkeys(_ paused: Bool) {
+        guard let hotkeys else {
+            return
+        }
+        if paused {
+            _ = hotkeys.register([:])
+        } else {
+            let wanted = model.settings.hotkeys.hotkeys
+            model.hotkeysRegistered(wanted, failures: hotkeys.register(wanted))
+        }
     }
 
     private func toggleWindow() {

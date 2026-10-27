@@ -42,6 +42,22 @@ public enum JSONValue: Sendable, Equatable {
         return current
     }
 
+    /// A copy with `value` at `path`, adding objects on the way where needed, or with the
+    /// key taken out when `value` is nil. Objects a removal leaves empty go too.
+    func setting(_ value: JSONValue?, at path: [String]) -> JSONValue {
+        guard let key = path.first else {
+            return value ?? .object([:])
+        }
+        var object = objectValue ?? [:]
+        if path.count == 1 {
+            object[key] = value
+        } else {
+            let child = (object[key] ?? .object([:])).setting(value, at: Array(path.dropFirst()))
+            object[key] = value == nil && child == .object([:]) ? nil : child
+        }
+        return .object(object)
+    }
+
     /// `other` laid over `self`: objects merge key by key at every depth, anything
     /// else in `other` replaces what was there.
     public func merging(_ other: JSONValue) -> JSONValue {

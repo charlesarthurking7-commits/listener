@@ -20,7 +20,7 @@ public enum SessionSummarizer {
         "*The notes stop here: the summary reached its token limit (summary.model.maxTokens), so the rest is missing.*"
 
     /// Streams the summary request for `turns` to the end. `startedAt` and `duration`
-    /// (seconds) title the notes; without them the call is taken to have just ended.
+    /// (seconds) date the notes; without them the call is taken to have just ended.
     public static func generate(
         turns: [Turn], settings: Settings, call: CallContext = .none, model: any LanguageModelProvider,
         startedAt: Date? = nil, duration: Double? = nil

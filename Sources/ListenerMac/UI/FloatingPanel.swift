@@ -141,6 +141,12 @@ final class FloatingPanel: NSPanel {
         }
     }
 
+    /// Always on top or not, as changed in Settings.
+    func apply(window: WindowSettings) {
+        isFloatingPanel = window.alwaysOnTop
+        level = window.alwaysOnTop ? .floating : .normal
+    }
+
     /// Glass is drawn here; Solid's fill and Clear's dark tint are drawn by the content.
     /// Clear has light text, which reads over anything, so it is dark in Light Mode too.
     /// Hiding from screen sharing leaves the window out of every capture, screenshots

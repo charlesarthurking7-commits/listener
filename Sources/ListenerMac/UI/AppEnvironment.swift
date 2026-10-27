@@ -5,6 +5,8 @@ import ListenerCore
 /// from its component factory, so the UI never constructs providers itself.
 public struct AppEnvironment: Sendable {
     public var paths: ListenerPaths
+    /// The settings file in use: --settings, or settings.json in the support directory.
+    public var settingsFile: URL
     /// The settings at launch. Hotkeys and window options come from these.
     public var launchSettings: LoadedSettings
     /// Read again at every Start, so edits to settings.json apply to the next call.
@@ -17,6 +19,10 @@ public struct AppEnvironment: Sendable {
     public var prepareOnDeviceSpeech:
         @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void
     public var hasAnthropicKey: @Sendable () -> Bool
+    /// Where the Anthropic key is found, such as "Keychain" or a .env file, or nil.
+    public var anthropicKeySource: @Sendable () -> String?
+    /// Saves the key in the Keychain, or removes it there when nil.
+    public var storeAnthropicKey: @Sendable (String?) throws -> Void
     /// A web page as a Markdown document for a call's background.
     public var importWebPage: @Sendable (URL, Settings) async throws -> String
     /// Writes the summaries earlier calls still owe, because the app quit or crashed
@@ -24,9 +30,15 @@ public struct AppEnvironment: Sendable {
     public var finishDueSummaries: @Sendable (Settings) async -> [URL]
     /// Claude for tidying dictation, or nil without an Anthropic key.
     public var makeLanguageModel: @Sendable () -> (any LanguageModelProvider)?
+    /// The main window's section to open at launch ("calls", "call-types", "dictionary"
+    /// or "settings"), or nil to start with only the floating window.
+    public var mainWindowAtLaunch: String?
+    /// "light" or "dark" to override the Mac's appearance, for trying both in a demo.
+    public var appearance: String?
 
     public init(
         paths: ListenerPaths,
+        settingsFile: URL,
         launchSettings: LoadedSettings,
         loadSettings: @escaping @Sendable () throws -> LoadedSettings,
         makeComponents: @escaping @Sendable (Settings, SessionCallbacks) throws -> SessionComponents,
@@ -34,20 +46,29 @@ public struct AppEnvironment: Sendable {
         prepareOnDeviceSpeech:
             @escaping @Sendable (Settings, @escaping @Sendable (OnDeviceSpeechStatus) -> Void) async -> Void,
         hasAnthropicKey: @escaping @Sendable () -> Bool,
+        anthropicKeySource: @escaping @Sendable () -> String?,
+        storeAnthropicKey: @escaping @Sendable (String?) throws -> Void,
         importWebPage: @escaping @Sendable (URL, Settings) async throws -> String,
         finishDueSummaries: @escaping @Sendable (Settings) async -> [URL],
-        makeLanguageModel: @escaping @Sendable () -> (any LanguageModelProvider)?
+        makeLanguageModel: @escaping @Sendable () -> (any LanguageModelProvider)?,
+        mainWindowAtLaunch: String? = nil,
+        appearance: String? = nil
     ) {
         self.paths = paths
+        self.settingsFile = settingsFile
         self.launchSettings = launchSettings
         self.loadSettings = loadSettings
         self.makeComponents = makeComponents
         self.googleSetup = googleSetup
         self.prepareOnDeviceSpeech = prepareOnDeviceSpeech
         self.hasAnthropicKey = hasAnthropicKey
+        self.anthropicKeySource = anthropicKeySource
+        self.storeAnthropicKey = storeAnthropicKey
         self.importWebPage = importWebPage
         self.finishDueSummaries = finishDueSummaries
         self.makeLanguageModel = makeLanguageModel
+        self.mainWindowAtLaunch = mainWindowAtLaunch
+        self.appearance = appearance
     }
 }
 

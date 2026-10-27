@@ -3,7 +3,7 @@ import SwiftUI
 
 /// What the window shows before a call. Until every permission and setting that
 /// matters is in place, an onboarding checklist with a one-click fix for each item;
-/// after that, a calm "ready" screen with the hotkeys and a compact status list.
+/// after that, the call's setup, the shortcuts and one line saying all is well.
 struct SetupView: View {
     let model: CallModel
 
@@ -24,21 +24,21 @@ private struct SetupChecklist: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Set up Listener")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.geist(19, .semibold))
                     .tracking(-0.3)
                     .accessibilityAddTraits(.isHeader)
                 Text("A few things before your first call. Nothing is recorded until you press Start.")
-                    .font(.system(size: 13))
+                    .font(.geist(12.5))
                     .lineSpacing(2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
+                    .padding(.top, 5)
                 ProgressSegments(progress: progress)
-                    .padding(.top, 14)
+                    .padding(.top, 16)
                 Text("\(progress.done) of \(progress.total) ready")
-                    .font(Theme.metaFont)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 6)
+                    .font(.geistMono(11))
+                    .foregroundStyle(Theme.tertiaryText)
+                    .padding(.top, 7)
                 VStack(spacing: 0) {
                     ForEach(Array(model.readiness.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
@@ -47,17 +47,17 @@ private struct SetupChecklist: View {
                         ChecklistRow(item: item, perform: model.perform)
                     }
                 }
-                .panel()
+                .card()
                 .padding(.top, 14)
                 HStack {
                     Text("Changed something?")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.tertiaryText)
                     Spacer()
                     Button("Check Again", action: model.refreshReadiness)
                         .buttonStyle(LinkButtonStyle())
                         .accessibilityHint("Checks permissions, settings and the API key again")
                 }
-                .font(.system(size: 12))
+                .font(.geist(12))
                 .padding(.top, 14)
             }
             .padding(.horizontal, Theme.gutter)
@@ -75,7 +75,7 @@ private struct ProgressSegments: View {
         HStack(spacing: 4) {
             ForEach(0..<progress.total, id: \.self) { index in
                 Capsule()
-                    .fill(index < progress.done ? AnyShapeStyle(.green) : AnyShapeStyle(Theme.strongFill))
+                    .fill(index < progress.done ? AnyShapeStyle(Theme.ready) : AnyShapeStyle(Theme.selection))
                     .frame(height: 4)
             }
         }
@@ -91,16 +91,15 @@ private struct ChecklistRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ReadinessIcon(status: item.status, size: 20)
-                .frame(width: 22, height: 22)
-                .padding(.top, -2)
-            VStack(alignment: .leading, spacing: 2) {
+            ReadinessIcon(status: item.status, size: 18)
+                .frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.geist(13, .semibold))
                 Text(item.detail)
-                    .font(.system(size: 12))
+                    .font(.geist(12))
                     .lineSpacing(2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let fix = item.fix {
                     FixControl(fix: fix, status: item.status, perform: perform)
@@ -126,7 +125,7 @@ private struct FixControl: View {
         case .runInTerminal(let command):
             HStack(spacing: 8) {
                 Text(command)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.geistMono(11))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
@@ -141,8 +140,8 @@ private struct FixControl: View {
             }
             .padding(.leading, 10)
             .padding(.trailing, 2)
-            .frame(height: 28)
-            .panel(Theme.fill, radius: 7)
+            .frame(height: 32)
+            .panel(Theme.well, radius: 8)
             .padding(.top, 8)
         case .openPrivacySettings, .editSettings:
             if status == .blocking {
@@ -179,19 +178,19 @@ struct ReadinessIcon: View {
             switch status {
             case .ready:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.white, .green)
+                    .foregroundStyle(.white, Theme.ready)
             case .willAsk:
                 Image(systemName: "circle.dashed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.tertiaryText)
             case .preparing:
                 ProgressView()
                     .controlSize(.small)
             case .limited:
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.white, .orange)
+                    .foregroundStyle(.white, Theme.amber)
             case .blocking:
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.white, .red)
+                    .foregroundStyle(.white, Theme.danger)
             }
         }
         .font(.system(size: size))
@@ -209,58 +208,165 @@ struct ReadinessIcon: View {
     }
 }
 
-/// The call setup on top, then the hotkeys and the status list. Scrolls once a long list
-/// of files leaves too little room.
+/// The call's setup on top, then the shortcuts, then one line on whether everything is
+/// ready, which opens into the list. Scrolls once a long list of files leaves too little
+/// room.
 private struct ReadyView: View {
     let model: CallModel
 
     var body: some View {
         GeometryReader { proxy in
             ScrollView {
-                content
-                    .frame(minHeight: proxy.size.height)
+                VStack(alignment: .leading, spacing: 22) {
+                    CallSetupCard(model: model)
+                    ShortcutGrid(model: model)
+                    Spacer(minLength: 0)
+                    ReadinessSummary(model: model)
+                }
+                .padding(.horizontal, Theme.gutter)
+                .padding(.top, 18)
+                .padding(.bottom, Theme.gutter)
+                .frame(minHeight: proxy.size.height)
             }
             .scrollIndicators(.automatic)
         }
     }
+}
 
-    private var content: some View {
-        VStack(spacing: 0) {
-            CallSetupCard(model: model)
-                .padding([.horizontal, .top], Theme.gutter)
-            Spacer(minLength: 16)
-            Hero(
-                symbol: "waveform", tint: .accentColor, title: "Ready when you are",
-                message: "Press Start when the call begins.\nNothing is recorded until then.")
-            ShortcutTable(model: model, actions: [.toggleListening, .quickAnswer, .deepAnswer, .recap])
-                .padding(.top, 22)
-            Spacer(minLength: 16)
-            VStack(spacing: 0) {
-                ForEach(Array(model.readiness.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 {
-                        Hairline()
+/// The hotkeys that registered, two to a row.
+private struct ShortcutGrid: View {
+    let model: CallModel
+
+    var body: some View {
+        let actions: [HotkeyAction] = [.toggleListening, .quickAnswer, .deepAnswer, .recap].filter {
+            model.activeHotkeys[$0] != nil
+        }
+        if !actions.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel("Shortcuts")
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    ForEach(actions, id: \.self) { action in
+                        if let hotkey = model.activeHotkeys[action] {
+                            HStack(spacing: 8) {
+                                Image(systemName: symbol(action))
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(action == .toggleListening ? Theme.tertiaryText : Theme.accentText)
+                                    .frame(width: 14)
+                                Text(label(action))
+                                    .font(.geist(12.5, .medium))
+                                    .foregroundStyle(Theme.proseText)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                HotkeyKeycaps(hotkey: hotkey)
+                            }
+                            .padding(.leading, 11)
+                            .padding(.trailing, 9)
+                            .frame(height: 40)
+                            .card(radius: 10)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("\(label(action)): \(hotkey.spokenName)")
+                        }
                     }
-                    HStack(spacing: 8) {
-                        ReadinessIcon(status: item.status, size: 14)
-                            .frame(width: 16)
-                        Text(item.title)
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer(minLength: 8)
-                        Text(item.summary)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 30)
-                    .help(item.detail)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(item.title): \(item.summary)")
                 }
             }
-            .panel()
-            .padding(Theme.gutter)
         }
+    }
+
+    private func label(_ action: HotkeyAction) -> String {
+        switch action {
+        case .toggleListening: "Start or stop"
+        case .quickAnswer: "Quick answer"
+        case .deepAnswer: "Deep answer"
+        case .recap: "Recap"
+        case .toggleWindow: "Show or hide"
+        }
+    }
+
+    private func symbol(_ action: HotkeyAction) -> String {
+        switch action {
+        case .toggleListening: "record.circle"
+        case .quickAnswer: AnswerTier.quick.symbol
+        case .deepAnswer: AnswerTier.deep.symbol
+        case .recap: AnswerTier.recap.symbol
+        case .toggleWindow: "macwindow"
+        }
+    }
+}
+
+/// "All set", which opens into what was checked.
+private struct ReadinessSummary: View {
+    let model: CallModel
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            VStack(spacing: 0) {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        expanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Theme.ready)
+                            .frame(width: 7, height: 7)
+                            .background(Circle().fill(Theme.ready.opacity(0.18)).frame(width: 13, height: 13))
+                        Text(allReady ? "All set" : "Ready, with limits")
+                            .font(.geist(12.5, .medium))
+                        Text(model.readiness.map(\.title).joined(separator: ", "))
+                            .font(.geist(12))
+                            .foregroundStyle(Theme.tertiaryText)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.tertiaryText)
+                            .rotationEffect(.degrees(expanded ? 90 : 0))
+                    }
+                    .padding(.leading, 14)
+                    .padding(.trailing, 12)
+                    .frame(height: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(allReady ? "Setup: all set" : "Setup: ready, with limits")
+                .accessibilityHint(expanded ? "Hides what was checked" : "Shows what was checked")
+                if expanded {
+                    ForEach(model.readiness) { item in
+                        Hairline()
+                        HStack(spacing: 9) {
+                            ReadinessIcon(status: item.status, size: 13)
+                                .frame(width: 15)
+                            Text(item.title)
+                                .font(.geist(12, .medium))
+                            Spacer(minLength: 8)
+                            Text(item.summary)
+                                .font(.geist(11.5))
+                                .foregroundStyle(Theme.tertiaryText)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .help(item.detail)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(item.title): \(item.summary)")
+                    }
+                }
+            }
+            .card()
+            HStack(spacing: 6) {
+                Image(systemName: "lock")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Nothing is recorded until you press Start.")
+            }
+            .font(.geist(11.5))
+            .foregroundStyle(Theme.tertiaryText)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var allReady: Bool {
+        model.readiness.allSatisfy { $0.status == .ready }
     }
 }
 
@@ -273,7 +379,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Hero(symbol: "waveform", tint: Color.secondary.opacity(0.6), title: title, message: message)
+            Hero(title: title, message: message)
             if showsHearing, let hearing = model.hearing {
                 HearingChips(hearing: hearing)
                     .padding(.top, 16)
@@ -288,30 +394,29 @@ struct EmptyStateView: View {
 }
 
 private struct Hero: View {
-    let symbol: String
-    let tint: Color
     let title: String
     let message: String
 
     var body: some View {
         VStack(spacing: 0) {
-            Image(systemName: symbol)
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(height: 40)
+            Image(systemName: "waveform")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(Theme.tertiaryText)
+                .frame(width: 44, height: 44)
+                .card(radius: 12)
                 .padding(.bottom, 14)
                 .accessibilityHidden(true)
             Text(title)
-                .font(.system(size: 17, weight: .semibold))
-                .tracking(-0.3)
+                .font(.geist(15, .semibold))
+                .tracking(-0.2)
                 .accessibilityAddTraits(.isHeader)
             Text(message)
-                .font(.system(size: 13))
+                .font(.geist(12.5))
                 .lineSpacing(2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
+                .padding(.top, 5)
         }
     }
 }
@@ -325,14 +430,15 @@ private struct HearingChips: View {
         HStack(spacing: 8) {
             ForEach(Speaker.allCases, id: \.self) { speaker in
                 let active = hearing.contains(speaker)
-                Label(speaker.rawValue, systemImage: "waveform")
+                Label(speaker.spokenName, systemImage: "waveform")
                     .labelStyle(CompactLabelStyle(spacing: 5))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(active ? AnyShapeStyle(speaker.tint) : AnyShapeStyle(.tertiary))
+                    .font(.geist(12, .semibold))
+                    .foregroundStyle(active ? AnyShapeStyle(speaker.tint) : AnyShapeStyle(Theme.tertiaryText))
                     .padding(.horizontal, 10)
                     .frame(height: 24)
                     .background(
-                        active ? AnyShapeStyle(speaker.tint.opacity(0.14)) : AnyShapeStyle(Theme.fill), in: Capsule()
+                        active ? AnyShapeStyle(speaker.tint.opacity(0.14)) : AnyShapeStyle(Theme.hover),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                     )
                     .accessibilityLabel("\(speaker.spokenName): \(active ? "hearing speech" : "quiet")")
             }
@@ -350,8 +456,8 @@ private struct ShortcutTable: View {
                 if let hotkey = model.activeHotkeys[action] {
                     GridRow {
                         Text(label(action))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(.geist(12))
+                            .foregroundStyle(Theme.secondaryText)
                             .gridColumnAlignment(.trailing)
                         HotkeyKeycaps(hotkey: hotkey, large: true)
                     }

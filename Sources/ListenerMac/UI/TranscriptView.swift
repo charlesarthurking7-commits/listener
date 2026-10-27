@@ -10,6 +10,7 @@ import SwiftUI
 struct TranscriptView: View {
     let model: CallModel
     @State private var followsLatest = true
+    @State private var isUserScrolling = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let bottom = "bottom"
@@ -32,6 +33,9 @@ struct TranscriptView: View {
             // While following, growing text and a card appearing above both keep the
             // newest line in place at the bottom. After scrolling up, nothing moves.
             .defaultScrollAnchor(followsLatest ? .bottom : nil, for: .sizeChanges)
+            .onScrollPhaseChange { _, phase in
+                isUserScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
+            }
             .onScrollGeometryChange(for: ScrollMetrics.self) { geometry in
                 ScrollMetrics(
                     offset: geometry.contentOffset.y,
@@ -40,10 +44,17 @@ struct TranscriptView: View {
             } action: { old, new in
                 if new.distanceFromBottom <= 24 {
                     followsLatest = true
-                } else if new.offset < old.offset - 1 {
-                    // Only scrolling up unpins. New lines make the distance grow
-                    // without moving the offset, and must not stop the following.
+                } else if isUserScrolling, new.offset < old.offset - 1 {
+                    // Only the user scrolling up unpins. New lines, rows being measured
+                    // and the answer card changing size above all move the content too,
+                    // and must not stop the following.
                     followsLatest = false
+                }
+            }
+            .onAppear {
+                // Rows are measured as they appear, so the first offset can fall short.
+                Task {
+                    proxy.scrollTo(Self.bottom, anchor: .bottom)
                 }
             }
             .onChange(of: model.transcriptRevision) {
@@ -106,13 +117,13 @@ private struct TranscriptRowView: View, Equatable {
         VStack(alignment: .leading, spacing: 3) {
             if row.showsSpeaker {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(row.speaker.rawValue)
-                        .font(.system(size: 12, weight: .semibold))
+                    Text(row.speaker.spokenName)
+                        .font(.geist(12, .semibold))
                         .foregroundStyle(row.speaker.tint)
                     if let start = row.start {
                         Text(DisplayFormat.clock(start))
-                            .font(.system(size: 11, weight: .medium).monospacedDigit())
-                            .foregroundStyle(.tertiary)
+                            .font(.geistMono(11))
+                            .foregroundStyle(Theme.tertiaryText)
                     }
                 }
                 .frame(height: 16)
@@ -120,7 +131,7 @@ private struct TranscriptRowView: View, Equatable {
             Text(row.text)
                 .font(Theme.transcriptFont)
                 .lineSpacing(Theme.transcriptLineSpacing)
-                .foregroundStyle(row.isInterim ? .secondary : .primary)
+                .foregroundStyle(row.isInterim ? Theme.tertiaryText : Theme.proseText)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -144,7 +155,7 @@ private struct JumpToLatestButton: View {
         Button(action: action) {
             Label("Jump to latest", systemImage: "arrow.down")
                 .labelStyle(CompactLabelStyle(spacing: 5))
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(12, .semibold))
                 .padding(.horizontal, 12)
                 .frame(height: 28)
                 .contentShape(Capsule())
@@ -172,15 +183,17 @@ private struct FloatingCapsule: ViewModifier {
     }
 }
 
-/// Lines scrolling under the answer card fade out instead of being cut off. Uses the
-/// system's own scroll edge effect on macOS 26, which costs nothing extra; earlier
-/// systems keep the plain edge rather than pay for a mask on every scroll.
+/// Lines scrolling up to the answer card fade out over a few points instead of being cut
+/// off under its edge and shadow. The mask is fixed to the view, not the content, so the
+/// render server draws it once rather than on every scroll.
 private struct SoftTopEdge: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content.scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
-            content
+        content.mask {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0), .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 18)
+                Rectangle()
+            }
         }
     }
 }

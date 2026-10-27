@@ -27,6 +27,9 @@ final class CallModel {
     private(set) var cost = CostSummary()
     private(set) var lastLatencyMs: Double?
     private(set) var outcome: CallOutcome?
+    /// Counts the times summaries left unfinished last time were dealt with, written or
+    /// given up on, so the calls list reads them again.
+    private(set) var dueSummariesFinished = 0
     /// Which channels hear speech right now; nil while the session does not report it.
     private(set) var hearing: Set<Speaker>?
 
@@ -114,6 +117,17 @@ final class CallModel {
             hasAnthropicKey: environment.hasAnthropicKey()
         )
         updateReadiness()
+    }
+
+    /// Settings changed in the main window. A running call keeps the ones it started
+    /// with; the next call reads the file again anyway.
+    func settingsChanged(_ settings: Settings) {
+        guard !isCallRunning else {
+            return
+        }
+        self.settings = settings
+        refreshReadiness()
+        prepareOnDeviceSpeechIfNeeded()
     }
 
     func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
@@ -455,6 +469,7 @@ final class CallModel {
                     .info, "The summary Listener was writing when it quit is ready.", action: .openFile(path: file.path)
                 )
             }
+            dueSummariesFinished += 1
         }
     }
 

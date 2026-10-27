@@ -12,13 +12,19 @@ struct ListenerWindowView: View {
     let model: CallModel
     let room: PanelRoom
     let hide: @MainActor () -> Void
+    /// Opens the main window, on a saved call when given its folder.
+    let showMain: @MainActor (URL?) -> Void
     /// The height the compact window needs, or nil for the full window.
     let fitHeight: @MainActor (CGFloat?) -> Void
 
     var body: some View {
         Group {
             if model.isCompact {
-                CompactCallView(model: model, room: room, hide: hide)
+                // The window's minimum size is measured at no width at all, where a
+                // banner's words would stack one per line into a window taller than the
+                // screen. It is never narrower than this.
+                CompactCallView(model: model, room: room, hide: hide, showMain: showMain)
+                    .frame(minWidth: 320)
                     .fixedSize(horizontal: false, vertical: true)
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.size.height
@@ -28,9 +34,9 @@ struct ListenerWindowView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 VStack(spacing: 0) {
-                    HeaderBar(model: model, hide: hide)
+                    HeaderBar(model: model, hide: hide, showMain: showMain)
                     Hairline()
-                    WindowContent(model: model)
+                    WindowContent(model: model, showMain: showMain)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     Hairline()
                     FooterBar(model: model)
@@ -56,7 +62,7 @@ private struct WindowBackground: View {
         let shape = RoundedRectangle(cornerRadius: Theme.windowRadius, style: .continuous)
         switch transparency {
         case .solid:
-            shape.fill(Color(nsColor: .windowBackgroundColor))
+            shape.fill(Theme.windowBackground)
                 .overlay { shape.strokeBorder(Theme.windowEdge, lineWidth: 1) }
         case .glass:
             shape.strokeBorder(Theme.windowEdge, lineWidth: 1)
@@ -71,11 +77,12 @@ private struct CompactCallView: View {
     let model: CallModel
     let room: PanelRoom
     let hide: @MainActor () -> Void
+    let showMain: @MainActor (URL?) -> Void
     @State private var noticesHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderBar(model: model, hide: hide)
+            HeaderBar(model: model, hide: hide, showMain: showMain)
             if let id = model.answerID {
                 AnswerCardView(model: model, maxTextHeight: maxTextHeight)
                     .id(id)
@@ -111,6 +118,7 @@ private struct WindowContent: View {
     }
 
     let model: CallModel
+    let showMain: @MainActor (URL?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -124,7 +132,7 @@ private struct WindowContent: View {
                         .id(id)
                         .modifier(CardPlacement(reduceMotion: reduceMotion))
                 case .outcome:
-                    CallOutcomeCard(model: model)
+                    CallOutcomeCard(model: model, showMain: showMain)
                         .modifier(CardPlacement(reduceMotion: reduceMotion))
                 }
                 NoticeStack(model: model, spacingAbove: card == .none ? 8 : 4)
@@ -156,7 +164,7 @@ private struct CardPlacement: ViewModifier {
         content
             .padding(.horizontal, Theme.cardInset)
             .padding(.top, 8)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
             // Words must be readable from the first frame, so a card slides in a few
             // points but is never faded in.
             .transition(reduceMotion ? .identity : .asymmetric(insertion: .offset(y: -8), removal: .opacity))
@@ -204,158 +212,236 @@ extension MainContent {
 private struct HeaderBar: View {
     let model: CallModel
     let hide: @MainActor () -> Void
+    let showMain: @MainActor (URL?) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            ListeningStatus(model: model)
-            Spacer(minLength: 8)
+        HStack(spacing: 4) {
             if model.isInCall {
+                RecordingChip(model: model)
+                Spacer(minLength: 8)
                 ViewThatFits(in: .horizontal) {
-                    AnswerButtons(model: model)
+                    AnswerSwitcher(model: model, titled: true)
+                    AnswerSwitcher(model: model, titled: false)
                     Color.clear.frame(width: 0, height: 0)
                 }
                 Button(action: model.toggleTranscriptInCall) {
-                    Image(systemName: model.showsTranscriptInCall ? "text.bubble.fill" : "text.bubble")
+                    Image(systemName: "text.alignleft")
                 }
-                .buttonStyle(IconButtonStyle())
+                .buttonStyle(IconButtonStyle(isOn: model.showsTranscriptInCall))
                 .help(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
                 .accessibilityLabel(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
+                StopButton(model: model)
+            } else {
+                AppMark()
+                    .padding(.trailing, 5)
+                Text("Listener")
+                    .font(.geist(13.5, .semibold))
+                    .tracking(-0.1)
+                Circle()
+                    .fill(Theme.strongBorder)
+                    .frame(width: 3, height: 3)
+                    .padding(.horizontal, 5)
+                IdleStatus(model: model)
+                Spacer(minLength: 8)
+                StartButton(model: model)
+                    .padding(.trailing, 2)
+                Button {
+                    showMain(nil)
+                } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .buttonStyle(IconButtonStyle())
+                .help("Open Listener: your calls, call types, dictionary and settings")
+                .accessibilityLabel("Open Listener")
             }
-            StartStopButton(model: model)
             Button(action: hide) {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(IconButtonStyle())
+            .buttonStyle(IconButtonStyle(size: model.isInCall ? 24 : 28))
             .help("Hide the window. Show it again from the menu bar.")
             .accessibilityLabel("Hide window")
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 12)
+        .padding(.leading, model.isInCall ? 11 : 14)
+        .padding(.trailing, 8)
         .frame(height: Theme.headerHeight)
         .background(WindowDragArea())
     }
 }
 
-/// Quick, Deep and Recap as icons, for the bar during a call. Left out when the window
-/// is too narrow; the hotkeys and the menu still work.
-private struct AnswerButtons: View {
+/// Quick, Deep and Recap, with the answer on screen picked out. Icons only when the
+/// window is narrow, and left out when it is narrower still; the hotkeys and the menu
+/// still work.
+private struct AnswerSwitcher: View {
     let model: CallModel
+    let titled: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             ForEach(AnswerTier.allCases, id: \.self) { tier in
                 let hotkey = model.activeHotkeys[tier.hotkeyAction]
                 let name = tier.hotkeyAction.title
+                let isOn = model.answer?.tier == tier
                 Button {
                     model.ask(tier)
                 } label: {
-                    Image(systemName: tier.symbol)
+                    HStack(spacing: 5) {
+                        Image(systemName: tier.symbol)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(isOn ? Theme.accentText : Theme.tertiaryText)
+                        if titled {
+                            Text(tier.title)
+                        }
+                    }
                 }
-                .buttonStyle(IconButtonStyle())
+                .buttonStyle(SwitcherStyle(isOn: isOn))
                 .disabled(!model.canAsk)
                 .help(hotkey.map { "\(name): \($0.displayString)" } ?? name)
                 .accessibilityLabel(name)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
+        .padding(2)
+        .background(Theme.well, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.border, lineWidth: 1) }
+        .fixedSize()
     }
 }
 
-/// Whether audio is being captured, which must be obvious at a glance: a red pill with
-/// a pulsing dot and the call's length while listening, grey text otherwise. The header
-/// of a call also holds the answer buttons, so the pill makes its point without a word.
-private struct ListeningStatus: View {
+private struct SwitcherStyle: ButtonStyle {
+    let isOn: Bool
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        configuration.label
+            .font(.geist(12, .medium))
+            .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+            .background(isOn ? Theme.raised : configuration.isPressed ? Theme.hover : .clear, in: shape)
+            .overlay {
+                if isOn {
+                    shape.strokeBorder(Theme.highlight, lineWidth: 1)
+                }
+            }
+            .shadow(color: .black.opacity(isOn ? 0.2 : 0), radius: 1, y: 1)
+            .contentShape(shape)
+            .opacity(isEnabled ? 1 : 0.45)
+            .onHover { hovering = $0 }
+    }
+}
+
+/// Whether audio is being captured, which must be obvious at a glance: a red chip with
+/// a pulsing dot and the call's length.
+private struct RecordingChip: View {
     let model: CallModel
 
     var body: some View {
-        switch model.phase {
-        case .listening:
-            HStack(spacing: 2) {
+        HStack(spacing: 4) {
+            if model.phase == .listening {
                 // Room for the halo at its widest, so it is never clipped.
                 ListeningPulse()
-                    .frame(width: 20, height: 20)
+                    .frame(width: 18, height: 18)
                 if let since = model.listeningSince {
                     TimelineView(.periodic(from: since, by: 1)) { context in
                         Text(DisplayFormat.clock(context.date.timeIntervalSince(since)))
-                            .monospacedDigit()
                     }
                 }
-            }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.red)
-            .padding(.leading, 5)
-            .padding(.trailing, 12)
-            .frame(height: 28)
-            .background(Color.red.opacity(0.15), in: Capsule())
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Listening: audio is being captured")
-        case .starting:
-            HStack(spacing: 8) {
+            } else {
                 ProgressView()
-                    .controlSize(.small)
-                Text("Starting…")
+                    .controlSize(.mini)
+                    .frame(width: 18, height: 18)
+                Text(model.phase == .stopping ? "Saving" : "Starting")
+                    .font(.geist(12.5, .medium))
             }
-            .modifier(IdleStatusStyle())
-        case .idle, .stopping, .finished:
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(.tertiary)
-                    .frame(width: 8, height: 8)
-                Text("Not listening")
-            }
-            .modifier(IdleStatusStyle())
-            .accessibilityElement(children: .combine)
         }
+        .font(.geistMono(12.5, .medium))
+        .foregroundStyle(model.phase == .listening ? Theme.recordingText : Theme.secondaryText)
+        .padding(.leading, 4)
+        .padding(.trailing, 10)
+        .frame(height: 28)
+        .background(
+            model.phase == .listening ? Theme.recordingTint : Theme.hover,
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(model.phase == .listening ? Theme.recording.opacity(0.25) : Theme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(model.phase == .listening ? "Listening: audio is being captured" : "Starting")
     }
 }
 
-private struct IdleStatusStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.leading, 4)
-            .frame(height: 28)
-    }
-}
-
-private struct StartStopButton: View {
+private struct IdleStatus: View {
     let model: CallModel
 
     var body: some View {
-        if model.phase == .listening {
-            Button(action: model.stop) {
-                Label {
-                    Text("Stop")
-                } icon: {
-                    Image(systemName: "stop.fill")
-                        .foregroundStyle(.red)
+        Group {
+            switch model.phase {
+            case .starting:
+                Text("Starting…")
+            case .stopping:
+                Text("Saving…")
+            case .idle, .finished, .listening:
+                Text(Readiness.blocksStart(model.readiness) ? "Set up needed" : "Ready")
+            }
+        }
+        .font(.geist(12.5, .medium))
+        .foregroundStyle(Theme.tertiaryText)
+        .lineLimit(1)
+    }
+}
+
+private struct StartButton: View {
+    let model: CallModel
+
+    var body: some View {
+        Button(action: model.start) {
+            HStack(spacing: 7) {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text("Start")
+                if let hotkey = model.activeHotkeys[.toggleListening] {
+                    HotkeyKeycaps(hotkey: hotkey, onAccent: true)
+                        .padding(.trailing, -5)
                 }
             }
-            .buttonStyle(SoftButtonStyle())
-            .help(tooltip("Stop listening and save the call"))
-            .accessibilityLabel("Stop listening")
-            .accessibilityHint(hint)
-        } else {
-            Button(action: model.start) {
-                Label("Start", systemImage: "mic.fill")
-            }
-            .buttonStyle(FilledButtonStyle())
-            .disabled(!(model.phase == .idle || model.phase == .finished))
-            .help(tooltip("Start listening"))
-            .accessibilityLabel("Start listening")
-            .accessibilityHint(hint)
         }
+        .buttonStyle(FilledButtonStyle())
+        .disabled(!(model.phase == .idle || model.phase == .finished))
+        .help(
+            model.activeHotkeys[.toggleListening].map { "Start listening (\($0.displayString))" } ?? "Start listening"
+        )
+        .accessibilityLabel("Start listening")
+        .accessibilityHint(model.activeHotkeys[.toggleListening].map { "Shortcut: \($0.spokenName)" } ?? "")
     }
+}
 
-    private func tooltip(_ text: String) -> String {
-        guard let hotkey = model.activeHotkeys[.toggleListening] else {
-            return text
+private struct StopButton: View {
+    let model: CallModel
+
+    var body: some View {
+        Button(action: model.stop) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Theme.recording)
+                .frame(width: 9, height: 9)
+                .frame(width: 28, height: 28)
+                .background(Theme.control, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Theme.border, lineWidth: 1)
+                }
+                .contentShape(Rectangle())
         }
-        return "\(text) (\(hotkey.displayString))"
-    }
-
-    private var hint: String {
-        model.activeHotkeys[.toggleListening].map { "Shortcut: \($0.spokenName)" } ?? ""
+        .buttonStyle(.plain)
+        .disabled(model.phase != .listening)
+        .help(
+            model.activeHotkeys[.toggleListening].map { "Stop listening and save the call (\($0.displayString))" }
+                ?? "Stop listening and save the call"
+        )
+        .accessibilityLabel("Stop listening")
+        .accessibilityHint(model.activeHotkeys[.toggleListening].map { "Shortcut: \($0.spokenName)" } ?? "")
     }
 }
 
@@ -392,14 +478,15 @@ private struct NoticeBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 14))
+                .font(.system(size: 12.5))
                 .foregroundStyle(tint)
                 .padding(.top, 1)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(notice.message)
-                    .font(.system(size: 13))
+                    .font(.geist(12.5))
                     .lineSpacing(2)
+                    .foregroundStyle(Theme.proseText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let action = notice.action {
                     Button(action.title) { perform(action) }
@@ -417,14 +504,13 @@ private struct NoticeBanner: View {
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .padding(.vertical, 9)
-        .panel(background, radius: Theme.bannerRadius, stroke: notice.kind == .error ? .clear : Theme.cardStroke)
+        .panel(
+            notice.kind == .error ? Theme.danger.opacity(0.1) : Theme.surface, radius: Theme.bannerRadius,
+            stroke: notice.kind == .error ? Theme.danger.opacity(0.25) : Theme.border
+        )
         .transition(.move(edge: .top).combined(with: .opacity))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(kindName): \(notice.message)")
-    }
-
-    private var background: Color {
-        notice.kind == .error ? .red.opacity(0.12) : Theme.cardFill
     }
 
     private var kindName: String {
@@ -445,9 +531,9 @@ private struct NoticeBanner: View {
 
     private var tint: Color {
         switch notice.kind {
-        case .info: .accentColor
-        case .warning: .orange
-        case .error: .red
+        case .info: Theme.accentText
+        case .warning: Theme.amber
+        case .error: Theme.danger
         }
     }
 }
@@ -459,12 +545,14 @@ private struct FooterBar: View {
         HStack(spacing: 12) {
             if model.phase != .idle || model.cost.total > 0 {
                 Text(DisplayFormat.cost(model.cost.total))
+                    .font(.geistMono(11))
                     .help(costDetail)
                     .accessibilityLabel("Cost of this call: \(DisplayFormat.cost(model.cost.total))")
             }
             if let latency = model.lastLatencyMs {
                 Label(DisplayFormat.latency(milliseconds: latency), systemImage: "timer")
                     .labelStyle(CompactLabelStyle(spacing: 4))
+                    .font(.geistMono(11))
                     .help("Time from the hotkey to the first word of the last answer")
                     .accessibilityLabel("Last answer started in \(DisplayFormat.latency(milliseconds: latency))")
             }
@@ -474,8 +562,8 @@ private struct FooterBar: View {
                 hotkeyHints(titled: false)
             }
         }
-        .font(Theme.metaFont.monospacedDigit())
-        .foregroundStyle(.secondary)
+        .font(.geist(11.5))
+        .foregroundStyle(Theme.tertiaryText)
         .lineLimit(1)
         .padding(.leading, Theme.gutter)
         // The buttons' hover fill reaches 6 points past their text.
@@ -491,7 +579,7 @@ private struct FooterBar: View {
     }
 
     private func hotkeyHints(titled: Bool) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             ForEach(AnswerTier.allCases, id: \.self) { tier in
                 hint(tier, titled: titled)
             }
@@ -505,7 +593,7 @@ private struct FooterBar: View {
         return Button {
             model.ask(tier)
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 if let hotkey {
                     HotkeyKeycaps(hotkey: hotkey)
                 }

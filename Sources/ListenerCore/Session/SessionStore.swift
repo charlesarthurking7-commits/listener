@@ -240,8 +240,7 @@ extension SessionStore {
     /// survived.
     public static func list(in root: URL) -> [SavedSession] {
         sessionDirectories(in: root).map { directory, startedAt in
-            let header = try? decoder().decode(
-                RecordHeader.self, from: Data(contentsOf: directory.appendingPathComponent(recordFile)))
+            let header = header(in: directory)
             // A call that never stopped (a crash) has an old count, if any; its turns say more.
             let turnCount =
                 header.flatMap { $0.endedAt != nil ? $0.turnCount : nil }
@@ -285,7 +284,8 @@ extension SessionStore {
         return deleted
     }
 
-    private static func sessionDirectories(in root: URL) -> [(URL, Date)] {
+    /// The session directories under `root`, with the start their names give.
+    static func sessionDirectories(in root: URL) -> [(URL, Date)] {
         let entries =
             (try? FileManager.default.contentsOfDirectory(
                 at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
@@ -317,12 +317,24 @@ extension SessionStore {
         return values
     }
 
+    static func header(in directory: URL) -> RecordHeader? {
+        try? decoder().decode(RecordHeader.self, from: Data(contentsOf: directory.appendingPathComponent(recordFile)))
+    }
+
     /// The parts of session.json a listing needs, so a session saved by an older
     /// version with different settings still lists.
-    private struct RecordHeader: Decodable {
+    struct RecordHeader: Decodable {
+        /// Only counted, so an answer saved by an older version never stops the listing.
+        struct Counted: Decodable {
+            init(from decoder: any Decoder) {}
+        }
+
         var startedAt: Date
         var endedAt: Date?
         var turnCount: Int
         var cost: CostSummary
+        var answers: [Counted]?
+        var summaryDue: Bool?
+        var callType: String?
     }
 }

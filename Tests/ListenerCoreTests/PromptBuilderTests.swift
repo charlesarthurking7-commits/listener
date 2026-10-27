@@ -208,7 +208,7 @@ struct PromptBuilderTests {
         #expect(request.user.count == 1)
         #expect(
             request.user[0].text == """
-                Title line: # Call on Tuesday 20 October 2026 at 14:05 (32 min)
+                Date line: Tuesday 20 October 2026 at 14:05, 32 min
 
                 <transcript>
                 [00:01-00:02] Me: Hi, thanks for calling.
@@ -221,6 +221,9 @@ struct PromptBuilderTests {
         for heading in ["## Summary", "## Decisions", "## Action items", "## Open questions", "## Follow-up email"] {
             #expect(request.system.contains(heading))
         }
+        #expect(request.system.contains("a short title, at most about ten words, saying who the call was with"))
+        #expect(request.system.contains("never invent one; if none was said, give the subject alone"))
+        #expect(request.system.contains("the date line from the request, unchanged, between single asterisks"))
         #expect(request.system.contains("only when a deadline was actually stated on the call"))
         #expect(request.system.contains("Never invent amounts, account or ticket numbers, dates"))
         #expect(request.system.contains("British English"))
@@ -231,7 +234,7 @@ struct PromptBuilderTests {
             turns: turns, settings: SummarySettings(), startedAt: Date(timeIntervalSince1970: 1_792_505_100),
             timeZone: TimeZone(identifier: "UTC")!)
         #expect(
-            request.user[0].text.hasPrefix("Title line: # Call on Tuesday 20 October 2026 at 14:05 (under a minute)"))
+            request.user[0].text.hasPrefix("Date line: Tuesday 20 October 2026 at 14:05, under a minute\n\n"))
     }
 
     @Test func summaryOfAnEmptyCallSaysSo() {

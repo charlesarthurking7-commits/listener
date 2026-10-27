@@ -80,7 +80,7 @@ public struct PromptBuilder: Sendable {
         let window = TranscriptWindow(
             turns: turns, budgetTokens: maxTranscriptTokens, hardCapTokens: maxTranscriptTokens)
 
-        var text = "Title line: \(Self.summaryTitle(startedAt: start, duration: length, timeZone: timeZone))\n\n"
+        var text = "Date line: \(Self.summaryDateLine(startedAt: start, duration: length, timeZone: timeZone))\n\n"
         text += Self.transcriptOpening(omitsEarlierTurns: window.omitsEarlierTurns)
         text += window.blocks.joined()
         text += "</transcript>\n\n"
@@ -110,12 +110,13 @@ public struct PromptBuilder: Sendable {
         return ModelRequest(settings: settings, system: webPageRules, user: [PromptBlock(text)])
     }
 
-    static func summaryTitle(startedAt: Date, duration: Double, timeZone: TimeZone) -> String {
+    /// "Monday 27 October 2026 at 08:33, 1 min", for the line under the summary's title.
+    static func summaryDateLine(startedAt: Date, duration: Double, timeZone: TimeZone) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_GB")
         formatter.timeZone = timeZone
         formatter.dateFormat = "EEEE d MMMM yyyy 'at' HH:mm"
-        return "# Call on \(formatter.string(from: startedAt)) (\(durationText(duration)))"
+        return "\(formatter.string(from: startedAt)), \(durationText(duration))"
     }
 
     static func durationText(_ seconds: Double) -> String {
@@ -303,7 +304,11 @@ extension PromptBuilder {
 
         Write Markdown in British English, in exactly this structure:
 
-        The title line from the request, unchanged.
+        A first line of "# " and a short title, at most about ten words, saying who the call was with and \
+        what it was about, for example "# Quillford Markets: rejected orders after the margin change". Take \
+        names and companies from the transcript only and never invent one; if none was said, give the \
+        subject alone.
+        On the next line, the date line from the request, unchanged, between single asterisks for italics.
 
         ## Summary
         Three to eight bullets: what the call was about and what was established.

@@ -62,7 +62,7 @@ enum SessionFactory {
             them: demo.folder.appendingPathComponent("them.wav"), script: script, speed: 1
         ).components
         if demo.scriptedAnswers {
-            components.languageModel = ScriptedLanguageModel(reply: DemoAnswers.reply)
+            components.languageModel = DemoAnswers.model
         }
         return components
     }

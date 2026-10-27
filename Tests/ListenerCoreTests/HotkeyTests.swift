@@ -38,6 +38,22 @@ struct HotkeyTests {
         #expect(Set(HotkeyKey.all.map(\.keyCode)).count == HotkeyKey.all.count)
     }
 
+    @Test func theSettingSpellingParsesBack() throws {
+        for text in ["ctrl+option+a", "ctrl+option+shift+a", "shift+cmd+space", "f5", "ctrl+option+slash"] {
+            let hotkey = try Hotkey(parsing: text)
+            #expect(hotkey.settingValue == text)
+            #expect(try Hotkey(parsing: hotkey.settingValue) == hotkey)
+        }
+        #expect(try Hotkey(parsing: "Option + Control + Q").settingValue == "ctrl+option+q")
+    }
+
+    @Test func keysAreFoundByTheirKeyCode() {
+        #expect(HotkeyKey.key(forKeyCode: 0x00)?.name == "a")
+        #expect(HotkeyKey.key(forKeyCode: 0x31)?.name == "space")
+        #expect(HotkeyKey.key(forKeyCode: 0x7A)?.name == "f1")
+        #expect(HotkeyKey.key(forKeyCode: 0x7F) == nil)
+    }
+
     @Test func punctuationCanBeWrittenAsTheCharacter() throws {
         #expect(try Hotkey(parsing: "ctrl+option+/").key.name == "slash")
         #expect(try Hotkey(parsing: "ctrl+option+-").displayString == "⌃⌥-")

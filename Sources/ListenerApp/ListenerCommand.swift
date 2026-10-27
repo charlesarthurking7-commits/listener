@@ -35,7 +35,9 @@ struct ListenerCommand: AsyncParsableCommand {
     /// with defaults and shows the problem, and every Start reads the file again. A demo
     /// plays a recorded call where a call would capture this Mac's audio.
     @MainActor
-    static func launchApp(options: GlobalOptions, demo: DemoCall?) -> Never {
+    static func launchApp(
+        options: GlobalOptions, demo: DemoCall?, open: String? = nil, appearance: String? = nil
+    ) -> Never {
         let paths = ListenerPaths.current
         let loader = SettingsLoader(paths: paths)
         let explicitPath = options.settings
@@ -71,6 +73,7 @@ struct ListenerCommand: AsyncParsableCommand {
             }
         let environment = AppEnvironment(
             paths: paths,
+            settingsFile: explicitPath.map { URL(fileURLWithPath: paths.expandingTilde($0)) } ?? paths.settingsFile,
             launchSettings: launchSettings,
             loadSettings: {
                 try loader.load(explicitPath: explicitPath).resolvingSpeechProvider(
@@ -80,12 +83,44 @@ struct ListenerCommand: AsyncParsableCommand {
             googleSetup: { SessionFactory.googleSetup($0) },
             prepareOnDeviceSpeech: { await SessionFactory.prepareOnDeviceSpeech($0, report: $1) },
             hasAnthropicKey: { demo?.scriptedAnswers == true || secrets.secret(.anthropicAPIKey) != nil },
+            anthropicKeySource: {
+                demo?.scriptedAnswers == true ? "the demo" : secrets.lookup(.anthropicAPIKey)?.source
+            },
+            storeAnthropicKey: { key in
+                // A demo never touches the real key.
+                guard demo == nil else {
+                    throw DemoKeyError()
+                }
+                if let key {
+                    try KeychainSecretStore().store(key, for: .anthropicAPIKey)
+                } else {
+                    try KeychainSecretStore().delete(.anthropicAPIKey)
+                }
+            },
             importWebPage: { try await SessionFactory.importWebPage($0, settings: $1, secrets: secrets) },
-            finishDueSummaries: { demo == nil ? await SessionFactory.finishDueSummaries($0, secrets: secrets) : [] },
-            makeLanguageModel: { demo?.scriptedAnswers == true ? nil : SessionFactory.languageModel(secrets) }
+            finishDueSummaries: { settings in
+                guard let demo else {
+                    return await SessionFactory.finishDueSummaries(settings, secrets: secrets)
+                }
+                // A demo with Claude's answers leaves summaries owed by its calls alone.
+                guard demo.scriptedAnswers else {
+                    return []
+                }
+                return await SessionSummarizer.finishDue(
+                    in: SessionStore.root(for: settings.storage), settings: settings, model: DemoAnswers.model)
+            },
+            makeLanguageModel: {
+                demo?.scriptedAnswers == true ? DemoAnswers.model : SessionFactory.languageModel(secrets)
+            },
+            mainWindowAtLaunch: open,
+            appearance: appearance
         )
         ListenerApplication.run(environment: environment)
     }
+}
+
+private struct DemoKeyError: LocalizedError {
+    var errorDescription: String? { "The demo leaves your API key alone. Change it in the app itself." }
 }
 
 struct CallTypeOptions: ParsableArguments {

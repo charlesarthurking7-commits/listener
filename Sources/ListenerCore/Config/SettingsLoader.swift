@@ -51,22 +51,19 @@ public struct SettingsLoader: Sendable {
     public func load(explicitPath: String? = nil) throws -> LoadedSettings {
         let file = explicitPath.map { URL(fileURLWithPath: paths.expandingTilde($0)) } ?? paths.settingsFile
         let source = paths.abbreviating(file.path)
-        let exists = FileManager.default.fileExists(atPath: file.path)
-
-        var settings = Settings()
-        var warnings: [String] = []
-        if exists {
-            let data: Data
-            do {
-                data = try Data(contentsOf: file)
-            } catch {
-                throw SettingsError(source: source, problems: ["could not be read (\(error.localizedDescription))"])
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            if explicitPath != nil {
+                throw SettingsError(source: source, problems: ["does not exist"])
             }
-            (settings, warnings) = try Self.decode(data, source: source)
-        } else if explicitPath != nil {
-            throw SettingsError(source: source, problems: ["does not exist"])
+            return try settings(from: .object([:]), source: source)
         }
+        return try settings(from: Self.read(file, source: source), source: source)
+    }
 
+    /// `document` over the defaults with `~` expanded, or the problems that make it unusable.
+    func settings(from document: JSONValue, source: String) throws -> LoadedSettings {
+        let (decoded, warnings) = try Self.decode(document, source: source)
+        var settings = decoded
         settings.storage.directory = settings.storage.directory.map(paths.expandingTilde)
         settings.speech.googleCredentialsFile = settings.speech.googleCredentialsFile.map(paths.expandingTilde)
 
@@ -77,9 +74,24 @@ public struct SettingsLoader: Sendable {
         return LoadedSettings(settings: settings, warnings: warnings)
     }
 
+    /// The JSON object in a settings file.
+    static func read(_ file: URL, source: String) throws -> JSONValue {
+        let data: Data
+        do {
+            data = try Data(contentsOf: file)
+        } catch {
+            throw SettingsError(source: source, problems: ["could not be read (\(error.localizedDescription))"])
+        }
+        return try parse(data, source: source)
+    }
+
     /// Decodes a settings file. Keys it leaves out keep their defaults at every level;
     /// keys it adds that no setting has are returned as warnings.
     public static func decode(_ data: Data, source: String = "settings.json") throws -> (Settings, [String]) {
+        try decode(parse(data, source: source), source: source)
+    }
+
+    static func parse(_ data: Data, source: String) throws -> JSONValue {
         let document: JSONValue
         do {
             document = try JSONValue(parsing: data)
@@ -89,7 +101,10 @@ public struct SettingsLoader: Sendable {
         guard document.objectValue != nil else {
             throw SettingsError(source: source, problems: ["must hold a JSON object, { ... }, at the top level"])
         }
+        return document
+    }
 
+    static func decode(_ document: JSONValue, source: String) throws -> (Settings, [String]) {
         let merged = try JSONValue(encoding: Settings()).merging(document)
         let settings: Settings
         do {
@@ -127,9 +142,14 @@ public struct SettingsLoader: Sendable {
                 "saveAudio": .bool(defaults.storage.saveAudio),
             ]),
         ])
+        return (try? fileData(starter)) ?? Data("{}".utf8)
+    }
+
+    /// JSON laid out the way Listener writes settings.json: indented, keys sorted, slashes left alone.
+    static func fileData(_ document: JSONValue) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return (try? encoder.encode(starter)) ?? Data("{}".utf8)
+        return try encoder.encode(document)
     }
 
     /// Writes the starter file unless a settings file already exists. Returns its location.
