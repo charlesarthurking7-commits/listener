@@ -2,7 +2,7 @@ import Foundation
 
 /// The kinds of call to pick from before Start, one folder each under Call Types.
 /// instructions.md says how answers should go on that kind of call, and every other file
-/// in the folder (a CV, a job description, brief.md, stories.md) is background that Claude
+/// in the folder (a PDF, a saved web page, brief.md, stories.md) is background that Claude
 /// reads with each answer. They are plain files, editable in any app, and read again at every Start.
 public struct CallTypeLibrary: Sendable {
     public static let instructionsFile = "instructions.md"
@@ -237,10 +237,10 @@ extension CallTypeLibrary {
         <!--
         How answers should go on this kind of call. Everything outside these comment marks goes
         to Claude with every answer, recap and summary, and wins over Listener's general rules
-        where they differ. The other files in this folder are background for the call: drop a
-        CV or other files onto the Listener window, or copy a job description or its link and
-        press Paste. brief.md is for your own notes, and stories.md (Edit Stories in the card's
-        menu) for your stories for "tell me about a time" questions.
+        where they differ. The other files in this folder are background for the call: drop
+        files onto the Listener window, or copy some text or a link and press Paste. brief.md
+        is for your own notes, and stories.md (Edit Stories in the card's menu) for your
+        stories for "tell me about a time" questions.
         -->
 
         """

@@ -411,7 +411,7 @@ private struct DropZone: View {
             Image(systemName: "arrow.down.doc")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Theme.tertiaryText)
-            Text(model.isImportingPage ? "Reading the page…" : "Drop a CV or other files here, or paste text or a link")
+            Text(model.isImportingPage ? "Reading the page…" : "Drop files here, or paste text or a link")
                 .font(.geist(12.5))
                 .foregroundStyle(Theme.secondaryText)
             Spacer(minLength: 8)

@@ -49,8 +49,7 @@ final class CallModel {
     /// How the window looks during a call; kept between launches.
     private(set) var transparency = WindowTransparency.stored
     private(set) var showsTranscriptInCall = UserDefaults.standard.bool(forKey: CallModel.transcriptKey)
-    private(set) var hidesFromScreenSharing =
-        UserDefaults.standard.object(forKey: CallModel.screenSharingKey) as? Bool ?? true
+    private(set) var hidesFromScreenSharing = UserDefaults.standard.bool(forKey: CallModel.screenSharingKey)
     private(set) var isPointerOver = false
 
     /// Everything about the current call. Not observed: views read the slices above, and

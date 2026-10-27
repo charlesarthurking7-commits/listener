@@ -179,7 +179,7 @@ this section first advised against it. Measured on macOS 26.3.1 instead: a windo
 `.none` is left out of ScreenCaptureKit display captures, both screenshots and the live
 stream that Chrome, and so Google Meet, shares screens with, while the same window marked
 `.readOnly` shows. So Listener hides its window from whole-screen shares and screenshots
-while Window > Hide During Screen Sharing is on (the default). It cannot hide a display
+while Window > Hide During Screen Sharing is on (off by default). It cannot hide a display
 mirrored to a TV or projector. Because Apple does not promise this behaviour, check it
 again after macOS updates: share the whole screen in Meet and look at its preview.
 

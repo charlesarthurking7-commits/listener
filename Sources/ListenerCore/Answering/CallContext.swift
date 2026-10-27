@@ -1,5 +1,5 @@
 /// What kind of call this is and the background for it: the call type's instructions
-/// and the documents the user added, such as a CV, a job description or a brief. It
+/// and the documents the user added, such as a PDF, a saved web page or a brief. It
 /// goes into the system prompt of every answer and recap, and into the summary.
 public struct CallContext: Sendable, Codable, Equatable {
     public struct Document: Sendable, Codable, Equatable {

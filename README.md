@@ -40,7 +40,7 @@ a follow-up email. Between calls, press fn twice in any app and speak.
 - **Call types.** Work call, Meeting or your own, each with its own instructions and
   background: drop in documents, paste a page or its link, or write a brief.
 - **Out of the way.** The window never takes focus, sizes itself to what it shows, and
-  hides its contents from screen sharing.
+  can hide its contents from screen sharing.
 
 <br clear="right">
 
@@ -86,7 +86,7 @@ flowchart LR
 
 Each answer gets the recent conversation, the call type's instructions and background,
 and a line about you. The background is held in Claude's prompt cache for the call, so
-even a CV and a job description add no noticeable time. Every answer logs its timings
+even long documents add no noticeable time. Every answer logs its timings
 from end of speech to first word, and the costs are tracked per call.
 [docs/PLAN.md](docs/PLAN.md) explains the architecture and the decisions behind it.
 

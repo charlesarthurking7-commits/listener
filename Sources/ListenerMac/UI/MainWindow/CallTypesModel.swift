@@ -173,7 +173,7 @@ final class CallTypesModel {
         }
         let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !text.isEmpty else {
-            message = "The clipboard is empty. Copy a job description, or its link, then paste."
+            message = "The clipboard is empty. Copy some text, or a link, then paste."
             return
         }
         if !text.contains(where: \.isWhitespace), let url = URL(string: text),

@@ -158,7 +158,7 @@ Under **Window** in the menu bar, and in the main window's **Settings**, General
   answer arrives or the pointer is over it. **Solid** shows nothing behind.
 - **Show Transcript During Calls** opens the full window, transcript included, for every
   call.
-- **Hide During Screen Sharing**, on by default, leaves the window out when you share
+- **Hide During Screen Sharing**, off by default, leaves the window out when you share
   your whole screen in Meet, Zoom or Teams, and out of screenshots and recordings. A small
   dot beside the menu bar icon shows it is on. It can't hide the window from a display
   mirrored to a TV or projector, or from a camera pointed at the screen. Turn it off to
@@ -240,14 +240,13 @@ the menu bar, and set each up on the main window's **Call types** page.
 - **Call type.** Work call or Meeting. Each changes how answers go: Work call keeps to
   the general rules, and Meeting gives only a note when nothing has been asked of you. A
   call keeps the type it started with.
-- **Files.** Drop a CV or other files onto the page, or use **Add Files…**: PDF, Word,
-  RTF, HTML and text. A scanned PDF has no text and shows "No text found". The x moves a
-  file to the Bin.
-- **Paste.** Copy a job description, or its link, and press **Paste**. A link is read
-  once, tidied by the quick model into the posting alone and saved as a file, with where
-  it came from; check it before the call. Sites that need a sign-in, LinkedIn among them,
-  can't be read; copy the text instead. `listener read-page <url>` shows what Paste would
-  save.
+- **Files.** Drop files onto the page, or use **Add Files…**: PDF, Word, RTF, HTML and
+  text. A scanned PDF has no text and shows "No text found". The x moves a file to the
+  Bin.
+- **Paste.** Copy some text, or a link, and press **Paste**. A link is read once, tidied
+  by the quick model into the page's own content and saved as a file, with where it came
+  from; check it before the call. Sites that need a sign-in, LinkedIn among them, can't be
+  read; copy the text instead. `listener read-page <url>` shows what Paste would save.
 - **Brief.** **Brief** on the page holds your own notes, saved as `brief.md`: who the call
   is with and what it is for.
 - **Stories.** **Stories** on the page, saved as `stories.md`, holds your answers to
@@ -262,7 +261,7 @@ Each type is a folder under `~/Library/Application Support/Listener/Call Types/`
 again at every Start, so changes in Finder or TextEdit count from the next call. Up to 20k
 tokens of files go with each request. Listener writes them to Claude's prompt cache when
 the call starts and refreshes it through quiet stretches, so even the first answer reads
-them from there: a CV and a job description cost about $0.0001 per quick answer and add
+them from there: a few pages of background cost about $0.0001 per quick answer and add
 no noticeable time. Text in `<!-- comments -->` is left out.
 
 When nothing has been asked of you, an answer opens with a note saying so, and any line
