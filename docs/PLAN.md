@@ -219,7 +219,8 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
   Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow
   Dictation/      FnTapDetector, DictationRecorder, DictationTidier (the clean-up prompt),
-                  DictationFormatting (lists as HTML)
+                  DictationFormatting (lists as HTML), CorrectionFinder and
+                  LearnedDictionary (words learned from corrections)
   Metrics/        PriceTable, CostTracker, LatencyStats
   Session/        CallSession (the actor that wires everything), SessionStore,
                   SessionSummarizer, SessionEvent
@@ -238,7 +239,8 @@ ListenerMac   (macOS only)
                   (FluidAudio, for dictation)
   Network/        URLSessionStreamingTransport for ClaudeAPI
   Hotkeys/        RegisterEventHotKey wrapper
-  Dictation/      fn event tap, DictationController, pasting, the capsule on screen
+  Dictation/      fn event tap, DictationController, pasting, the capsule on screen,
+                  CorrectionWatcher
   Secrets/        Keychain store and the standard secret chain
   UI/             floating NSPanel, SwiftUI views, menu bar item, CallModel
 
@@ -336,7 +338,9 @@ The LLM side is cheap enough that cost should not steer prompt design; latency s
   machine to the configured STT and LLM providers.
 - Dictation keeps nothing on disk. Its audio stays on the Mac (Parakeet or Apple, both
   on-device); the words, the app's name, its window title and up to 500 characters either
-  side of the cursor go to Claude for tidying. The
+  side of the cursor go to Claude for tidying. After a paste the field is read for a
+  minute, on the Mac only, to learn corrected names into `dictionary.txt`; only the
+  learned words are sent, with later dictations. The
   last text typed is kept in memory for **Copy Last Dictation**.
 - Secrets: Anthropic key in the Keychain (`listener secrets set anthropic`) or `.env`
   (gitignored). Google uses Application Default Credentials

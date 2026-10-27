@@ -82,6 +82,7 @@
       "maxTokens": 4000
     },
     "formattedLists": true,
+    "learnWords": true,
     "vocabulary": [],
     "sounds": true
   },

@@ -1,11 +1,14 @@
 import AppKit
 import ListenerCore
 
-/// Where dictated text goes, as the clean-up sees it, and the font at the cursor for
-/// pasting a formatted list in.
+/// Where dictated text goes, as the clean-up sees it, the font at the cursor for pasting
+/// a formatted list in, and the field and cursor position for watching for corrections.
 struct DictationDestination {
     var target = DictationTarget()
     var font: NSFont?
+    var field: AXUIElement?
+    /// Where the cursor was in the field, in UTF-16 units, so where the text goes in.
+    var cursor: Int?
 }
 
 /// Where dictated text goes: the app in front, its window, and the text and font either
@@ -29,14 +32,23 @@ enum DictationTargets {
         var target = DictationTarget(
             appName: app.localizedName, bundleID: app.bundleIdentifier,
             windowTitle: element.child(kAXFocusedWindowAttribute)?.string(kAXTitleAttribute))
-        var font: NSFont?
-        if let field = element.child(kAXFocusedUIElementAttribute),
+        guard let field = element.child(kAXFocusedUIElementAttribute),
             field.string(kAXSubroleAttribute) != kAXSecureTextFieldSubrole
-        {
-            (target.textBeforeCursor, target.textAfterCursor) = textAroundCursor(in: field)
-            font = cursorFont(in: field)
+        else {
+            Log.dictation.debug("No text field has the focus in \(app.localizedName ?? "?", privacy: .public)")
+            return DictationDestination(target: target)
         }
-        return DictationDestination(target: target, font: font)
+        (target.textBeforeCursor, target.textAfterCursor) = textAroundCursor(in: field)
+        let font = cursorFont(in: field)
+        let cursor = field.range(kAXSelectedTextRangeAttribute)?.location
+        // Which apps share their text decides what the clean-up and the dictionary get.
+        Log.dictation.debug(
+            """
+            \(app.localizedName ?? "?", privacy: .public) shares \(target.textBeforeCursor?.count ?? -1) characters \
+            before the cursor and \(target.textAfterCursor?.count ?? -1) after, \
+            font \(font == nil ? "unknown" : "known", privacy: .public), position \(cursor ?? -1)
+            """)
+        return DictationDestination(target: target, font: font, field: field, cursor: cursor)
     }
 
     /// The font of the character before the cursor, or after it at the start, as Cocoa
@@ -85,47 +97,5 @@ enum DictationTargets {
             value.substring(
                 with: NSRange(location: afterStart, length: min(contextCharacters, value.length - afterStart)))
         )
-    }
-}
-
-extension AXUIElement {
-    fileprivate func attribute(_ name: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        return AXUIElementCopyAttributeValue(self, name as CFString, &value) == .success ? value : nil
-    }
-
-    fileprivate func child(_ name: String) -> AXUIElement? {
-        guard let value = attribute(name), CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        return (value as! AXUIElement)
-    }
-
-    fileprivate func string(_ name: String) -> String? {
-        attribute(name) as? String
-    }
-
-    fileprivate func integer(_ name: String) -> Int? {
-        (attribute(name) as? NSNumber)?.intValue
-    }
-
-    fileprivate func range(_ name: String) -> CFRange? {
-        guard let value = attribute(name), CFGetTypeID(value) == AXValueGetTypeID() else {
-            return nil
-        }
-        var range = CFRange()
-        return AXValueGetValue(value as! AXValue, .cfRange, &range) ? range : nil
-    }
-
-    /// The field's text in `range`, counted in UTF-16 units as Accessibility counts them.
-    fileprivate func string(in range: CFRange) -> String? {
-        var range = range
-        guard let parameter = AXValueCreate(.cfRange, &range) else {
-            return nil
-        }
-        var value: CFTypeRef?
-        let status = AXUIElementCopyParameterizedAttributeValue(
-            self, kAXStringForRangeParameterizedAttribute as CFString, parameter, &value)
-        return status == .success ? value as? String : nil
     }
 }

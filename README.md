@@ -14,8 +14,8 @@ call ends it writes a summary with action items.
   or its link, or write a brief.
 - **Dictation** (fn twice, in any app): speak, press fn again, and the words are typed
   at the cursor, tidied by Claude Sonnet 5.5: fillers gone, corrections applied, laid out
-  for the email or chat they are going into. Speech is recognised on the Mac by
-  Parakeet Ultra.
+  for the email or chat they are going into, with lists pasted as real lists. Speech is
+  recognised on the Mac by Parakeet Ultra, and names you correct are learned.
 - **Grounded**: answers may use general knowledge but never invent call-specific facts
   (amounts, account or ticket numbers, dates, names); they say what to check instead.
 - **Speech-to-text**: Apple's on-device recognition by default where the Mac supports it

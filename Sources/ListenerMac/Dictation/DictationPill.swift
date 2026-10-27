@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 
 /// The small capsule at the bottom of the screen while dictating: bars that follow your
-/// voice, a ripple while the words are tidied, or a short note. It never takes focus or
-/// clicks, so the cursor stays where the text is going.
+/// voice, a ripple while the words are tidied, or a short note. It never takes focus, so
+/// the cursor stays where the text is going, and takes clicks only to undo a word it has
+/// just learned, shrunk to the capsule so nothing around it stops being clickable.
 @MainActor
 final class DictationPill: NSPanel {
     private static let size = NSSize(width: 440, height: 64)
@@ -27,7 +28,7 @@ final class DictationPill: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        let host = NSHostingView(rootView: DictationPillView(controller: controller))
+        let host = FirstClickHostingView(rootView: DictationPillView(controller: controller))
         host.safeAreaRegions = []
         contentView = host
         follow()
@@ -39,6 +40,14 @@ final class DictationPill: NSPanel {
     private func follow() {
         withObservationTracking {
             update(visible: controller.phase != .idle)
+            let offersUndo = if case .learned = controller.phase { true } else { false }
+            if offersUndo == ignoresMouseEvents {
+                ignoresMouseEvents = !offersUndo
+                // After SwiftUI has laid the capsule out for its new content.
+                DispatchQueue.main.async { [weak self] in
+                    self?.placeOnScreen(fitting: offersUndo)
+                }
+            }
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.follow()
@@ -48,7 +57,7 @@ final class DictationPill: NSPanel {
 
     private func update(visible: Bool) {
         if visible, !isVisible {
-            placeOnScreen()
+            placeOnScreen(fitting: !ignoresMouseEvents)
             alphaValue = 0
             orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { context in
@@ -69,12 +78,16 @@ final class DictationPill: NSPanel {
         }
     }
 
-    /// Bottom centre of the screen being worked on, just above the Dock.
-    private func placeOnScreen() {
+    /// Bottom centre of the screen being worked on, just above the Dock. `fitting` shrinks
+    /// the panel to the capsule, for while it takes clicks.
+    private func placeOnScreen(fitting: Bool) {
         guard let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame else {
             return
         }
-        setFrameOrigin(NSPoint(x: visible.midX - Self.size.width / 2, y: visible.minY + 6))
+        let size = fitting ? (contentView?.fittingSize ?? Self.size) : Self.size
+        let bottom = visible.minY + 6
+        setFrame(
+            NSRect(x: visible.midX - size.width / 2, y: bottom, width: size.width, height: size.height), display: true)
     }
 }
 
@@ -90,39 +103,70 @@ private struct DictationPillView: View {
             .background(Capsule().fill(Color.black.opacity(0.84)))
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
             .shadow(color: .black.opacity(0.28), radius: 8, y: 2)
+            .padding([.horizontal, .top], PillLayout.shadowRoom)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, 10)
+            .padding(.bottom, PillLayout.bottomGap)
             .animation(.snappy(duration: 0.2), value: shown)
             .onChange(of: controller.phase, initial: true) { _, phase in
                 if phase != .idle {
                     shown = phase
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel)
     }
 
     @ViewBuilder private var content: some View {
         switch shown {
         case .idle, .listening:
             LevelBars(level: controller.level)
+                .accessibilityElement()
+                .accessibilityLabel("Dictating")
         case .working:
             RippleBars()
+                .accessibilityElement()
+                .accessibilityLabel("Typing what you said")
         case .note(let text):
-            Text(text)
-                .font(.system(size: 12, weight: .medium))
+            note(text)
+        case .learned(let term):
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.green)
+                note(
+                    "Added \u{201C}\(term.count > 24 ? term.prefix(23) + "\u{2026}" : term)\u{201D} to your dictionary")
+                Button("Undo") {
+                    controller.undoLearned()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
+                .padding(.horizontal, 10)
+                .frame(height: 22)
+                .background(Color.white.opacity(0.14), in: Capsule())
+                .padding(.trailing, -9)
+                .accessibilityHint("Forgets the word again")
+            }
         }
     }
 
-    private var accessibilityLabel: String {
-        switch shown {
-        case .idle, .listening: "Dictating"
-        case .working: "Typing what you said"
-        case .note(let text): text
-        }
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+    }
+}
+
+private enum PillLayout {
+    /// Clear space around the capsule for its shadow.
+    static let shadowRoom: CGFloat = 12
+    static let bottomGap: CGFloat = 10
+}
+
+/// Takes the click that lands on Undo even though the panel is never key.
+private final class FirstClickHostingView: NSHostingView<DictationPillView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 }
 

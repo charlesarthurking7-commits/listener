@@ -146,6 +146,10 @@ public struct DictationSettings: Sendable, Codable, Equatable {
     /// Paste lists as real lists in apps that take formatted text, such as Outlook,
     /// Notes, Teams and Slack. Other text, and other apps, get plain text.
     public var formattedLists = true
+    /// Watch the text for a minute after pasting it, and learn the names and terms you
+    /// correct into dictionary.txt in Listener's folder. The field's text is read on the
+    /// Mac only; just the learned words go to Claude, with later dictations.
+    public var learnWords = true
     /// Names and terms to spell exactly like this, e.g. colleagues and products.
     public var vocabulary: [String] = []
     /// A soft sound when dictation starts and stops.

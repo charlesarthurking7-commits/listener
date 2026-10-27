@@ -26,6 +26,11 @@ public struct ListenerPaths: Sendable, Equatable {
         supportDirectory.appendingPathComponent(".env")
     }
 
+    /// The words dictation learned from corrections. See LearnedDictionary.
+    public var dictionaryFile: URL {
+        supportDirectory.appendingPathComponent("dictionary.txt")
+    }
+
     /// "~" and "~/..." resolved against `home`. Other paths are returned unchanged.
     public func expandingTilde(_ path: String) -> String {
         if path == "~" {

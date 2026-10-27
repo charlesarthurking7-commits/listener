@@ -3,9 +3,10 @@ import ListenerCore
 import Observation
 
 /// Dictation into any app: fn twice starts it, fn once more stops it, and Escape throws
-/// it away. The words go through Apple's on-device speech recognition from the Mac's
-/// own microphone, are tidied by Claude for the app in front, and are pasted at the
-/// cursor. Calls have the microphone to themselves, so dictation is off during one.
+/// it away. The words go through on-device speech recognition from the Mac's own
+/// microphone, are tidied by Claude for the app in front, and are pasted at the cursor.
+/// Names and terms the user then corrects are learned for next time. Calls have the
+/// microphone to themselves, so dictation is off during one.
 @MainActor
 @Observable
 final class DictationController {
@@ -16,11 +17,15 @@ final class DictationController {
         case working
         /// A short note shown instead of typing, e.g. that nothing was heard.
         case note(String)
+        /// A word just learned from a correction, which the capsule offers to undo.
+        case learned(String)
     }
 
     /// Past this, dictation stops by itself and types what it has.
     static let maxLength: Duration = .seconds(600)
     static let noteDuration: Duration = .seconds(3)
+    /// Long enough to read the word and reach Undo.
+    static let learnedDuration: Duration = .seconds(6)
 
     private(set) var phase = Phase.idle
     /// How loud the microphone is, from 0 to 1, while listening.
@@ -43,6 +48,9 @@ final class DictationController {
     /// Loaded at launch and kept, so dictation never waits for its model.
     @ObservationIgnored private let parakeet = ParakeetSpeechProvider()
     @ObservationIgnored private var model: (any LanguageModelProvider)?
+    @ObservationIgnored private let watcher = CorrectionWatcher()
+    /// Read again at each start, so words removed from the file by hand stay forgotten.
+    @ObservationIgnored private var dictionary = LearnedDictionary()
 
     init(environment: AppEnvironment, isCallRunning: @escaping () -> Bool) {
         self.environment = environment
@@ -110,6 +118,8 @@ final class DictationController {
             return
         }
         settings = (try? environment.loadSettings().settings) ?? settings
+        watcher.stop()
+        dictionary = loadDictionary()
         let speech: any SpeechToTextProvider
         do {
             speech = try speechProvider()
@@ -185,7 +195,8 @@ final class DictationController {
                 Log.dictation.error("Speech recognition stopped early: \(problem, privacy: .public)")
             }
             let tidier = DictationTidier(
-                model: languageModel(), settings: settings.dictation, aboutMe: settings.answers.context)
+                model: languageModel(), settings: settings.dictation, aboutMe: settings.answers.context,
+                learned: dictionary.promptTerms)
             let result = await tidier.tidy(heard.text, for: destination.target)
             guard generation == self.generation else {
                 return
@@ -208,6 +219,11 @@ final class DictationController {
             switch TextInserter.insert(paste) {
             case .pasted:
                 finish(generation)
+                if settings.dictation.learnWords, let field = destination.field, let cursor = destination.cursor {
+                    watcher.watch(field, at: cursor, typed: paste.text) { [weak self] corrections in
+                        self?.learn(corrections)
+                    }
+                }
             case .copied:
                 show("Copied. Allow Listener in Accessibility to have it pasted for you.")
             }
@@ -237,6 +253,64 @@ final class DictationController {
     }
 
     var hasLastDictation: Bool { lastPaste != nil }
+
+    /// Forgets the word the capsule just said was learned.
+    func undoLearned() {
+        guard case .learned(let term) = phase else {
+            return
+        }
+        dictionary = loadDictionary()
+        dictionary.forget(term)
+        saveDictionary()
+        noteTimer?.cancel()
+        phase = .idle
+    }
+
+    /// Opens dictionary.txt, creating it if dictation has learned nothing yet.
+    func openDictionary() {
+        let file = environment.paths.dictionaryFile
+        if !FileManager.default.fileExists(atPath: file.path) {
+            saveDictionary()
+        }
+        NSWorkspace.shared.open(file)
+    }
+
+    private func learn(_ corrections: [CorrectionFinder.Correction]) {
+        dictionary = loadDictionary()
+        let new = corrections.filter { dictionary.learn($0) }
+        guard let last = new.last else {
+            return
+        }
+        saveDictionary()
+        Log.dictation.info("Learned \(new.count) word(s) from a correction")
+        guard !isActive else {
+            return
+        }
+        noteTimer?.cancel()
+        phase = .learned(last.term)
+        noteTimer = Task {
+            try? await Task.sleep(for: Self.learnedDuration)
+            if !Task.isCancelled, phase == .learned(last.term) {
+                phase = .idle
+            }
+        }
+    }
+
+    private func loadDictionary() -> LearnedDictionary {
+        let text = (try? String(contentsOf: environment.paths.dictionaryFile, encoding: .utf8)) ?? ""
+        return LearnedDictionary(text: text)
+    }
+
+    private func saveDictionary() {
+        let file = environment.paths.dictionaryFile
+        do {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try dictionary.text.write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            Log.dictation.error("Could not save the dictionary: \(ErrorText.describe(error), privacy: .public)")
+        }
+    }
 
     /// Copies the last dictation again, e.g. when it went to the wrong place.
     func copyLastText() {

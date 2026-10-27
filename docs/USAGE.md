@@ -266,7 +266,17 @@ microphone level while it listens, then ripples while it works.
   pastes plain, so it takes on the style at the cursor (`dictation.formattedLists`).
 - **Pasting** goes through the clipboard, which is put back a second later. If the text
   went somewhere unexpected, **Copy Last Dictation** in the menu bar menu has it.
-- **Names and terms** that come out wrong can go in `dictation.vocabulary`, for example
+- **It learns your words.** For a minute after pasting, Listener reads the field the
+  text went into. When you fix a name or term it got wrong ("Shavani" to "Shivani",
+  "fix" to "FIX", "Kestrel Moore" to "Kestrelmoor") it learns the spelling, says so in
+  the capsule with **Undo**, and uses it from the next dictation on. Rewording and fixes
+  to ordinary words are left alone. The words live in `dictionary.txt` in Listener's
+  folder, one per line with what it was heard as: **Open Dictionary** in the menu bar
+  opens it, and deleting a line forgets the word. Apps that don't share their text
+  through Accessibility can't be learned from. The field is read on the Mac only; just
+  the learned words go to Claude, with later dictations. `dictation.learnWords` turns it
+  off.
+- **Names and terms** can also go in `dictation.vocabulary`, for example
   `["Pelican", "MT5", "Charlie King"]`. Your `answers.context` is used too.
 
 Set up, once:
@@ -409,7 +419,7 @@ want to change: anything left out keeps its default, at every level.
 | `storage` | Sessions folder, retention in days, whether to keep the audio |
 | `hotkeys` | The five hotkeys |
 | `window` | Always on top, opacity, Dock icon |
-| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), the recognizer (`parakeet` or `apple`), tidying and its model, formatted lists, vocabulary, sounds |
+| `dictation` | Whether fn fn dictates, the microphone (`built-in` or `default`), the recognizer (`parakeet` or `apple`), tidying and its model, formatted lists, learning words from corrections, vocabulary, sounds |
 | `prices` | Dollars per million tokens per model and per minute of speech-to-text, for the cost display |
 
 The window reads the file again on every Start, so changes apply to the next call.

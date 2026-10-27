@@ -126,6 +126,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if dictation.hasLastDictation {
             menu.addItem(item(Entry("Copy Last Dictation", "doc.on.doc") { $0.dictation.copyLastText() }))
         }
+        menu.addItem(item(Entry("Open Dictionary", "character.book.closed") { $0.dictation.openDictionary() }))
     }
 
     private func statusTitle(_ state: CallViewState) -> String {

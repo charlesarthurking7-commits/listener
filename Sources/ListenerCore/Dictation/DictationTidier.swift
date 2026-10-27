@@ -44,11 +44,16 @@ public struct DictationTidier: Sendable {
     /// The user's own words about themselves, from answers.context, for their name and
     /// the terms of their work.
     public var aboutMe: String
+    /// Words learned from the speaker's corrections, from `LearnedDictionary.promptTerms`.
+    public var learned: [String]
 
-    public init(model: (any LanguageModelProvider)?, settings: DictationSettings, aboutMe: String) {
+    public init(
+        model: (any LanguageModelProvider)?, settings: DictationSettings, aboutMe: String, learned: [String] = []
+    ) {
         self.model = model
         self.settings = settings
         self.aboutMe = aboutMe
+        self.learned = learned
     }
 
     public func tidy(_ heard: String, for target: DictationTarget) async -> Result {
@@ -64,7 +69,8 @@ public struct DictationTidier: Sendable {
             return Result(
                 text: Self.fitted(heard, into: target), problem: settings.tidy ? "There is no Anthropic API key." : nil)
         }
-        let request = Self.request(heard: heard, target: target, settings: settings, aboutMe: aboutMe)
+        let request = Self.request(
+            heard: heard, target: target, settings: settings, aboutMe: aboutMe, learned: learned)
         do {
             let (reply, usage) = try await Self.complete(request, model: model, within: limit)
             guard let text = Self.typed(reply, heard: heard) else {
@@ -157,16 +163,16 @@ public struct DictationTidier: Sendable {
     // MARK: Prompt
 
     public static func request(
-        heard: String, target: DictationTarget, settings: DictationSettings, aboutMe: String
+        heard: String, target: DictationTarget, settings: DictationSettings, aboutMe: String, learned: [String] = []
     ) -> ModelRequest {
         ModelRequest(
             settings: settings.model,
-            system: system(settings: settings, aboutMe: aboutMe),
+            system: system(settings: settings, aboutMe: aboutMe, learned: learned),
             user: [PromptBlock(targetSection(target) + "<transcript>\n\(heard)\n</transcript>")]
         )
     }
 
-    static func system(settings: DictationSettings, aboutMe: String) -> String {
+    static func system(settings: DictationSettings, aboutMe: String, learned: [String] = []) -> String {
         var prompt = """
             You turn dictation into the text the speaker meant to type. They are dictating into an app on their \
             Mac, and your reply is pasted at their cursor exactly as you write it. The transcript comes from \
@@ -214,6 +220,11 @@ public struct DictationTidier: Sendable {
         if !vocabulary.isEmpty {
             prompt += "\n\nWhere the speaker says one of these, or something that sounds like it, spell it "
             prompt += "exactly like this: " + vocabulary.joined(separator: ", ") + "."
+        }
+        if !learned.isEmpty {
+            prompt += "\n\nThe speaker has corrected the recognizer to these spellings before; in brackets is what it "
+            prompt += "wrote. Where the transcript has one of those, or something that sounds like the word, use the "
+            prompt += "speaker's spelling: " + learned.joined(separator: "; ") + "."
         }
         let aboutMe = aboutMe.trimmingCharacters(in: .whitespacesAndNewlines)
         if !aboutMe.isEmpty {
