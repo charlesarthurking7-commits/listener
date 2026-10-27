@@ -1,7 +1,5 @@
 name: CI
 
-# macOS runner minutes count ten times against a private repository's quota, so the
-# macOS job runs for main, pull requests and by hand; Linux runs on every push.
 on:
   push:
   pull_request:
@@ -17,8 +15,8 @@ jobs:
     runs-on: ubuntu-24.04
     container: swift:6.2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v5
         with:
           path: .build
           key: linux-${{ hashFiles('Package.resolved') }}
@@ -30,10 +28,9 @@ jobs:
   macos:
     name: Build app and test (macOS)
     runs-on: macos-latest
-    if: github.ref == 'refs/heads/main' || github.event_name != 'push'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v5
         with:
           path: .build
           key: macos-${{ hashFiles('Package.resolved') }}
