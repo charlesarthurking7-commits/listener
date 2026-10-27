@@ -29,7 +29,8 @@ call ends it writes a summary with action items.
   with 30-day retention. Raw audio is not kept unless you turn it on.
 - **Main window** (Open Listener in the menu bar): past calls with their summary, ticked
   action items, transcript and answers, and search across everything said; call types,
-  the dictation dictionary and every setting, edited in place.
+  the dictation dictionary with your word count and speed, and every setting, edited in
+  place.
 
 ## Requirements
 

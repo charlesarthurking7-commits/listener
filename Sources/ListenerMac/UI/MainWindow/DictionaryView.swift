@@ -42,8 +42,11 @@ struct DictionaryView: View {
             ScrollView {
                 HStack(alignment: .top, spacing: 24) {
                     WordList(model: model)
-                    DictationOptions(store: model.store)
-                        .frame(width: 300)
+                    VStack(alignment: .leading, spacing: 22) {
+                        DictationStatsCard(stats: model.stats)
+                        DictationOptions(store: model.store)
+                    }
+                    .frame(width: 300)
                 }
                 .padding(.horizontal, 28)
                 .padding(.vertical, 22)
@@ -214,6 +217,78 @@ private struct AddWord: View {
         }
         model.add(text)
         isPresented = false
+    }
+}
+
+/// How much has been dictated: words, speed and dictations, then this week's words.
+private struct DictationStatsCard: View {
+    let stats: DictationStats
+
+    var body: some View {
+        let total = stats.total
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel("Your dictation")
+                .frame(height: 24)
+            if total.dictations == 0 {
+                Text("How many words you've dictated, and how fast, show here after your first dictation.")
+                    .font(.geist(12))
+                    .lineSpacing(2)
+                    .foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card()
+            } else {
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        Stat(value: total.words.formatted(), label: total.words == 1 ? "word" : "words")
+                        VerticalHairline()
+                        Stat(value: total.wordsPerMinute.map { "\($0)" } ?? "\u{2013}", label: "wpm")
+                            .help("Words a minute while you speak, from fn fn to fn")
+                        VerticalHairline()
+                        Stat(
+                            value: total.dictations.formatted(),
+                            label: total.dictations == 1 ? "dictation" : "dictations")
+                    }
+                    Hairline()
+                    HStack {
+                        Text("This week")
+                            .foregroundStyle(Theme.secondaryText)
+                        Spacer()
+                        let week = stats.thisWeek().words
+                        Text(week == 1 ? "1 word" : "\(week.formatted()) words")
+                            .font(.geistMono(11.5))
+                    }
+                    .font(.geist(12))
+                    .padding(.horizontal, 14)
+                    .frame(height: 38)
+                    .accessibilityElement(children: .combine)
+                }
+                .card()
+            }
+        }
+    }
+}
+
+private struct Stat: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.geistMono(19, .medium))
+                .tracking(-0.3)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.geist(11.5))
+                .foregroundStyle(Theme.tertiaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 

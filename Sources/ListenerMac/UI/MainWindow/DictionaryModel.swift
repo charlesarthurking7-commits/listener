@@ -2,9 +2,9 @@ import AppKit
 import ListenerCore
 import Observation
 
-/// The Dictionary section: the spellings dictation uses. Words learned from corrections
-/// and words added here are kept in dictionary.txt; words listed in settings.json's
-/// dictation.vocabulary show alongside them.
+/// The Dictionary section: the spellings dictation uses, and how much has been dictated.
+/// Words learned from corrections and words added here are kept in dictionary.txt;
+/// words listed in settings.json's dictation.vocabulary show alongside them.
 @MainActor
 @Observable
 final class DictionaryModel {
@@ -31,6 +31,7 @@ final class DictionaryModel {
     }
 
     private(set) var words: [Word] = []
+    private(set) var stats = DictationStats()
     var filter = Filter.all
     var query = ""
     var message: String?
@@ -38,12 +39,14 @@ final class DictionaryModel {
     let store: SettingsStore
     private let dictation: DictationController
     private let file: URL
+    private let statsFile: URL
     @ObservationIgnored private let watcher = FolderWatcher()
 
     init(dictation: DictationController, store: SettingsStore, environment: AppEnvironment) {
         self.dictation = dictation
         self.store = store
         file = environment.paths.dictionaryFile
+        statsFile = environment.paths.dictationStatsFile
     }
 
     var shown: [Word] {
@@ -115,6 +118,7 @@ final class DictionaryModel {
         }
         // Newest first: the file keeps them oldest first.
         words = learned.reversed() + vocabulary
+        stats = DictationStats.load(from: statsFile) ?? DictationStats()
     }
 
     private func load() -> LearnedDictionary {

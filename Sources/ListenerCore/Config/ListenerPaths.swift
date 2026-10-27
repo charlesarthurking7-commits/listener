@@ -31,6 +31,11 @@ public struct ListenerPaths: Sendable, Equatable {
         supportDirectory.appendingPathComponent("dictionary.txt")
     }
 
+    /// How much has been dictated, per day. See DictationStats.
+    public var dictationStatsFile: URL {
+        supportDirectory.appendingPathComponent("dictation-stats.json")
+    }
+
     /// "~" and "~/..." resolved against `home`. Other paths are returned unchanged.
     public func expandingTilde(_ path: String) -> String {
         if path == "~" {

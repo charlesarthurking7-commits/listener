@@ -209,7 +209,10 @@ transcript as they come.
   delete one. **Use for the next call** picks it for the next Start.
 - **Dictionary.** The words dictation spells your way, learned or added, with what each
   was heard as, and dictation's own switches: tidying, lists, learning, sounds, the
-  microphone and the recognizer.
+  microphone and the recognizer. **Your dictation** above them counts the words you've
+  dictated, all time and this week, your speed in words a minute (from fn fn to fn,
+  pauses included) and the number of dictations. Only those counts are kept, per day in
+  `dictation-stats.json`, never the words.
 - **Settings.** Everything in `settings.json` that people change, as switches and menus:
   the floating window, answers and their models, speech, shortcuts (click one and press
   the new keys), storage and privacy, and the API key. Each change is saved to the file at

@@ -51,6 +51,8 @@ final class DictationController {
     @ObservationIgnored private let watcher = CorrectionWatcher()
     /// Read again at each start, so words removed from the file by hand stay forgotten.
     @ObservationIgnored private var dictionary = LearnedDictionary()
+    /// When this dictation began listening, for the words-per-minute stats.
+    @ObservationIgnored private var listeningSince = ContinuousClock.now
 
     init(environment: AppEnvironment, isCallRunning: @escaping () -> Bool) {
         self.environment = environment
@@ -131,6 +133,7 @@ final class DictationController {
         let generation = generation
         noteTimer?.cancel()
         phase = .listening
+        listeningSince = .now
         level = 0
         play("Tink")
 
@@ -179,6 +182,7 @@ final class DictationController {
         lengthLimit?.cancel()
         play("Pop")
         let stoppedAt = ContinuousClock.now
+        let spoken = stoppedAt - listeningSince
         // Read now, where the text will be pasted, not where the cursor was at the start.
         let destination = DictationTargets.current()
         let readMs = Int((ContinuousClock.now - stoppedAt).inSeconds * 1000)
@@ -216,7 +220,9 @@ final class DictationController {
             let paste = TextInserter.Paste(
                 result.text, formattingLists: settings.dictation.formattedLists, font: destination.font)
             lastPaste = paste
-            switch TextInserter.insert(paste) {
+            let outcome = TextInserter.insert(paste)
+            recordStats(paste.text, spoken: spoken)
+            switch outcome {
             case .pasted:
                 finish(generation)
                 if settings.dictation.learnWords, let field = destination.field, let cursor = destination.cursor {
@@ -293,6 +299,21 @@ final class DictationController {
             if !Task.isCancelled, phase == .learned(last.term) {
                 phase = .idle
             }
+        }
+    }
+
+    /// Adds the dictation to the counts the main window shows. Its words are not kept.
+    private func recordStats(_ text: String, spoken: Duration) {
+        let file = environment.paths.dictationStatsFile
+        guard var stats = DictationStats.load(from: file) else {
+            Log.dictation.error("dictation-stats.json can't be read, so this dictation isn't counted")
+            return
+        }
+        stats.record(words: DictationStats.wordCount(text), seconds: spoken.inSeconds, at: Date())
+        do {
+            try stats.save(to: file)
+        } catch {
+            Log.dictation.error("Could not save the dictation stats: \(ErrorText.describe(error), privacy: .public)")
         }
     }
 
