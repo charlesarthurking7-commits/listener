@@ -14,8 +14,10 @@ summary when you stop.
    ```
 
    This builds `build/Listener.app`, signs it and opens it. A waveform icon appears in
-   the menu bar and the Listener window appears on the right of your second display, or
-   in the top right corner if you have one display.
+   the menu bar, and until Listener is set up its main window opens on a setup
+   checklist. After that nothing opens at launch: the floating window comes up when a
+   call starts, on the right of your second display, or in the top right corner if you
+   have one display.
    See the README for keeping permissions across rebuilds with a stable signing identity;
    once a certificate named `Listener Dev` is in your keychain, the build uses it.
 
@@ -59,10 +61,10 @@ summary when you stop.
    a command.) Paste the key and press Enter; it is not shown. Without a key the
    transcript works but answers and the summary are off.
 
-4. **Permissions.** Until everything is in place the window shows a setup checklist
-   with a fix for each item; once it is, a short "Ready when you are" screen with the
-   hotkeys and a compact status list. Nothing is recorded until you press **Start**. On
-   the first Start macOS asks for:
+4. **Permissions.** Until everything is in place, the main window's **Calls** page shows
+   a setup checklist with a fix for each item, and the sidebar says **Setup needs a
+   look**. Nothing is recorded until you press **Start**. On the first Start macOS asks
+   for:
 
    | Permission | Used for | Where to change it |
    | --- | --- | --- |
@@ -91,53 +93,53 @@ listener --help
 `swift run listener ...` works as well. When a command captures audio from Terminal,
 macOS asks for permission on behalf of your terminal app, not Listener.
 
-## The window
+## The floating window
 
-The window floats above other windows, appears on every Space and over full-screen
-Meet or Teams, and never takes keyboard focus from them: clicking its buttons leaves
-your call app active. Drag it by the empty part of its top or bottom bar and resize it
-from any edge; it reopens where you left it, on the same display if it is still there.
+The floating window is for calls. Setting up, call types, past calls and settings are in
+the [main window](#the-main-window). It floats above other windows, appears on every
+Space and over full-screen Meet or Teams, and never takes keyboard focus from them:
+clicking its buttons leaves your call app active. Drag it by its bar; it reopens where
+you left it, on the same display if it is still there.
 
-During a call it shrinks to a slim bar: a red chip with a pulsing dot and the call's
-time, a **Quick**, **Deep** and **Recap** switch that also shows which answer is on
-screen, the transcript button, **Stop** (the red square) and the button that hides the
-window. An answer opens as a card under the bar and stays until you close it or ask for
-another, and the window shrinks back after. The transcript is still recorded and saved,
-and answers, recaps and the summary use it; the transcript button shows it.
+It is a slim bar, sized to what it shows:
 
-Before and after a call, from top to bottom:
+- **Between calls** nothing is on screen. **Show Window** in the menu bar, or
+  Control-Option-H, brings up a bar with the call type, **Start** with its hotkey, the
+  button that opens the main window and the one that hides this window. While setup is
+  unfinished, **Finish setting up** takes the call type's place and opens the checklist.
+- **During a call** it comes up by itself, however the call was started (the hotkey, the
+  menu bar or the main window): a red chip with a pulsing dot and the call's time, a
+  **Quick**, **Deep** and **Recap** switch that also shows which answer is on screen, the
+  transcript button, **Stop** (the red square) and the button that hides the window.
+- **After Stop** it says "Call saved" with the call's length, and **Open Call** opens the
+  call in the main window, where its summary appears once written, a minute or so later.
+  The bar hides itself after 10 seconds, and stays while the pointer is over it.
 
-- **Header.** Listener and whether it is ready, **Start** with its hotkey, the button
-  that opens the main window, and the one that hides this window (show it again from the
-  menu bar, or with Control-Option-H).
-- **This call and shortcuts.** Before a call, the call type and its background (see Call
-  types below), the hotkeys, and one line saying everything is set, which opens into
-  what was checked: the microphone, system audio, speech to text and the API key.
+Under the bar during a call:
+
+- **Answer card.** Appears when you press an answer hotkey: a **Quick**, **Deep** or
+  **Recap** badge, the model, the time from the hotkey to the first word, a copy button
+  and a close button. When nothing has been asked of you, an answer starts with a note
+  saying so and what is being discussed, then at most one line you could add. A
+  **Recap** reads the whole call so far, not just the recent part, and gives the gist,
+  the main points, anything asked of you that is still open, and anything agreed. A
+  placeholder shimmers until the first word arrives; words then appear as they stream,
+  without moving. Lists and **bold** are formatted, and notes in square brackets, which
+  are for you and not to be said, are shown apart under "For you". Copy leaves those
+  notes out. A failed answer offers **Try Again**. Closing a card that is still
+  streaming cancels it, and the window shrinks back after.
 - **Banners.** Warnings during the call, such as a silent channel or a capture restart.
-- **Answer card.** Appears at the top when you press an answer hotkey: a **Quick**,
-  **Deep** or **Recap** badge, the model, the time from the hotkey to the first word, a
-  copy button and a close button. When nothing has been asked of you, an answer starts
-  with a note saying so and what is being discussed, then at most one line you could
-  add. A **Recap** reads the whole call so far, not just the recent part, and gives the
-  gist, the main points, anything asked of you that is still open, and anything agreed. A placeholder shimmers until the first word arrives; words then
-  appear as they stream, without moving. Lists and **bold** are formatted, and notes in
-  square brackets, which are for you and not to be said, are shown apart under
-  "For you". Copy leaves those notes out. A failed answer offers **Try Again**. Closing
-  a card that is still streaming cancels it.
-- **Transcript.** Turns are grouped by speaker under "You" (indigo) or "Them" (amber) with
-  the time they started. Text still being recognised is dimmed until it settles. Short
-  fillers that speech recognition makes up in near silence ("Yeah.", "Okay.") are
-  dropped when Listener heard no speech under them. The
-  transcript follows the newest line; scroll up to read back and it stays where you
-  are, with a **Jump to latest** button to return.
-- **After Stop.** A card shows the call being saved, then "Call saved" with its length,
-  turns and cost, **Show in Finder**, and **New Call** to go back to the start screen and
-  set up the next call. The summary is written after that, which takes a minute or so:
-  **Open Summary** appears when it is ready and opens the call in the main window. You
-  can start the next call meanwhile, and the summary then turns up as a notice.
-- **Footer.** The call's running cost (hover for the split between speech-to-text and
-  Claude), the first-word time of the last answer, and **Quick**, **Deep** and **Recap**
-  buttons with their hotkeys. Clicking one does the same as pressing its hotkey.
+
+The transcript is always recorded and saved, and answers, recaps and the summary use it.
+The transcript button shows it in a full window for the call, which you can resize from
+any edge:
+
+- **Transcript.** Turns are grouped by speaker under "You" (indigo) or "Them" (amber)
+  with the time they started. Text still being recognised is dimmed until it settles.
+  Short fillers that speech recognition makes up in near silence ("Yeah.", "Okay.") are
+  dropped when Listener heard no speech under them. The transcript follows the newest
+  line; scroll up to read back and it stays where you are, with a **Jump to latest**
+  button to return.
 
 The window follows Light and Dark Mode, and is set in Geist. With Reduce Motion on, the
 dot and the answer placeholder stay still and cards appear without sliding; with Reduce
@@ -154,7 +156,8 @@ Under **Window** in the menu bar, and in the main window's **Settings**, General
   blur. **Clear** doesn't blur: it tints the background dark under light text, which reads
   over video or a busy desktop, and during a call it fades between answers until an
   answer arrives or the pointer is over it. **Solid** shows nothing behind.
-- **Show Transcript During Calls** keeps the full window, transcript included, in a call.
+- **Show Transcript During Calls** opens the full window, transcript included, for every
+  call.
 - **Hide During Screen Sharing**, on by default, leaves the window out when you share
   your whole screen in Meet, Zoom or Teams, and out of screenshots and recordings. A small
   dot beside the menu bar icon shows it is on. It can't hide the window from a display
@@ -167,8 +170,8 @@ The waveform icon is filled while Listener is listening, with a small dot beside
 while the window is hidden from screen sharing. Its menu shows whether
 Listener is listening and for how long, with **Open Listener** above it, then Start/Stop
 Listening, Quick Answer, Deep Answer and Recap So Far with their hotkeys, the dictation
-items, Call Type, Show or Hide Window, Window, Open Last Summary (after a call), **Calls**,
-**Settings…** and Quit Listener.
+items, Call Type, Show or Hide Window, Window, Open Last Summary (after a call, in the main
+window), **Calls**, **Settings…** and Quit Listener.
 Quitting during a call stops and saves it first, and waits up to 30 s for a summary being
 written; a summary cut off then is written the next time Listener starts. `kill`, or
 Ctrl-C in the terminal that started the app, quits the same way (press Ctrl-C twice to
@@ -186,7 +189,8 @@ Command-1 to Command-4.
 window, which is where a call is run from: it stays on top of the call app. The menu under
 it picks the call type the next call uses. During a call, Quick, Deep and Recap sit under
 **Stop call**, and the call is at the top of Calls as **Live**, with its answer and
-transcript as they come.
+transcript as they come. Notices about the app, such as a hotkey another app has taken or
+a summary that is ready, show at the bottom of the sidebar.
 
 - **Calls.** Every saved call, newest first, by day, leaving out calls where nothing was
   said. Each is titled by its summary (older calls by their type and date), with its
@@ -201,12 +205,14 @@ transcript as they come.
   - **Transcript**: every turn, with each suggested answer placed where you asked for it.
   - **Answers**: each answer with its model, speed and cost, and a Copy button.
   The folder button shows the call in Finder; the menu next to it opens `summary.md`, the
-  sessions folder, or moves the call to the Bin.
-- **Call types.** The same folders as the This call card, edited in place: how answers
-  should go, the brief and the stories (each opens in an editor here instead of
-  TextEdit), and the background files, with how much of the 20k-token allowance they
-  use. Drop files on it, paste text or a link, add a call type, or rename, duplicate or
-  delete one. **Use for the next call** picks it for the next Start.
+  sessions folder, or moves the call to the Bin. While setup needs a look, the page
+  shows the setup checklist until you pick a call, and **Setup needs a look** in the
+  sidebar brings it back.
+- **Call types.** Each kind of call, edited in place (see [Call types](#call-types)):
+  how answers should go, the brief and the stories (each opens in an editor here), and
+  the background files, with how much of the 20k-token allowance they use. Drop files
+  on it, paste text or a link, add a call type, or rename, duplicate or delete one.
+  **Use for the next call** picks it for the next Start.
 - **Dictionary.** The words dictation spells your way, learned or added, with what each
   was heard as, and dictation's own switches: tidying, lists, learning, sounds, the
   microphone and the recognizer. **Your dictation** above them counts the words you've
@@ -221,32 +227,31 @@ transcript as they come.
 
 ## Call types
 
-Before Start, the **This call** card at the top of the window says what kind of call is
-next and what Claude should know about it. Everything there goes with every answer,
-recap and summary of the call. None of it needs the keyboard, so the window never
-takes focus from Meet or Teams.
+A call type says what kind of call is next and what Claude should know about it.
+Everything in it goes with every answer, recap and summary of the call. Pick one under
+**Start call** in the main window, in the floating window's bar, or under Call Type in
+the menu bar, and set each up on the main window's **Call types** page.
 
-- **Call type.** Work call or Meeting, picked from the menu on the card or under Call
-  Type in the menu bar. Each changes how answers go: Work call keeps to the general rules,
-  and Meeting gives only a note when nothing has been asked of you. A call keeps the type
-  it started with.
-- **Files.** Drop a CV or other files onto the card: PDF, Word, RTF, HTML and text. A
-  scanned PDF has no text and shows "No text found". The x moves a file to the Bin.
+- **Call type.** Work call or Meeting. Each changes how answers go: Work call keeps to
+  the general rules, and Meeting gives only a note when nothing has been asked of you. A
+  call keeps the type it started with.
+- **Files.** Drop a CV or other files onto the page, or use **Add Files…**: PDF, Word,
+  RTF, HTML and text. A scanned PDF has no text and shows "No text found". The x moves a
+  file to the Bin.
 - **Paste.** Copy a job description, or its link, and press **Paste**. A link is read
   once, tidied by the quick model into the posting alone and saved as a file, with where
   it came from; check it before the call. Sites that need a sign-in, LinkedIn among them,
   can't be read; copy the text instead. `listener read-page <url>` shows what Paste would
   save.
-- **Brief.** **Edit Brief** opens `brief.md` in TextEdit for your own notes: who the call
+- **Brief.** **Brief** on the page holds your own notes, saved as `brief.md`: who the call
   is with and what it is for.
-- **Stories.** **Edit Stories** in the card's menu opens `stories.md`, for your answers to
+- **Stories.** **Stories** on the page, saved as `stories.md`, holds your answers to
   "tell me about a time" questions: one block per story, with a short name, a "Good for:"
   line listing the kinds of question it answers, and its situation, task, action and
   result. The "Good for:" line is what picks the right story mid-call.
-- **Instructions.** Each type's `instructions.md` says how answers should go, and wins
-  over Listener's general rules where they differ. Open it with **Edit Instructions** in
-  the card's menu. For a new type, copy a folder in Finder (**Show in Finder**) and rename
-  it.
+- **Instructions.** Each type's **How answers should go**, saved as `instructions.md`,
+  wins over Listener's general rules where they differ. **New call type** adds one, and
+  each type's menu renames, duplicates or moves it to the Bin.
 
 Each type is a folder under `~/Library/Application Support/Listener/Call Types/`, read
 again at every Start, so changes in Finder or TextEdit count from the next call. Up to 20k

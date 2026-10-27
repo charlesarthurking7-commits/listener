@@ -47,12 +47,15 @@ public enum NoticeAction: Sendable, Equatable {
     case revealInFinder(path: String)
     case openFile(path: String)
     case openURL(String, title: String)
+    /// A saved call's page in the main window, by its folder.
+    case openCall(directory: String)
 
     public var title: String {
         switch self {
         case .revealInFinder: "Show in Finder"
         case .openFile: "Open"
         case .openURL(_, let title): title
+        case .openCall: "Open Call"
         }
     }
 }

@@ -35,6 +35,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: MainWindowController?
     private var quitSignals: [any DispatchSourceSignal] = []
     private var terminationPending = false
+    private var shownPhase = CallViewState.Phase.idle
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -47,10 +48,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let room = PanelRoom()
         let rootView = ListenerWindowView(
             model: model, room: room,
-            hide: { [weak self] in self?.panel?.orderOut(nil) },
+            hide: { [weak self] in self?.hideWindow() },
             showMain: { [weak self] in self?.showMainWindow(nil, call: $0) },
             fitHeight: { [weak self] in self?.panel?.fitContent(height: $0) })
         panel = FloatingPanel(rootView: rootView, window: settings.window, room: room)
+        model.showMain = { [weak self] call in self?.showMainWindow(.calls, call: call, setup: call == nil) }
 
         let dictation = DictationController(environment: environment) { [model] in model.isCallRunning }
         self.dictation = dictation
@@ -69,6 +71,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         )
         followWindowState()
+        followCallPhase()
 
         let hotkeys = HotkeyCenter { [weak self] action, pressedAt in
             self?.handle(action, pressedAt: pressedAt)
@@ -82,13 +85,22 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             showSection: { [weak self] in self?.showMainWindow($0) })
 
         quitOnSignals()
-        // The model checked the setup a moment ago; checking again would read the
-        // Keychain twice at launch.
-        panel?.show()
+        // The floating window waits for a call. Opened at login Listener waits in the menu
+        // bar too, unless a call can't start yet: then the main window says what is missing.
         if let name = environment.mainWindowAtLaunch {
             showMainWindow(MainWindowModel.Section(argument: name))
+        } else if Readiness.blocksStart(model.readiness) {
+            showMainWindow(.calls, setup: true)
+        } else if !Self.launchedAtLogin {
+            showMainWindow(nil)
         }
         Log.ui.info("Listener started")
+    }
+
+    private static var launchedAtLogin: Bool {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        return event?.eventID == kAEOpenApplication
+            && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
     /// The pill, and banners for what macOS still has to allow.
@@ -113,10 +125,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    /// Opening the app again (Finder, `open`, the Dock icon) opens the main window and
-    /// brings back the floating one.
+    /// Opening the app again (Finder, `open`, the Dock icon) opens the main window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showWindow()
         showMainWindow(nil)
         return false
     }
@@ -186,8 +196,17 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         panel?.show()
     }
 
+    /// A saved call's bar has done its job once hidden, so the next show is the start bar.
+    private func hideWindow() {
+        panel?.orderOut(nil)
+        if model.phase == .finished {
+            model.newCall()
+        }
+    }
+
     /// Made the first time it is asked for, so a call-only session never builds it.
-    private func showMainWindow(_ section: MainWindowModel.Section?, call: URL? = nil) {
+    /// `setup` opens it on the setup checklist, which shows while no call is picked.
+    private func showMainWindow(_ section: MainWindowModel.Section?, call: URL? = nil, setup: Bool = false) {
         guard let dictation else {
             return
         }
@@ -201,6 +220,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindow?.show(call == nil ? section : .calls)
         if let call {
             mainWindow?.model.calls.show(call)
+        } else if setup {
+            mainWindow?.model.calls.showSetup()
         }
     }
 
@@ -231,9 +252,28 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleWindow() {
         if panel?.isVisible == true {
-            panel?.orderOut(nil)
+            hideWindow()
         } else {
             showWindow()
+        }
+    }
+
+    /// The floating window comes up for every call, however it was started: the hotkey,
+    /// the menu bar or the main window.
+    private func followCallPhase() {
+        withObservationTracking {
+            let phase = model.phase
+            if phase != shownPhase {
+                shownPhase = phase
+                // Start has just checked the setup, so this skips the check showWindow makes.
+                if phase == .starting {
+                    panel?.show()
+                }
+            }
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.followCallPhase()
+            }
         }
     }
 

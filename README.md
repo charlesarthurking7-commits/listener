@@ -23,8 +23,8 @@ call ends it writes a summary with action items.
   Speech-to-Text v2 in the EU (about $1.92 per call-hour for both channels).
 - **Visible**: a pulsing red indicator in the window and a filled menu bar icon while
   listening. Nothing is recorded until you press Start.
-- **Measured**: every answer logs end-of-speech, hotkey, first-token and done times; the
-  running cost is in the window and saved with each call.
+- **Measured**: every answer logs end-of-speech, hotkey, first-token and done times; each
+  call's cost is saved with it and shown on its page in the main window.
 - **Local**: calls are saved under `~/Library/Application Support/Listener/sessions`
   with 30-day retention. Raw audio is not kept unless you turn it on.
 - **Main window** (Open Listener in the menu bar): past calls with their summary, ticked
@@ -50,10 +50,12 @@ build/Listener.app/Contents/MacOS/listener secrets set anthropic   # 2. store yo
 ```
 
 On macOS 26 and later that is all: speech recognition runs on the Mac by default. On
-older systems, or to use Google instead, choose **Open Settings File** from the menu bar
-icon and set `{ "speech": { "provider": "google", "googleProjectID": "your-project" } }`.
+older systems, or to use Google instead, choose **Settings…** from the menu bar icon and
+pick Google Cloud under Speech, or set
+`{ "speech": { "provider": "google", "googleProjectID": "your-project" } }` in settings.json.
 Add a line about yourself to `answers.context` so answers fit your role
-(see [`settings.example.json`](settings.example.json)). Press **Start** in the window.
+(see [`settings.example.json`](settings.example.json)). Press **Start call** in the main
+window, or Control-Option-L, and the floating window comes up for the call.
 
 Try the window without a call with `listener demo`, which plays a recorded call into it,
 or replay a fixture through the full pipeline in the terminal:

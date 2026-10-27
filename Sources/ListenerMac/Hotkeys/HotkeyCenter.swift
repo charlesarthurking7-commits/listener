@@ -3,6 +3,8 @@ import ListenerCore
 
 struct HotkeyRegistrationFailure: Sendable {
     let action: HotkeyAction
+    /// Another app holds the combination, which is nearly always why.
+    let isTaken: Bool
     let message: String
 }
 
@@ -88,7 +90,7 @@ final class HotkeyCenter {
             } else {
                 "\(hotkey.displayString) for \(action.title.lowercased()) could not be registered (error \(status))."
             }
-        return HotkeyRegistrationFailure(action: action, message: message)
+        return HotkeyRegistrationFailure(action: action, isTaken: status == eventHotKeyExistsErr, message: message)
     }
 
     static func carbonModifiers(_ modifiers: HotkeyModifiers) -> UInt32 {

@@ -45,11 +45,16 @@ final class CallsModel {
     }
     var selection: URL? {
         didSet {
+            if selection != nil {
+                showsSetup = false
+            }
             if selection != oldValue {
                 loadDetail()
             }
         }
     }
+    /// The setup checklist is on screen in place of a call, until a call is picked.
+    private(set) var showsSetup = false
     private(set) var groups: [Group] = []
 
     let call: CallModel
@@ -61,7 +66,7 @@ final class CallsModel {
     @ObservationIgnored private let rootWatcher = FolderWatcher()
     @ObservationIgnored private let callWatcher = FolderWatcher()
     @ObservationIgnored private var pendingReload: Task<Void, Never>?
-    /// Brings the floating window forward, for the live call's page and Start.
+    /// Brings the floating window forward, for the live call's page.
     @ObservationIgnored var showFloatingWindow: (() -> Void)?
     @ObservationIgnored private var showsNewest = false
     /// A call to open once the list has been read, by its folder's path.
@@ -126,6 +131,12 @@ final class CallsModel {
         tab = .summary
         pendingSelection = directory.resolvingSymlinksInPath().path
         reloadList()
+    }
+
+    /// Puts the setup checklist where a call's page goes.
+    func showSetup() {
+        selection = nil
+        showsSetup = true
     }
 
     // MARK: Actions
@@ -287,7 +298,7 @@ final class CallsModel {
                     selection = call.id
                 }
             }
-            if selection == nil || (showsNewest && changed) {
+            if (selection == nil && !showsSetup) || (showsNewest && changed) {
                 showsNewest = false
                 selection = listedCalls.first?.id
             } else if changed {

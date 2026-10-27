@@ -73,7 +73,7 @@ private struct Sidebar: View {
             }
             .padding(.horizontal, 8)
             .padding(.bottom, 16)
-            CallButton(model: model.call, toggle: model.toggleCall)
+            CallButton(model: model.call)
             if model.call.isInCall {
                 AnswerButtons(call: model.call, fills: true)
                     .padding(.top, 8)
@@ -90,8 +90,9 @@ private struct Sidebar: View {
             }
             .padding(.top, 16)
             Spacer(minLength: 16)
+            AppNotices(model: model.call)
             MonthCard(model: model.calls)
-            CallStatusLine(model: model.call)
+            CallStatusLine(model: model)
                 .padding(.horizontal, 8)
                 .padding(.top, 12)
         }
@@ -142,10 +143,9 @@ private struct SidebarRow: View {
 /// Starts a call from the main window, or shows and stops the one that is running.
 private struct CallButton: View {
     let model: CallModel
-    let toggle: () -> Void
 
     var body: some View {
-        Button(action: toggle) {
+        Button(action: model.toggleListening) {
             HStack(spacing: 8) {
                 if model.phase == .listening {
                     RoundedRectangle(cornerRadius: 2)
@@ -236,35 +236,71 @@ private struct MonthCard: View {
     }
 }
 
-private struct CallStatusLine: View {
+/// Banners about the app, such as a hotkey another app has taken or a summary that is
+/// ready. They used to live in the floating window, which now only shows for calls.
+private struct AppNotices: View {
     let model: CallModel
 
     var body: some View {
-        HStack(spacing: 8) {
+        let notices = model.appNotices.items
+        if !notices.isEmpty {
+            VStack(spacing: 6) {
+                ForEach(notices) { notice in
+                    NoticeBanner(notice: notice, perform: model.perform) { model.dismissAppNotice(notice) }
+                }
+            }
+            .padding(.bottom, 10)
+        }
+    }
+}
+
+/// Whether a call can start. Until one can, it leads to the setup checklist.
+private struct CallStatusLine: View {
+    let model: MainWindowModel
+
+    var body: some View {
+        let blocked = !model.call.isInCall && Readiness.blocksStart(model.call.readiness)
+        let line = HStack(spacing: 8) {
             Circle()
                 .fill(dot)
                 .frame(width: 6, height: 6)
             Text(text)
+            if blocked {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8.5, weight: .semibold))
+            }
         }
         .font(.geist(11.5))
-        .foregroundStyle(Theme.tertiaryText)
-        .accessibilityElement(children: .combine)
+        .foregroundStyle(blocked ? Theme.secondaryText : Theme.tertiaryText)
+        if blocked {
+            Button {
+                model.section = .calls
+                model.calls.showSetup()
+            } label: {
+                line.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Shows what Listener still needs before a call")
+            .accessibilityLabel("Setup needs a look")
+        } else {
+            line.accessibilityElement(children: .combine)
+        }
     }
 
     private var dot: Color {
-        switch model.phase {
+        switch model.call.phase {
         case .listening: Theme.recording
         case .starting, .stopping: Theme.amber
-        case .idle, .finished: Readiness.blocksStart(model.readiness) ? Theme.amber : Theme.ready
+        case .idle, .finished: Readiness.blocksStart(model.call.readiness) ? Theme.amber : Theme.ready
         }
     }
 
     private var text: String {
-        switch model.phase {
+        switch model.call.phase {
         case .listening: "Listening"
         case .starting: "Starting"
         case .stopping: "Saving the call"
-        case .idle, .finished: Readiness.blocksStart(model.readiness) ? "Setup needs a look" : "Ready to listen"
+        case .idle, .finished: Readiness.blocksStart(model.call.readiness) ? "Setup needs a look" : "Ready to listen"
         }
     }
 }

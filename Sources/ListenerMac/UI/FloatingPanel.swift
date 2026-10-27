@@ -19,10 +19,12 @@ final class FloatingPanel: NSPanel {
     /// Kept clear between the compact window and the bottom of the screen.
     private static let screenGap: CGFloat = 8
 
+    private static let fullHeightKey = "ListenerWindowFullHeight"
+
     private let glass = FloatingPanel.makeGlass()
     private let room: PanelRoom
-    /// The size to go back to when a call's compact bar gives way to the full window.
-    private var expandedFrame: NSRect?
+    /// The window is the slim bar, sized to what it shows, rather than the full window.
+    private var isCompact = false
     /// The latest height asked for, applied once SwiftUI has finished laying out.
     private var pendingFit: CGFloat??
 
@@ -104,9 +106,9 @@ final class FloatingPanel: NSPanel {
         orderFrontRegardless()
     }
 
-    /// Sizes the window to the compact bar and its card, keeping the top edge where it
-    /// is so an answer grows downwards. Nil goes back to the full window. The compact
-    /// size is never saved, so the next launch opens full size.
+    /// Sizes the window to the slim bar and its card, keeping the top edge where it is so
+    /// an answer grows downwards. Nil goes back to the full window, at the height it last
+    /// had: that is kept apart, since the saved frame is mostly the bar's.
     ///
     /// SwiftUI asks for this while it lays the window out, and resizing the window there
     /// leaves the content a different size from it, so the change waits for the next
@@ -127,17 +129,20 @@ final class FloatingPanel: NSPanel {
 
     private func applyFit(height: CGFloat?) {
         if let height {
-            if expandedFrame == nil {
-                expandedFrame = frame
-                setFrameAutosaveName("")
+            if !isCompact {
+                isCompact = true
+                if frame.height >= Self.minimumSize.height {
+                    UserDefaults.standard.set(frame.height, forKey: Self.fullHeightKey)
+                }
                 minSize = NSSize(width: Self.minimumSize.width, height: 1)
             }
             setFrame(topAnchored(height: min(height, room.height)), display: true)
-        } else if let expanded = expandedFrame {
-            expandedFrame = nil
+        } else if isCompact || frame.height < Self.minimumSize.height {
+            isCompact = false
             minSize = Self.minimumSize
-            setFrame(constrainFrameRect(topAnchored(height: expanded.height), to: screen), display: true)
-            setFrameAutosaveName(Self.frameName)
+            let saved = UserDefaults.standard.double(forKey: Self.fullHeightKey)
+            let height = saved >= Self.minimumSize.height ? saved : Self.defaultSize.height
+            setFrame(constrainFrameRect(topAnchored(height: height), to: screen), display: true)
         }
     }
 

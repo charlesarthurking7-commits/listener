@@ -24,8 +24,6 @@ final class CallModel {
     private(set) var answerID: Int?
     private(set) var answerBlocks: [AnswerBlock] = []
     private(set) var callNotices: [Notice] = []
-    private(set) var cost = CostSummary()
-    private(set) var lastLatencyMs: Double?
     private(set) var outcome: CallOutcome?
     /// Counts the times summaries left unfinished last time were dealt with, written or
     /// given up on, so the calls list reads them again.
@@ -42,12 +40,9 @@ final class CallModel {
     /// The on-device model's state when speech.provider is "apple".
     private(set) var onDeviceSpeech: OnDeviceSpeechStatus?
 
-    /// The kinds of call to pick from before Start, the one picked, and its files.
+    /// The kinds of call to pick from before Start, and the one picked.
     private(set) var callTypes: [String] = []
     private(set) var callType = CallTypeLibrary.defaultType
-    private(set) var callFiles: [LoadedCallType.File] = []
-    /// While a pasted link is being read.
-    private(set) var isImportingPage = false
     /// The call type and documents the running call started with.
     private(set) var activeCall: CallContext?
 
@@ -82,6 +77,10 @@ final class CallModel {
     @ObservationIgnored private var loadedCall: (name: String, context: CallContext)?
     @ObservationIgnored private var callReads = 0
     @ObservationIgnored private let callTypeWatcher = FolderWatcher()
+    /// The banners about hotkeys that did not register, to replace when they are tried again.
+    @ObservationIgnored private var hotkeyNotices: [String] = []
+    /// Opens the main window: on a saved call given its folder, or on the setup checklist.
+    @ObservationIgnored var showMain: ((URL?) -> Void)?
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -130,12 +129,31 @@ final class CallModel {
         prepareOnDeviceSpeechIfNeeded()
     }
 
+    /// One banner for every combination another app holds, replaced each time the
+    /// hotkeys are registered again, such as after a change in Settings.
     func hotkeysRegistered(_ hotkeys: [HotkeyAction: Hotkey], failures: [HotkeyRegistrationFailure]) {
         activeHotkeys = hotkeys
+        for message in hotkeyNotices {
+            removeAppNotice(message)
+        }
+        hotkeyNotices = []
         for failure in failures {
             Log.ui.error("\(failure.message, privacy: .public)")
             activeHotkeys[failure.action] = nil
-            appNotices.add(.warning, failure.message)
+            if !failure.isTaken {
+                hotkeyNotices.append(failure.message)
+            }
+        }
+        let taken = failures.filter(\.isTaken).compactMap { hotkeys[$0.action]?.displayString }
+        if !taken.isEmpty {
+            let keys = ListFormatter.localizedString(byJoining: taken)
+            hotkeyNotices.insert(
+                taken.count == 1
+                    ? "\(keys) is taken by another app. Choose another in Settings, under Shortcuts."
+                    : "\(keys) are taken by another app. Choose others in Settings, under Shortcuts.", at: 0)
+        }
+        for message in hotkeyNotices {
+            appNotices.add(.warning, message)
         }
     }
 
@@ -148,8 +166,8 @@ final class CallModel {
     }
 
     /// Starts a call. Nothing is captured until the user presses Start (or the
-    /// toggle hotkey), and nothing starts while the setup checklist shows a blocker.
-    /// A failed start leaves the window on the checklist with the reason on top.
+    /// toggle hotkey), and nothing starts while the setup checklist shows a blocker:
+    /// the main window opens on it instead.
     func start() {
         guard state.canStart else {
             return
@@ -169,8 +187,10 @@ final class CallModel {
         if Readiness.blocksStart(readiness) {
             let blockers = readiness.filter { $0.status == .blocking }.map(\.detail).joined(separator: " ")
             Log.session.notice("Start blocked by the setup checklist: \(blockers, privacy: .public)")
-            state.startFailed("Listener can't start yet. Fix the items marked in red below.")
+            // The checklist says what is missing, so no banner is left behind as well.
+            state = CallViewState()
             publish()
+            showMain?(nil)
             return
         }
 
@@ -255,10 +275,10 @@ final class CallModel {
         }
     }
 
-    /// During a call the window is a slim bar with the answer card under it, unless the
-    /// transcript is turned on.
+    /// The window is a slim bar sized to fit, with the answer card under it during a
+    /// call. Only a call with the transcript turned on gets the full window.
     var isCompact: Bool {
-        (phase == .starting || phase == .listening) && !showsTranscriptInCall
+        !((phase == .starting || phase == .listening) && showsTranscriptInCall)
     }
 
     var isInCall: Bool {
@@ -380,6 +400,8 @@ final class CallModel {
             if let url = URL(string: link) {
                 NSWorkspace.shared.open(url)
             }
+        case .openCall(let directory):
+            showMain?(URL(fileURLWithPath: directory))
         }
     }
 
@@ -466,8 +488,8 @@ final class CallModel {
             for file in await environment.finishDueSummaries(settings) {
                 Log.session.info("Wrote a summary left unfinished last time")
                 appNotices.add(
-                    .info, "The summary Listener was writing when it quit is ready.", action: .openFile(path: file.path)
-                )
+                    .info, "The summary Listener was writing when it quit is ready.",
+                    action: .openCall(directory: file.deletingLastPathComponent().path))
             }
             dueSummariesFinished += 1
         }
@@ -502,104 +524,6 @@ final class CallModel {
         watchCallType()
     }
 
-    /// Copies files dropped on the window into the call type's folder.
-    func addFiles(_ urls: [URL]) {
-        let readable = urls.filter(DocumentText.canRead)
-        if readable.count < urls.count {
-            appNotices.add(.warning, "Listener reads \(DocumentText.kinds). Other files were left out.")
-        }
-        guard !readable.isEmpty else {
-            return
-        }
-        do {
-            try library.add(files: readable, to: callType)
-        } catch {
-            appNotices.add(.error, "Could not add the files: \(ErrorText.describe(error))")
-        }
-        reloadCallFiles()
-    }
-
-    /// Adds whatever is on the clipboard: copied files, a link to read, or text.
-    func pasteFromClipboard() {
-        let pasteboard = NSPasteboard.general
-        let files = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
-        if let files = files as? [URL], !files.isEmpty {
-            addFiles(files)
-            return
-        }
-        let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !text.isEmpty else {
-            appNotices.add(.info, "The clipboard is empty. Copy a job description, or its link, then press Paste.")
-            return
-        }
-        if !text.contains(where: \.isWhitespace), let url = URL(string: text),
-            ["http", "https"].contains(url.scheme?.lowercased())
-        {
-            importPage(url)
-            return
-        }
-        do {
-            try library.add(text: text, to: callType)
-        } catch {
-            appNotices.add(.error, "Could not save the pasted text: \(ErrorText.describe(error))")
-        }
-        reloadCallFiles()
-    }
-
-    func editBrief() {
-        do {
-            Self.openTextFile(try library.createBriefIfMissing(for: callType))
-        } catch {
-            appNotices.add(.error, "Could not create the brief: \(ErrorText.describe(error))")
-        }
-    }
-
-    func editStories() {
-        do {
-            Self.openTextFile(try library.createStoriesIfMissing(for: callType))
-        } catch {
-            appNotices.add(.error, "Could not create the stories file: \(ErrorText.describe(error))")
-        }
-    }
-
-    func editCallTypeInstructions() {
-        Self.openTextFile(library.folder(for: callType).appendingPathComponent(CallTypeLibrary.instructionsFile))
-    }
-
-    func revealCallTypes() {
-        NSWorkspace.shared.activateFileViewerSelecting([library.folder(for: callType)])
-    }
-
-    /// Moves a file to the Bin, so a mistake can be undone in Finder.
-    func removeCallFile(_ url: URL) {
-        do {
-            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-        } catch {
-            appNotices.add(.error, "Could not move \(url.lastPathComponent) to the Bin: \(ErrorText.describe(error))")
-        }
-        reloadCallFiles()
-    }
-
-    private func importPage(_ url: URL) {
-        guard !isImportingPage else {
-            return
-        }
-        isImportingPage = true
-        let name = callType
-        let settings = settings
-        Task {
-            do {
-                let markdown = try await environment.importWebPage(url, settings)
-                try library.add(text: markdown, to: name)
-            } catch {
-                Log.ui.notice("Reading \(url.host() ?? "a link", privacy: .public) failed")
-                appNotices.add(.warning, ErrorText.describe(error))
-            }
-            isImportingPage = false
-            reloadCallFiles()
-        }
-    }
-
     private func watchCallType() {
         callTypeWatcher.watch(library.folder(for: callType)) { [weak self] in
             self?.reloadCallFiles()
@@ -607,7 +531,8 @@ final class CallModel {
         reloadCallFiles()
     }
 
-    /// Reads the files off the main thread: a long PDF takes a moment.
+    /// Reads the call type's files ahead of Start, off the main thread: a long PDF takes
+    /// a moment.
     private func reloadCallFiles() {
         let library = library
         let name = callType
@@ -618,7 +543,6 @@ final class CallModel {
             let loaded = await Task.detached { library.load(name, readText: DocumentText.read) }.value
             // A newer read has begun if the files changed meanwhile; this one is stale.
             if callType == name, read == callReads {
-                callFiles = loaded.files
                 loadedCall = (name, loaded.context)
             }
         }
@@ -771,8 +695,6 @@ final class CallModel {
             update(\.answerBlocks, markup.blocks)
         }
         update(\.callNotices, state.notices)
-        update(\.cost, state.cost)
-        update(\.lastLatencyMs, state.lastLatencyMs)
         update(\.outcome, state.outcome)
         update(\.hearing, state.hearing)
     }
@@ -787,7 +709,9 @@ final class CallModel {
     private func receiveFromEarlierCall(_ event: SessionEvent) {
         switch event {
         case .summaryFinished(let file?):
-            appNotices.add(.info, "The last call's summary is ready.", action: .openFile(path: file))
+            appNotices.add(
+                .info, "The last call's summary is ready.",
+                action: .openCall(directory: URL(fileURLWithPath: file).deletingLastPathComponent().path))
         case .warning(let message):
             appNotices.add(.warning, message)
         default:

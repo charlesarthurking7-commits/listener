@@ -1,13 +1,11 @@
 import ListenerCore
 import SwiftUI
 
-/// The floating window, top to bottom: listening state and Start/Stop, the answer card
-/// (or how the last call ended), banners, the transcript or what to do before a call,
-/// and the cost and hotkeys. Banners go under the card so they never move an answer
-/// while it is read.
-///
-/// During a call it is only the bar and the answer card, sized to fit, unless the
-/// transcript is turned on: on a single screen anything more is in the way.
+/// The floating window is for calls; everything else is in the main window. It is a
+/// slim bar sized to fit: Start and the call type when shown between calls, the
+/// recording, Quick, Deep, Recap and Stop during one, with the answer card under it,
+/// and "Call saved" after. Banners go under the card so they never move an answer while
+/// it is read. Only a call with the transcript turned on gets a full window.
 struct ListenerWindowView: View {
     let model: CallModel
     let room: PanelRoom
@@ -36,10 +34,8 @@ struct ListenerWindowView: View {
                 VStack(spacing: 0) {
                     HeaderBar(model: model, hide: hide, showMain: showMain)
                     Hairline()
-                    WindowContent(model: model, showMain: showMain)
+                    WindowContent(model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Hairline()
-                    FooterBar(model: model)
                 }
                 .frame(minWidth: 320, minHeight: 360)
                 .onAppear {
@@ -72,7 +68,8 @@ private struct WindowBackground: View {
     }
 }
 
-/// The bar, the answer card when there is one, then any banners.
+/// The bar, the answer card during a call, then any banners. A saved call's bar hides
+/// itself once it has been left alone for a while.
 private struct CompactCallView: View {
     let model: CallModel
     let room: PanelRoom
@@ -80,10 +77,12 @@ private struct CompactCallView: View {
     let showMain: @MainActor (URL?) -> Void
     @State private var noticesHeight: CGFloat = 0
 
+    static let savedBarDuration: Duration = .seconds(10)
+
     var body: some View {
         VStack(spacing: 0) {
             HeaderBar(model: model, hide: hide, showMain: showMain)
-            if let id = model.answerID {
+            if model.isInCall, let id = model.answerID {
                 AnswerCardView(model: model, maxTextHeight: maxTextHeight)
                     .id(id)
                     .padding(.horizontal, Theme.cardInset)
@@ -96,6 +95,21 @@ private struct CompactCallView: View {
                     noticesHeight = height
                 }
         }
+        .task(id: hidesSoon) {
+            guard hidesSoon else {
+                return
+            }
+            try? await Task.sleep(for: Self.savedBarDuration)
+            if !Task.isCancelled {
+                hide()
+            }
+        }
+    }
+
+    /// The pointer over the bar holds it, and an error keeps it until it is read.
+    private var hidesSoon: Bool {
+        model.phase == .finished && model.outcome != nil && !model.isPointerOver
+            && !model.callNotices.contains { $0.kind == .error }
     }
 
     /// A recap or a deep answer gets all the screen below the bar that the card's own
@@ -105,54 +119,28 @@ private struct CompactCallView: View {
     }
 }
 
-/// The card above the transcript (the answer while there is one, otherwise progress
-/// while saving and the saved call afterwards), then the transcript or an empty state.
+/// During a call with the transcript on: the answer card above the transcript.
 ///
 /// The card sits on top so that a streaming answer grows downwards: its words never
 /// move while being read, and the transcript keeps its newest line at the bottom.
 private struct WindowContent: View {
-    private enum Card: Equatable {
-        case none
-        case answer(Int)
-        case outcome
-    }
-
     let model: CallModel
-    let showMain: @MainActor (URL?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                switch card {
-                case .none:
-                    EmptyView()
-                case .answer(let id):
+                if let id = model.answerID {
                     AnswerCardView(model: model, maxTextHeight: max(proxy.size.height * 0.5, 140))
                         .id(id)
                         .modifier(CardPlacement(reduceMotion: reduceMotion))
-                case .outcome:
-                    CallOutcomeCard(model: model, showMain: showMain)
-                        .modifier(CardPlacement(reduceMotion: reduceMotion))
                 }
-                NoticeStack(model: model, spacingAbove: card == .none ? 8 : 4)
+                NoticeStack(model: model, spacingAbove: model.answerID == nil ? 8 : 4)
                 MainContent(model: model)
                     .frame(maxHeight: .infinity)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .animation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.1), value: card)
-        }
-    }
-
-    /// Once the call has stopped, how it was saved matters more than its last answer.
-    private var card: Card {
-        switch model.phase {
-        case .stopping:
-            return .outcome
-        case .finished:
-            return model.outcome == nil ? .none : .outcome
-        case .idle, .starting, .listening:
-            return model.answerID.map(Card.answer) ?? .none
+            .animation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.1), value: model.answerID)
         }
     }
 }
@@ -177,20 +165,12 @@ private struct MainContent: View {
     var body: some View {
         if model.hasTranscript {
             TranscriptView(model: model)
+        } else if model.phase == .starting {
+            EmptyStateView(title: "Starting", message: "Connecting to the microphone and system audio.", model: model)
         } else {
-            switch model.phase {
-            case .idle, .finished:
-                SetupView(model: model)
-            case .starting:
-                EmptyStateView(
-                    title: "Starting", message: "Connecting to the microphone and system audio.", model: model)
-            case .listening:
-                EmptyStateView(
-                    title: "Listening", message: "The transcript appears here as people speak.\(callLine)",
-                    model: model, showsHearing: true)
-            case .stopping:
-                EmptyStateView(title: "Nothing was said", message: "Saving the call.", model: model)
-            }
+            EmptyStateView(
+                title: "Listening", message: "The transcript appears here as people speak.\(callLine)",
+                model: model, showsHearing: true)
         }
     }
 }
@@ -231,17 +211,32 @@ private struct HeaderBar: View {
                 .help(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
                 .accessibilityLabel(model.showsTranscriptInCall ? "Hide the transcript" : "Show the transcript")
                 StopButton(model: model)
+            } else if model.phase == .finished, let outcome = model.outcome {
+                SavedCallStatus(outcome: outcome)
+                Spacer(minLength: 8)
+                if let directory = outcome.directory {
+                    Button("Open Call") {
+                        showMain(URL(fileURLWithPath: directory))
+                        hide()
+                    }
+                    .buttonStyle(FilledButtonStyle(small: true))
+                    .help(
+                        outcome.summaryFile == nil
+                            ? "Its transcript and answers in Listener, and the summary once it is written"
+                            : "Its summary, transcript and answers in Listener"
+                    )
+                    .padding(.trailing, 2)
+                }
             } else {
                 AppMark()
-                    .padding(.trailing, 5)
-                Text("Listener")
-                    .font(.geist(13.5, .semibold))
-                    .tracking(-0.1)
-                Circle()
-                    .fill(Theme.strongBorder)
-                    .frame(width: 3, height: 3)
-                    .padding(.horizontal, 5)
-                IdleStatus(model: model)
+                    .padding(.trailing, 6)
+                if Readiness.blocksStart(model.readiness) {
+                    Button("Finish setting up") { model.showMain?(nil) }
+                        .buttonStyle(LinkButtonStyle())
+                        .help("Listener's window lists what is missing")
+                } else {
+                    CallTypeMenu(model: model)
+                }
                 Spacer(minLength: 8)
                 StartButton(model: model)
                     .padding(.trailing, 2)
@@ -374,23 +369,50 @@ private struct RecordingChip: View {
     }
 }
 
-private struct IdleStatus: View {
+/// "Call saved" and how long it was.
+private struct SavedCallStatus: View {
+    let outcome: CallOutcome
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(Theme.ready)
+                .frame(width: 22, height: 22)
+                .background(Theme.ready.opacity(0.15), in: Circle())
+            Text("Call saved")
+                .font(.geist(13.5, .semibold))
+                .tracking(-0.1)
+            if let duration = outcome.duration {
+                Text(DisplayFormat.clock(duration))
+                    .font(.geistMono(12))
+                    .foregroundStyle(Theme.tertiaryText)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The kind of call the next Start makes.
+private struct CallTypeMenu: View {
     let model: CallModel
 
     var body: some View {
-        Group {
-            switch model.phase {
-            case .starting:
-                Text("Starting…")
-            case .stopping:
-                Text("Saving…")
-            case .idle, .finished, .listening:
-                Text(Readiness.blocksStart(model.readiness) ? "Set up needed" : "Ready")
+        SelectMenu(title: model.callType, label: "Call type") {
+            ForEach(model.callTypes, id: \.self) { name in
+                Button {
+                    model.selectCallType(name)
+                } label: {
+                    if name == model.callType {
+                        Label(name, systemImage: "checkmark")
+                    } else {
+                        Text(name)
+                    }
+                }
             }
         }
-        .font(.geist(12.5, .medium))
-        .foregroundStyle(Theme.tertiaryText)
-        .lineLimit(1)
+        .fixedSize()
+        .help("The kind of call: it changes how answers go")
     }
 }
 
@@ -470,7 +492,7 @@ private struct NoticeStack: View {
     }
 }
 
-private struct NoticeBanner: View {
+struct NoticeBanner: View {
     let notice: Notice
     let perform: @MainActor (NoticeAction) -> Void
     let dismiss: @MainActor () -> Void
@@ -535,76 +557,5 @@ private struct NoticeBanner: View {
         case .warning: Theme.amber
         case .error: Theme.danger
         }
-    }
-}
-
-private struct FooterBar: View {
-    let model: CallModel
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if model.phase != .idle || model.cost.total > 0 {
-                Text(DisplayFormat.cost(model.cost.total))
-                    .font(.geistMono(11))
-                    .help(costDetail)
-                    .accessibilityLabel("Cost of this call: \(DisplayFormat.cost(model.cost.total))")
-            }
-            if let latency = model.lastLatencyMs {
-                Label(DisplayFormat.latency(milliseconds: latency), systemImage: "timer")
-                    .labelStyle(CompactLabelStyle(spacing: 4))
-                    .font(.geistMono(11))
-                    .help("Time from the hotkey to the first word of the last answer")
-                    .accessibilityLabel("Last answer started in \(DisplayFormat.latency(milliseconds: latency))")
-            }
-            Spacer(minLength: 8)
-            ViewThatFits(in: .horizontal) {
-                hotkeyHints(titled: true)
-                hotkeyHints(titled: false)
-            }
-        }
-        .font(.geist(11.5))
-        .foregroundStyle(Theme.tertiaryText)
-        .lineLimit(1)
-        .padding(.leading, Theme.gutter)
-        // The buttons' hover fill reaches 6 points past their text.
-        .padding(.trailing, 8)
-        .frame(height: Theme.footerHeight)
-        .background(WindowDragArea())
-    }
-
-    private var costDetail: String {
-        let cost = model.cost
-        return
-            "Speech to text \(DisplayFormat.cost(cost.speechCost)), Claude \(DisplayFormat.cost(cost.modelCost))"
-    }
-
-    private func hotkeyHints(titled: Bool) -> some View {
-        HStack(spacing: 2) {
-            ForEach(AnswerTier.allCases, id: \.self) { tier in
-                hint(tier, titled: titled)
-            }
-        }
-    }
-
-    /// A button for each tier, with its hotkey when it is registered.
-    private func hint(_ tier: AnswerTier, titled: Bool) -> some View {
-        let hotkey = model.activeHotkeys[tier.hotkeyAction]
-        let name = tier.hotkeyAction.title
-        return Button {
-            model.ask(tier)
-        } label: {
-            HStack(spacing: 5) {
-                if let hotkey {
-                    HotkeyKeycaps(hotkey: hotkey)
-                }
-                if titled || hotkey == nil {
-                    Text(tier.title)
-                }
-            }
-        }
-        .buttonStyle(FooterButtonStyle())
-        .disabled(!model.canAsk)
-        .help(hotkey.map { "\(name): \($0.displayString)" } ?? name)
-        .accessibilityLabel(hotkey.map { "\(name): \($0.spokenName)" } ?? name)
     }
 }

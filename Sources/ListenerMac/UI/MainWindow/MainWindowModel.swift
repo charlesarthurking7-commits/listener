@@ -60,16 +60,6 @@ final class MainWindowModel {
         settings = SettingsModel(call: call, store: store, environment: environment)
     }
 
-    /// Start and Stop in the sidebar. A call started here brings up the floating window,
-    /// as the hotkey does: it stays on top of the call app, where answers are wanted.
-    func toggleCall() {
-        let starting = !call.isInCall
-        call.toggleListening()
-        if starting {
-            calls.showFloatingWindow?()
-        }
-    }
-
     /// The number beside a section in the sidebar, if it has one.
     func count(for section: Section) -> Int? {
         switch section {

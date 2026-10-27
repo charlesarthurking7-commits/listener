@@ -104,7 +104,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(item(windowEntry, tabStop: shortcutTabStop(for: [windowEntry])))
         menu.addItem(windowSettingsItem())
         if let summary = model.lastSummaryFile {
-            menu.addItem(item(Entry("Open Last Summary", "doc.text") { $0.model.perform(.openFile(path: summary)) }))
+            let call = URL(fileURLWithPath: summary).deletingLastPathComponent().path
+            menu.addItem(item(Entry("Open Last Summary", "doc.text") { $0.model.perform(.openCall(directory: call)) }))
         }
         menu.addItem(item(Entry("Calls", "waveform") { $0.actions.openMainWindow(.calls) }))
         menu.addItem(item(Entry("Settings…", "gearshape") { $0.actions.openMainWindow(.settings) }))

@@ -74,7 +74,6 @@ enum Theme {
 
     static let gutter: CGFloat = 16
     static let headerHeight: CGFloat = 52
-    static let footerHeight: CGFloat = 36
     static let cardRadius: CGFloat = 12
     static let windowRadius: CGFloat = 16
     static let bannerRadius: CGFloat = 10
@@ -380,32 +379,6 @@ private struct HoverSquare: View {
             )
             .contentShape(shape)
             .opacity(isEnabled ? 1 : 0.4)
-            .onHover { hovering = $0 }
-    }
-}
-
-/// Quiet text in a soft rounded fill on hover, for the footer's answer buttons.
-struct FooterButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HoverRoundedRect(configuration: configuration)
-    }
-}
-
-private struct HoverRoundedRect: View {
-    let configuration: ButtonStyleConfiguration
-    @State private var hovering = false
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        configuration.label
-            .padding(.horizontal, 6)
-            .frame(height: 24)
-            .background(
-                Theme.selection.opacity(isEnabled && (hovering || configuration.isPressed) ? 1 : 0),
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .opacity(isEnabled ? 1 : 0.55)
             .onHover { hovering = $0 }
     }
 }

@@ -224,6 +224,19 @@ private struct NoCallView: View {
     var body: some View {
         VStack(spacing: 0) {
             SectionBar { Spacer() }
+            if Readiness.needsAttention(model.call.readiness) {
+                SetupChecklist(model: model.call)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity)
+            } else {
+                placeholder
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var placeholder: some View {
+        VStack(spacing: 0) {
             Spacer()
             Image(systemName: "waveform")
                 .font(.system(size: 26, weight: .medium))
@@ -245,7 +258,6 @@ private struct NoCallView: View {
             Spacer()
             Spacer()
         }
-        .frame(maxWidth: .infinity)
     }
 }
 
