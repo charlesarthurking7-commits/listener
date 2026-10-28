@@ -38,11 +38,11 @@ final class MainWindowModel {
 
         var symbol: String {
             switch self {
-            case .calls: "waveform"
+            case .calls: "phone"
             case .callTypes: "square.grid.2x2"
-            case .dictionary: "character.book.closed"
-            case .insights: "chart.bar.xaxis"
-            case .settings: "slider.horizontal.3"
+            case .dictionary: "book.closed"
+            case .insights: "chart.xyaxis.line"
+            case .settings: "gearshape"
             }
         }
     }

@@ -79,9 +79,9 @@ struct CallDetailView: View {
                         AnswersPage(model: model, detail: detail)
                     }
                 }
-                .frame(maxWidth: 620, alignment: .leading)
-                .padding(.horizontal, 32)
-                .padding(.top, 26)
+                .frame(maxWidth: 680, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.top, 24)
                 .padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -89,67 +89,93 @@ struct CallDetailView: View {
     }
 }
 
-/// The call's title and the facts about it.
+/// The call's title, with its type and when over it, and its figures in a strip under
+/// it like the ones on the Insights page.
 private struct CallHeading: View {
     let detail: CallDetail
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                if let type = detail.call.callType {
-                    MetaChip(text: type)
-                }
-                MetaChip(text: CallText.when(detail.call.startedAt), mono: false)
-                if let duration = detail.call.duration {
-                    MetaChip(text: DisplayFormat.clock(duration), mono: true)
-                }
-                MetaChip(text: detail.call.turnCount == 1 ? "1 turn" : "\(detail.call.turnCount) turns")
-                if let cost = detail.call.cost {
-                    MetaChip(text: DisplayFormat.cost(cost.total), mono: true)
-                        .help(
-                            "Speech to text \(DisplayFormat.cost(cost.speechCost)), Claude \(DisplayFormat.cost(cost.modelCost))"
-                        )
-                }
-            }
+            SectionLabel(kicker)
             Text(CallText.title(detail.call))
-                .font(.geist(21, .semibold))
-                .tracking(-0.4)
+                .font(.geist(22, .semibold))
+                .tracking(-0.45)
                 .lineSpacing(3)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 14)
-            if detail.talkTime.values.contains(where: { $0 > 0 }) {
-                HStack(spacing: 14) {
-                    ForEach(Speaker.allCases, id: \.self) { speaker in
-                        if let seconds = detail.talkTime[speaker], seconds > 0 {
-                            HStack(spacing: 6) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(speaker.tint)
-                                    .frame(width: 7, height: 7)
-                                Text("\(speaker.spokenName) spoke for \(DisplayFormat.clock(seconds))")
-                            }
-                        }
-                    }
-                }
-                .font(.geist(12))
-                .foregroundStyle(Theme.tertiaryText)
-                .padding(.top, 9)
-            }
+                .padding(.top, 8)
+            CallFigures(detail: detail)
+                .padding(.top, 18)
         }
+    }
+
+    /// "Work call · Yesterday 14:05", set in capitals over the title.
+    private var kicker: String {
+        [detail.call.callType, CallText.when(detail.call.startedAt)].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
-private struct MetaChip: View {
-    let text: String
-    var mono = false
+/// How long the call was, who spoke for how long, its turns and what it cost.
+private struct CallFigures: View {
+    let detail: CallDetail
 
     var body: some View {
-        Text(text)
-            .font(mono ? .geistMono(11.5) : .geist(11.5))
-            .foregroundStyle(Theme.secondaryText)
-            .padding(.horizontal, 8)
-            .frame(height: 22)
-            .panel(Theme.surface, radius: 6)
+        let call = detail.call
+        HStack(spacing: 0) {
+            if let duration = call.duration {
+                Figure(value: DisplayFormat.clock(duration), label: "duration")
+                VerticalHairline()
+            }
+            ForEach(Speaker.allCases, id: \.self) { speaker in
+                if let seconds = detail.talkTime[speaker], seconds > 0 {
+                    Figure(
+                        value: DisplayFormat.clock(seconds), label: speaker == .me ? "you spoke" : "they spoke",
+                        tint: speaker.tint)
+                    VerticalHairline()
+                }
+            }
+            Figure(value: call.turnCount.formatted(), label: call.turnCount == 1 ? "turn" : "turns")
+            if let cost = call.cost {
+                VerticalHairline()
+                Figure(value: DisplayFormat.cost(cost.total), label: "cost")
+                    .help(
+                        "Speech to text \(DisplayFormat.cost(cost.speechCost)), Claude \(DisplayFormat.cost(cost.modelCost))"
+                    )
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .card()
+    }
+}
+
+private struct Figure: View {
+    let value: String
+    let label: String
+    var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.geistMono(17, .medium))
+                .tracking(-0.3)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            HStack(spacing: 6) {
+                if let tint {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(tint)
+                        .frame(width: 7, height: 7)
+                }
+                Text(label)
+                    .lineLimit(1)
+            }
+            .font(.geist(11.5))
+            .foregroundStyle(Theme.tertiaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -161,58 +187,53 @@ private struct SummaryPage: View {
 
     var body: some View {
         if let summary = detail.summary {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
                 if !summary.summary.isEmpty {
-                    SectionLabel("Summary")
-                        .padding(.top, 28)
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(summary.summary.enumerated()), id: \.offset) { _, line in
-                            Bullet(text: line)
+                    TitledCard("Summary") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(summary.summary.enumerated()), id: \.offset) { _, line in
+                                Bullet(text: line)
+                            }
                         }
                     }
-                    .padding(.top, 12)
                 }
                 let mine = summary.actionItems.filter(\.isMine)
                 let others = summary.actionItems.filter { !$0.isMine }
                 if !mine.isEmpty {
                     ActionItemList(title: "Your action items", items: mine) { model.setDone($0, for: $1) }
-                        .padding(.top, 28)
                 }
                 if !others.isEmpty {
                     ActionItemList(title: "Waiting on others", items: others) { model.setDone($0, for: $1) }
-                        .padding(.top, mine.isEmpty ? 28 : 20)
                 }
                 if !summary.decisions.isEmpty || !summary.openQuestions.isEmpty {
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: 14) {
                         if !summary.decisions.isEmpty {
-                            ListCard(title: "Decided", tint: Theme.tertiaryText, lines: summary.decisions)
+                            ListCard(title: "Decided", lines: summary.decisions)
                         }
                         if !summary.openQuestions.isEmpty {
-                            ListCard(title: "Still open", tint: Theme.amber, lines: summary.openQuestions)
+                            ListCard(title: "Still open", lines: summary.openQuestions)
                         }
                     }
-                    .padding(.top, 16)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 if let email = summary.email {
                     EmailCard(email: email, copy: model.copyEmail)
-                        .padding(.top, 16)
                 }
                 ForEach(Array(summary.other.enumerated()), id: \.offset) { _, section in
-                    SectionLabel(section.heading)
-                        .padding(.top, 28)
-                    MarkdownText(section.text)
-                        .padding(.top, 10)
+                    TitledCard(section.heading) {
+                        MarkdownText(section.text)
+                    }
                 }
                 if summary.cutShort {
                     Text("The summary reached its length limit, so its end is missing.")
                         .font(.geistItalic(12))
                         .foregroundStyle(Theme.tertiaryText)
-                        .padding(.top, 16)
                 }
             }
+            .padding(.top, 14)
         } else {
             NoSummary(model: model, detail: detail)
-                .padding(.top, 28)
+                .padding(.top, 14)
         }
     }
 }
@@ -269,8 +290,8 @@ private struct Bullet: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Circle()
                 .fill(Theme.tertiaryText.opacity(0.6))
-                .frame(width: 4.5, height: 4.5)
-                .offset(y: -3)
+                .frame(width: 4, height: 4)
+                .offset(y: -3.5)
             MarkdownText(text)
         }
     }
@@ -290,8 +311,8 @@ private struct MarkdownText: View {
                 markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
                 ?? AttributedString(text)
         )
-        .font(.geist(14.5))
-        .lineSpacing(5)
+        .font(.geist(13.5))
+        .lineSpacing(4)
         .foregroundStyle(Theme.proseText)
         .textSelection(.enabled)
         .fixedSize(horizontal: false, vertical: true)
@@ -306,24 +327,25 @@ private struct ActionItemList: View {
     let setDone: (Bool, CallSummary.ActionItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel(title)
-                Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            CardHeader(title: title) {
                 Text("\(items.filter(\.done).count) of \(items.count) done")
                     .font(.geistMono(11))
-                    .foregroundStyle(Theme.tertiaryText)
             }
-            VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    if index > 0 {
-                        Hairline()
-                    }
-                    ActionItemRow(item: item) { setDone($0, item) }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                if index > 0 {
+                    Hairline()
+                        .padding(.leading, 44)
+                        .padding(.trailing, 16)
                 }
+                ActionItemRow(item: item) { setDone($0, item) }
             }
-            .card()
         }
+        .padding(.bottom, 4)
+        .card()
     }
 }
 
@@ -335,11 +357,9 @@ private struct ActionItemRow: View {
         Button {
             setDone(!item.done)
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 11) {
-                Image(systemName: item.done ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(item.done ? Theme.accent : Theme.tertiaryText)
-                    .offset(y: 1)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Checkbox(isOn: item.done)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3.5 }
                 VStack(alignment: .leading, spacing: 0) {
                     (owner + body(ownerName == nil ? capitalisingFirstLetter(item.text) : item.text))
                         .font(.geist(13.5))
@@ -351,7 +371,7 @@ private struct ActionItemRow: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
@@ -395,28 +415,16 @@ private struct ActionItemRow: View {
 
 private struct ListCard: View {
     let title: String
-    let tint: Color
     let lines: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            SectionLabel(title, tint: tint)
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                Text(
-                    (try? AttributedString(
-                        markdown: line, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-                        ?? AttributedString(line)
-                )
-                .font(.geist(13))
-                .lineSpacing(3)
-                .foregroundStyle(Theme.proseText)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+        TitledCard(title) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    Bullet(text: line)
+                }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .card()
     }
 }
 
@@ -426,39 +434,33 @@ private struct EmailCard: View {
     @State private var copied = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                SectionLabel("Follow-up email")
-                Spacer()
-                Button {
-                    copy()
-                    copied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.6))
-                        copied = false
-                    }
-                } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+        TitledCard(title: "Follow-up email") {
+            Button {
+                copy()
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    copied = false
                 }
-                .buttonStyle(SoftButtonStyle(small: true))
+            } label: {
+                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
             }
-            if let subject = email.subject {
-                Text(subject)
-                    .font(.geist(13.5, .semibold))
+            .buttonStyle(SoftButtonStyle(small: true))
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                if let subject = email.subject {
+                    Text(subject)
+                        .font(.geist(13.5, .semibold))
+                        .textSelection(.enabled)
+                }
+                Text(email.body)
+                    .font(.geist(13.5))
+                    .lineSpacing(4)
+                    .foregroundStyle(Theme.proseText)
                     .textSelection(.enabled)
-                    .padding(.top, 12)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(email.body)
-                .font(.geist(13.5))
-                .lineSpacing(4)
-                .foregroundStyle(Theme.proseText)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }
 
@@ -486,7 +488,7 @@ private struct TranscriptPage: View {
             Text("Nothing was transcribed on this call.")
                 .font(.geist(13))
                 .foregroundStyle(Theme.secondaryText)
-                .padding(.top, 28)
+                .padding(.top, 20)
         } else {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
@@ -498,7 +500,7 @@ private struct TranscriptPage: View {
                     }
                 }
             }
-            .padding(.top, 18)
+            .padding(.top, 12)
         }
     }
 
@@ -590,14 +592,14 @@ private struct AnswersPage: View {
             Text("No answers were asked for on this call.")
                 .font(.geist(13))
                 .foregroundStyle(Theme.secondaryText)
-                .padding(.top, 28)
+                .padding(.top, 20)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(detail.answers, id: \.id) { answer in
                     AnswerSummaryCard(answer: answer, compact: false) { model.copyAnswer(answer) }
                 }
             }
-            .padding(.top, 24)
+            .padding(.top, 14)
         }
     }
 }
@@ -636,11 +638,11 @@ private struct AnswerSummaryCard: View {
                 AnswerLine(block: block, size: compact ? 14 : 15)
             }
         }
-        .padding(.leading, 13)
+        .padding(.leading, 14)
         .padding(.trailing, 10)
-        .padding(.vertical, 11)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(radius: 10)
+        .card()
     }
 
     private var meta: String {

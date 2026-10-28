@@ -11,20 +11,18 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 SectionBar {
-                    Text("Settings")
-                        .font(.geist(15, .semibold))
-                        .tracking(-0.15)
+                    SectionTitle(title: "Settings")
                     Spacer()
                 }
-                .padding(.horizontal, -12)
+                .padding(.horizontal, -10)
                 .padding(.bottom, 12)
                 ForEach(SettingsModel.Page.allCases) { page in
-                    PageRow(page: page, isOn: model.page == page) { model.page = page }
+                    NavRow(title: page.title, symbol: page.symbol, isOn: model.page == page) { model.page = page }
                 }
                 Spacer()
                 Button(action: model.openSettingsFile) {
                     Label("Open settings.json", systemImage: "curlybraces")
-                        .labelStyle(CompactLabelStyle(spacing: 7))
+                        .labelStyle(CompactLabelStyle(spacing: 10))
                         .font(.geist(12))
                         .foregroundStyle(Theme.tertiaryText)
                         .padding(.horizontal, 10)
@@ -33,15 +31,13 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .help(model.store.file.path)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.bottom, 12)
             .frame(width: 210)
             VerticalHairline()
             VStack(spacing: 0) {
                 SectionBar {
-                    Text(model.page.title)
-                        .font(.geist(15, .semibold))
-                        .tracking(-0.15)
+                    SectionTitle(title: model.page.title, subtitle: model.page.subtitle)
                     Spacer()
                 }
                 ScrollView {
@@ -57,9 +53,9 @@ struct SettingsView: View {
                         }
                         page
                     }
-                    .frame(maxWidth: 640, alignment: .leading)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 24)
+                    .frame(maxWidth: 680, alignment: .leading)
+                    .padding(.horizontal, 28)
+                    .padding(.top, 22)
                     .padding(.bottom, 40)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -80,34 +76,17 @@ struct SettingsView: View {
     }
 }
 
-private struct PageRow: View {
-    let page: SettingsModel.Page
-    let isOn: Bool
-    let select: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: select) {
-            HStack(spacing: 9) {
-                Image(systemName: page.symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 16)
-                Text(page.title)
-                Spacer(minLength: 0)
-            }
-            .font(.geist(13, .medium))
-            .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(
-                isOn ? Theme.selection : hovering ? Theme.hover : .clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .contentShape(Rectangle())
+extension SettingsModel.Page {
+    /// The line beside the page's name.
+    fileprivate var subtitle: String {
+        switch self {
+        case .general: "The floating window, and the app itself"
+        case .answers: "What Claude knows about you, and which models answer"
+        case .speech: "How both sides of a call are heard"
+        case .shortcuts: "Keys that work in any app"
+        case .storage: "What is kept, for how long, and who sees it"
+        case .apiKey: "The key for answers, summaries and dictation"
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
@@ -194,18 +173,22 @@ private struct AnswersSettingsPage: View {
     var body: some View {
         let answers = model.settings.answers
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel("About you and your calls")
-                Spacer()
-                Text("Sent with every answer and summary")
-                    .font(.geist(11.5))
-                    .foregroundStyle(Theme.tertiaryText)
+            VStack(alignment: .leading, spacing: 0) {
+                CardHeader(title: "About you and your calls") {
+                    Text("Sent with every answer and summary")
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 2)
+                TextArea(
+                    text: Binding(get: { model.context }, set: { model.setContext($0) }),
+                    label: "About you and your calls",
+                    prompt:
+                        "For example: I'm an operations engineer at a trading platform. My calls are with brokers about fills, outages and connectivity. Keep answers short enough to say out loud.",
+                    minHeight: 130, font: .geist(13), framed: false)
             }
-            TextArea(
-                text: Binding(get: { model.context }, set: { model.setContext($0) }), label: "About you and your calls",
-                prompt:
-                    "For example: I'm an operations engineer at a trading platform. My calls are with brokers about fills, outages and connectivity. Keep answers short enough to say out loud.",
-                minHeight: 130, font: .geist(13))
+            .card()
             Text(
                 "Who you are, what your calls are about and how you like answers. Each call type can add its own instructions."
             )

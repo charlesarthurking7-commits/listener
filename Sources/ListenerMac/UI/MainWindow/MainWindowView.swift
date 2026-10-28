@@ -58,6 +58,28 @@ struct SectionBar<Content: View>: View {
     }
 }
 
+/// A section's name in its bar, and a line on what it holds.
+struct SectionTitle: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        Text(title)
+            .font(.geist(15, .semibold))
+            .tracking(-0.15)
+            .lineLimit(1)
+            .layoutPriority(1)
+        if let subtitle {
+            Text(subtitle)
+                .font(.geist(12))
+                .foregroundStyle(Theme.tertiaryText)
+                .lineLimit(1)
+        }
+    }
+}
+
+/// The sidebar keeps everything on one edge: 20 points in, the call card's contents and
+/// the rows' icons included.
 private struct Sidebar: View {
     let model: MainWindowModel
 
@@ -73,41 +95,43 @@ private struct Sidebar: View {
                     .font(.geist(14, .semibold))
                     .tracking(-0.15)
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 16)
-            CallButton(model: model.call)
-            if model.call.isInCall {
-                AnswerButtons(call: model.call, fills: true)
-                    .padding(.top, 8)
-            } else {
-                CallTypePicker(model: model)
-                    .padding(.top, 8)
-            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 14)
+            CallCard(model: model)
             VStack(spacing: 2) {
                 ForEach(MainWindowModel.Section.allCases) { section in
-                    SidebarRow(section: section, count: model.count(for: section), isOn: model.section == section) {
+                    NavRow(
+                        title: section.title, symbol: section.symbol, count: model.count(for: section),
+                        isOn: model.section == section
+                    ) {
                         model.section = section
                     }
                 }
             }
-            .padding(.top, 16)
+            .padding(.top, 18)
             Spacer(minLength: 16)
             AppNotices(model: model.call)
-            MonthCard(model: model.calls)
-            CallStatusLine(model: model)
-                .padding(.horizontal, 8)
-                .padding(.top, 12)
+            Hairline()
+                .padding(.horizontal, -10)
+            VStack(alignment: .leading, spacing: 8) {
+                MonthLine(model: model.calls)
+                CallStatusLine(model: model)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 14)
         }
         .padding(.horizontal, 10)
-        .padding(.bottom, 12)
+        .padding(.bottom, 14)
         .frame(width: 220)
         .background(Theme.sidebarBackground)
     }
 }
 
-private struct SidebarRow: View {
-    let section: MainWindowModel.Section
-    let count: Int?
+/// A place to go in a sidebar: the window's sections, or the pages of Settings.
+struct NavRow: View {
+    let title: String
+    let symbol: String
+    var count: Int?
     let isOn: Bool
     let select: () -> Void
     @State private var hovering = false
@@ -115,10 +139,13 @@ private struct SidebarRow: View {
     var body: some View {
         Button(action: select) {
             HStack(spacing: 10) {
-                Image(systemName: section.symbol)
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 18)
-                Text(section.title)
+                Image(systemName: symbol)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isOn ? Theme.text : Theme.tertiaryText)
+                    .frame(width: 16)
+                Text(title)
+                    .lineLimit(1)
+                    .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
                 Spacer(minLength: 4)
                 if let count {
                     Text("\(count)")
@@ -127,18 +154,33 @@ private struct SidebarRow: View {
                 }
             }
             .font(.geist(13, .medium))
-            .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
             .padding(.horizontal, 10)
-            .frame(height: 32)
-            .background(
-                isOn ? Theme.selection : hovering ? Theme.hover : .clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
+            .frame(height: 30)
+            .rowBackground(isOn: isOn, hovering: hovering)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// The next call's type and Start, together on one card. During a call the same card
+/// holds the answer buttons and Stop, with Stop where Start was.
+private struct CallCard: View {
+    let model: MainWindowModel
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if model.call.isInCall {
+                AnswerButtons(call: model.call, fills: true)
+            } else {
+                CallTypePicker(model: model)
+            }
+            CallButton(model: model.call)
+        }
+        .padding(4)
+        .card()
     }
 }
 
@@ -148,11 +190,12 @@ private struct CallButton: View {
 
     var body: some View {
         Button(action: model.toggleListening) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 if model.phase == .listening {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Theme.recording)
                         .frame(width: 9, height: 9)
+                        .frame(width: 16)
                     Text("Stop call")
                     Spacer(minLength: 4)
                     if let since = model.listeningSince {
@@ -165,6 +208,7 @@ private struct CallButton: View {
                 } else {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 16)
                     Text(model.phase == .starting ? "Starting…" : model.phase == .stopping ? "Saving…" : "Start call")
                     Spacer(minLength: 4)
                     if let hotkey = model.activeHotkeys[.toggleListening] {
@@ -188,8 +232,8 @@ private struct CallButtonStyle: ButtonStyle {
         configuration.label
             .font(.geist(13, .semibold))
             .foregroundStyle(listening ? Theme.text : .white)
-            .padding(.leading, 10)
-            .padding(.trailing, 7)
+            .padding(.leading, 6)
+            .padding(.trailing, listening ? 10 : 6)
             .frame(height: 32)
             .background(listening ? Theme.recordingTint : Theme.accent, in: shape)
             .overlay {
@@ -211,30 +255,29 @@ private struct CallButtonStyle: ButtonStyle {
 }
 
 /// What calls have cost on Claude this month.
-private struct MonthCard: View {
+private struct MonthLine: View {
     let model: CallsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("This month")
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(DisplayFormat.cost(model.monthCost))
-                    .font(.geistMono(18, .medium))
-                    .tracking(-0.2)
-                Text("on calls")
-                    .font(.geist(11.5))
-                    .foregroundStyle(Theme.tertiaryText)
-            }
-            .padding(.top, 9)
-            Text(model.monthCalls == 1 ? "1 call" : "\(model.monthCalls) calls")
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(DisplayFormat.cost(model.monthCost))
+                .font(.geistMono(12.5, .medium))
+                .foregroundStyle(Theme.text)
+            Text(calls)
                 .font(.geist(11.5))
                 .foregroundStyle(Theme.tertiaryText)
-                .padding(.top, 5)
+                .lineLimit(1)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .panel(Theme.surface, radius: 10)
+        .help("What calls have cost on Claude and speech to text since the 1st")
         .accessibilityElement(children: .combine)
+    }
+
+    private var calls: String {
+        switch model.monthCalls {
+        case 0: "on calls this month"
+        case 1: "on 1 call this month"
+        default: "on \(model.monthCalls) calls this month"
+        }
     }
 }
 
@@ -328,13 +371,20 @@ private struct CallTypePicker: View {
             Divider()
             Button("Edit Call Types…") { model.section = .callTypes }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: CallTypeIcon.symbol(for: call.callType))
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Theme.tertiaryText)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(width: 16)
-                Text(call.callType)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(call.callType)
+                        .font(.geist(13, .medium))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text("Call type")
+                        .font(.geist(11))
+                        .foregroundStyle(Theme.tertiaryText)
+                }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 9, weight: .semibold))
@@ -357,13 +407,10 @@ private struct PickerButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
         configuration.label
-            .font(.geist(12.5, .medium))
-            .foregroundStyle(Theme.text)
-            .padding(.leading, 9)
-            .padding(.trailing, 9)
-            .frame(height: 30)
-            .background(configuration.isPressed || hovering ? Theme.controlPressed : Theme.control, in: shape)
-            .overlay { shape.strokeBorder(Theme.border, lineWidth: 1) }
+            .padding(.leading, 6)
+            .padding(.trailing, 10)
+            .frame(height: 40)
+            .background(configuration.isPressed ? Theme.selection : hovering ? Theme.hover : .clear, in: shape)
             .contentShape(shape)
             .onHover { hovering = $0 }
     }

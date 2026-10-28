@@ -74,16 +74,112 @@ struct FilterChipStyle: ButtonStyle {
     let isOn: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        FilterChip(configuration: configuration, isOn: isOn)
+    }
+}
+
+private struct FilterChip: View {
+    let configuration: ButtonStyleConfiguration
+    let isOn: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         configuration.label
             .font(.geist(12, .medium))
-            .foregroundStyle(isOn ? Theme.windowBackground : Theme.secondaryText)
+            .foregroundStyle(isOn ? Theme.accentText : hovering ? Theme.text : Theme.secondaryText)
             .padding(.horizontal, 9)
             .frame(height: 24)
-            .background(isOn ? Theme.text : .clear, in: shape)
-            .overlay { shape.strokeBorder(isOn ? .clear : Theme.border, lineWidth: 1) }
+            .background(isOn ? Theme.accentTint : hovering ? Theme.hover : .clear, in: shape)
+            .overlay { shape.strokeBorder(isOn ? Theme.accent.opacity(0.22) : Theme.border, lineWidth: 1) }
             .contentShape(shape)
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .onHover { hovering = $0 }
+    }
+}
+
+extension View {
+    /// A list row's ground: raised like a card while it is picked, a soft fill on hover.
+    func rowBackground(isOn: Bool, hovering: Bool, radius: CGFloat = 8) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return background {
+            if isOn {
+                shape.fill(Theme.raised)
+                    .overlay { shape.strokeBorder(Theme.border, lineWidth: 1) }
+                    .shadow(color: .black.opacity(0.05), radius: 1.5, y: 1)
+            } else if hovering {
+                shape.fill(Theme.hover)
+            }
+        }
+    }
+}
+
+/// A card's top line: its small heading, and a note or control on the right.
+struct CardHeader<Accessory: View>: View {
+    let title: String
+    var tint = Theme.tertiaryText
+    @ViewBuilder var accessory: () -> Accessory
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            SectionLabel(title, tint: tint)
+            Spacer(minLength: 8)
+            accessory()
+                .font(.geist(11.5))
+                .foregroundStyle(Theme.tertiaryText)
+        }
+        .frame(minHeight: 18)
+    }
+}
+
+extension CardHeader where Accessory == EmptyView {
+    init(_ title: String, tint: Color = Theme.tertiaryText) {
+        self.init(title: title, tint: tint) { EmptyView() }
+    }
+}
+
+/// A card with a small heading over its content, laid out like the Insights cards.
+struct TitledCard<Accessory: View, Content: View>: View {
+    let title: String
+    var tint = Theme.tertiaryText
+    @ViewBuilder var accessory: () -> Accessory
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardHeader(title: title, tint: tint, accessory: accessory)
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .card()
+    }
+}
+
+extension TitledCard where Accessory == EmptyView {
+    init(_ title: String, tint: Color = Theme.tertiaryText, @ViewBuilder content: @escaping () -> Content) {
+        self.init(title: title, tint: tint, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// A tick box drawn in the window's style rather than the system's.
+struct Checkbox: View {
+    let isOn: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 4.5, style: .continuous)
+        shape
+            .fill(isOn ? Theme.accent : Theme.surface)
+            .overlay { shape.strokeBorder(isOn ? .clear : Theme.strongBorder, lineWidth: 1.25) }
+            .overlay {
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 16, height: 16)
+            .accessibilityHidden(true)
     }
 }
 
@@ -214,9 +310,12 @@ struct TextArea: View {
     var prompt: String?
     var minHeight: CGFloat = 96
     var font: Font = .geist(13.5)
+    /// Off inside a card, which draws the edge itself.
+    var framed = true
     @FocusState private var focused: Bool
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         TextEditor(text: $text)
             .font(font)
             .foregroundStyle(Theme.text)
@@ -224,24 +323,25 @@ struct TextArea: View {
             .scrollContentBackground(.hidden)
             .scrollIndicators(.automatic)
             .focused($focused)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 9)
+            .padding(.horizontal, framed ? 9 : 11)
+            .padding(.vertical, framed ? 9 : 10)
             .frame(minHeight: minHeight)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(framed ? Theme.surface : .clear, in: shape)
             .overlay(alignment: .topLeading) {
                 if let prompt, text.isEmpty {
                     Text(prompt)
                         .font(font)
                         .lineSpacing(3)
                         .foregroundStyle(Theme.tertiaryText)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, framed ? 14 : 16)
+                        .padding(.vertical, framed ? 9 : 10)
                         .allowsHitTesting(false)
                 }
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(focused ? Theme.accent.opacity(0.7) : Theme.border, lineWidth: 1)
+                if framed {
+                    shape.strokeBorder(focused ? Theme.accent.opacity(0.7) : Theme.border, lineWidth: 1)
+                }
             }
             .accessibilityLabel(label)
     }
@@ -254,10 +354,9 @@ extension View {
     }
 }
 
-/// The app's mark: three bars in an accent square, drawn rather than an image so it
-/// stays sharp at any size.
 /// Listener's mark, as the app icon draws it at 32 px (scripts/make-icon.py): an L cut
-/// into five lines, the last slid out from under it in indigo, on ink.
+/// into five lines, the last slid out from under it in indigo, on ink. Drawn rather than
+/// an image so it stays sharp at any size.
 struct AppMark: View {
     var size: CGFloat = 22
 

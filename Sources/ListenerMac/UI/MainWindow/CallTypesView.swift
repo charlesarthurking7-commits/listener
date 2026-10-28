@@ -28,9 +28,7 @@ private struct CallTypeList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionBar {
-                Text("Call types")
-                    .font(.geist(15, .semibold))
-                    .tracking(-0.15)
+                SectionTitle(title: "Call types")
                 Spacer()
                 Button(action: model.create) {
                     Image(systemName: "plus")
@@ -47,7 +45,7 @@ private struct CallTypeList: View {
                         .foregroundStyle(Theme.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 10)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 10)
                     ForEach(model.names, id: \.self) { name in
                         CallTypeRow(
                             name: name, files: model.fileCounts[name] ?? 0, isNext: name == model.call.callType,
@@ -57,7 +55,7 @@ private struct CallTypeList: View {
                         }
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 14)
             }
         }
@@ -74,13 +72,9 @@ private struct CallTypeRow: View {
 
     var body: some View {
         Button(action: select) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: CallTypeIcon.symbol(for: name))
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(Theme.secondaryText)
-                    .frame(width: 30, height: 30)
-                    .panel(Theme.control, radius: 8)
-                VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 12) {
+                IconTile(symbol: CallTypeIcon.symbol(for: name))
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Text(name)
                             .font(.geist(13, .medium))
@@ -101,22 +95,28 @@ private struct CallTypeRow: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(12)
-            .background(
-                isOn ? Theme.surface : hovering ? Theme.hover : .clear,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-            )
-            .overlay {
-                if isOn {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border, lineWidth: 1)
-                }
-            }
+            .padding(10)
+            .rowBackground(isOn: isOn, hovering: hovering, radius: 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// A small square behind an icon, at the start of a row.
+private struct IconTile: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Theme.secondaryText)
+            .frame(width: 28, height: 28)
+            .background(Theme.selection, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 
@@ -139,10 +139,7 @@ private struct CallTypeEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             SectionBar {
-                Text(name)
-                    .font(.geist(15, .semibold))
-                    .tracking(-0.15)
-                    .lineLimit(1)
+                SectionTitle(title: name)
                 Spacer()
                 if name == model.call.callType {
                     Label("Used for the next call", systemImage: "checkmark")
@@ -171,16 +168,16 @@ private struct CallTypeEditor: View {
                 .accessibilityLabel("More")
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 14) {
                     if let message = model.message {
                         MessageBanner(text: message) { model.message = nil }
                     }
                     instructions
                     background
                 }
-                .frame(maxWidth: 640, alignment: .leading)
+                .frame(maxWidth: 680, alignment: .leading)
                 .padding(.horizontal, 28)
-                .padding(.vertical, 24)
+                .padding(.vertical, 22)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .overlay {
@@ -204,62 +201,68 @@ private struct CallTypeEditor: View {
     }
 
     private var instructions: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel("How answers should go")
-                Spacer()
-                Text("Added to the general rules in Settings, and wins where they differ")
-                    .font(.geist(11.5))
-                    .foregroundStyle(Theme.tertiaryText)
+        VStack(alignment: .leading, spacing: 0) {
+            CardHeader(title: "How answers should go") {
+                Text("Added to the general rules, and wins where they differ")
+                    .lineLimit(1)
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 2)
             TextArea(
                 text: Binding(
                     get: { model.texts[.instructions] ?? "" }, set: { model.setText($0, for: .instructions) }),
                 label: "How answers should go on a \(name)",
                 prompt:
                     "For example: a call with a broker's dealing desk. Keep answers short, and suggest confirming anything about client funds in writing.",
-                minHeight: 120)
+                minHeight: 120, framed: false)
         }
+        .card()
     }
 
     private var background: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel("Background Claude reads")
-                Spacer()
-                Text(
-                    "\(DisplayFormat.tokens(model.tokens)) of \(DisplayFormat.tokens(CallTypeLibrary.documentBudgetTokens)) tokens"
-                )
-                .font(.geistMono(11.5))
-                .foregroundStyle(Theme.tertiaryText)
+        VStack(alignment: .leading, spacing: 0) {
+            CardHeader(title: "Background Claude reads") {
+                HStack(spacing: 10) {
+                    Text(
+                        "\(DisplayFormat.tokens(model.tokens)) of \(DisplayFormat.tokens(CallTypeLibrary.documentBudgetTokens)) tokens"
+                    )
+                    .font(.geistMono(11))
+                    BudgetBar(fraction: Double(model.tokens) / Double(CallTypeLibrary.documentBudgetTokens))
+                        .frame(width: 56)
+                }
                 .help(CallTypeLibrary.budgetNote)
             }
-            BudgetBar(fraction: Double(model.tokens) / Double(CallTypeLibrary.documentBudgetTokens))
-            VStack(spacing: 0) {
-                NoteRow(
-                    title: "Brief", detail: noteDetail(.brief, empty: "Your own notes for this kind of call"),
-                    symbol: "square.and.pencil", isEmpty: (model.texts[.brief] ?? "").isEmpty
-                ) {
-                    editing = .brief
-                }
-                Hairline()
-                NoteRow(
-                    title: "Stories",
-                    detail: noteDetail(
-                        .stories, empty: "Your stories for \u{201C}tell me about a time\u{201D} questions"),
-                    symbol: "book.closed", isEmpty: (model.texts[.stories] ?? "").isEmpty
-                ) {
-                    editing = .stories
-                }
-                ForEach(documents) { file in
-                    Hairline()
-                    FileRow(file: file, model: model)
-                }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            NoteRow(
+                title: "Brief", detail: noteDetail(.brief, empty: "Your own notes for this kind of call"),
+                symbol: "square.and.pencil", isEmpty: (model.texts[.brief] ?? "").isEmpty
+            ) {
+                editing = .brief
             }
-            .card()
-            .padding(.top, 4)
+            Hairline()
+                .padding(.leading, 56)
+                .padding(.trailing, 16)
+            NoteRow(
+                title: "Stories",
+                detail: noteDetail(.stories, empty: "Your stories for \u{201C}tell me about a time\u{201D} questions"),
+                symbol: "book.closed", isEmpty: (model.texts[.stories] ?? "").isEmpty
+            ) {
+                editing = .stories
+            }
+            ForEach(documents) { file in
+                Hairline()
+                    .padding(.leading, 56)
+                    .padding(.trailing, 16)
+                FileRow(file: file, model: model)
+            }
             DropZone(model: model)
+                .padding(.top, 6)
         }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .card()
     }
 
     /// Every background file but the brief and the stories, which have rows of their own.
@@ -298,7 +301,7 @@ private struct BudgetBar: View {
     var body: some View {
         GeometryReader { proxy in
             Capsule()
-                .fill(Theme.hover)
+                .fill(Theme.selection)
                 .overlay(alignment: .leading) {
                     Capsule()
                         .fill(fraction >= 1 ? Theme.amber : Theme.accent)
@@ -319,25 +322,21 @@ private struct NoteRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.secondaryText)
-                .frame(width: 28, height: 28)
-                .panel(Theme.control, radius: 7)
+            IconTile(symbol: symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.geist(13, .medium))
                 Text(detail)
                     .font(isEmpty ? .geist(11.5) : .geistMono(11.5))
-                    .foregroundStyle(isEmpty && title == "Stories" ? Theme.amber : Theme.tertiaryText)
+                    .foregroundStyle(Theme.tertiaryText)
             }
             Spacer(minLength: 8)
             Button(isEmpty ? "Write" : "Edit", action: edit)
                 .buttonStyle(SoftButtonStyle(small: true))
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .frame(height: 52)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .frame(height: 54)
         .contentShape(Rectangle())
         .onTapGesture(count: 2, perform: edit)
     }
@@ -349,11 +348,7 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.secondaryText)
-                .frame(width: 28, height: 28)
-                .panel(Theme.control, radius: 7)
+            IconTile(symbol: symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(file.name)
                     .font(.geist(13, .medium))
@@ -373,9 +368,9 @@ private struct FileRow: View {
             .help("Move to the Bin")
             .accessibilityLabel("Remove \(file.name)")
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .frame(height: 52)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .frame(height: 54)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { model.open(file) }
         .contextMenu {
@@ -403,17 +398,20 @@ private struct FileRow: View {
     }
 }
 
+/// The background card's last row: where files and pasted pages come in.
 private struct DropZone: View {
     let model: CallTypesModel
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.down.doc")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.tertiaryText)
+                .frame(width: 28)
             Text(model.isImportingPage ? "Reading the page…" : "Drop files here, or paste text or a link")
                 .font(.geist(12.5))
                 .foregroundStyle(Theme.secondaryText)
+                .lineLimit(1)
             Spacer(minLength: 8)
             Button(action: model.paste) {
                 Label("Paste", systemImage: "doc.on.clipboard")
@@ -424,12 +422,11 @@ private struct DropZone: View {
             Button("Add Files…", action: model.chooseFiles)
                 .buttonStyle(SoftButtonStyle(small: true))
         }
-        .padding(.horizontal, 14)
-        .frame(height: 56)
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Theme.strongBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-        }
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .frame(height: 52)
+        .background(Theme.hover)
+        .overlay(alignment: .top) { Hairline() }
     }
 }
 

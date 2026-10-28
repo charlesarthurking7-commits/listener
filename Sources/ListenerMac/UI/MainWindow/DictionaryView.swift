@@ -9,13 +9,7 @@ struct DictionaryView: View {
     var body: some View {
         VStack(spacing: 0) {
             SectionBar {
-                Text("Dictionary")
-                    .font(.geist(15, .semibold))
-                    .tracking(-0.15)
-                Text("Spellings dictation uses, learned from your fixes")
-                    .font(.geist(12))
-                    .foregroundStyle(Theme.tertiaryText)
-                    .lineLimit(1)
+                SectionTitle(title: "Dictionary", subtitle: "Spellings dictation uses, learned from your fixes")
                 Spacer()
                 SearchField(prompt: "Find a word", text: $model.query)
                     .frame(width: 220)
@@ -60,26 +54,12 @@ private struct WordList: View {
             if let message = model.message {
                 MessageBanner(text: message) { model.message = nil }
             }
-            HStack(spacing: 6) {
-                Button {
-                    model.filter = .all
-                } label: {
-                    Text("All ") + Text("\(model.words.count)").font(.geistMono(11))
-                }
-                .buttonStyle(FilterChipStyle(isOn: model.filter == .all))
-                Button {
-                    model.filter = .learned
-                } label: {
-                    Text("Learned ") + Text("\(model.learnedCount)").font(.geistMono(11))
-                }
-                .buttonStyle(FilterChipStyle(isOn: model.filter == .learned))
-                Button {
-                    model.filter = .added
-                } label: {
-                    Text("Added by you ") + Text("\(model.words.count - model.learnedCount)").font(.geistMono(11))
-                }
-                .buttonStyle(FilterChipStyle(isOn: model.filter == .added))
-            }
+            SegmentedControl(
+                options: [
+                    .init(value: DictionaryModel.Filter.all, title: "All", count: model.words.count),
+                    .init(value: .learned, title: "Learned", count: model.learnedCount),
+                    .init(value: .added, title: "Added by you", count: model.words.count - model.learnedCount),
+                ], selection: $model.filter, label: "Show")
             if model.words.isEmpty {
                 EmptyDictionary()
             } else {
@@ -93,8 +73,7 @@ private struct WordList: View {
                     }
                     .padding(.leading, 16)
                     .padding(.trailing, 10)
-                    .frame(height: 34)
-                    .background(Theme.hover)
+                    .frame(height: 40)
                     LazyVStack(spacing: 0) {
                         ForEach(model.shown) { word in
                             Hairline()
@@ -102,7 +81,6 @@ private struct WordList: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                 .card()
             }
         }
@@ -128,11 +106,10 @@ private struct WordRow: View {
                         ForEach(word.heardAs, id: \.self) { heard in
                             Text(heard)
                                 .font(.geist(12))
-                                .strikethrough(color: Theme.tertiaryText.opacity(0.6))
                                 .foregroundStyle(Theme.secondaryText)
                                 .padding(.horizontal, 7)
                                 .frame(height: 22)
-                                .panel(Theme.hover, radius: 5)
+                                .background(Theme.selection, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 .lineLimit(1)
                         }
                     }
@@ -217,7 +194,6 @@ private struct AddWord: View {
     }
 }
 
-/// How much has been dictated: words, speed and dictations, then this week's words.
 /// Dictation's own settings, next to the words it uses.
 private struct DictationOptions: View {
     let store: SettingsStore
@@ -306,7 +282,7 @@ struct OptionSwitch: View {
     let set: (Bool) -> Void
 
     var body: some View {
-        Toggle(isOn: Binding(get: { isOn }, set: set)) {
+        Toggle(isOn: Binding(get: { isOn }, set: { set($0) })) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.geist(13, .medium))

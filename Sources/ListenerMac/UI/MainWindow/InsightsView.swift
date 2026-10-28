@@ -322,10 +322,10 @@ private struct ActivityGrid: View {
     @State private var width: CGFloat = 0
     @State private var hovered: Date?
 
-    private static let gap: CGFloat = 3
+    private nonisolated static let gap: CGFloat = 3
     private static let targetCell: CGFloat = 14
     private static let labelWidth: CGFloat = 30
-    private static let monthHeight: CGFloat = 20
+    private nonisolated static let monthHeight: CGFloat = 20
     private static let levels: [Double] = [0.3, 0.5, 0.75, 1]
 
     private struct Layout {

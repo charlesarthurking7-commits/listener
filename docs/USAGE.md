@@ -185,18 +185,20 @@ the Dock and the app switcher; close it and Listener goes back to the menu bar (
 `window.showDockIcon` keeps it there). It has five sections, also under View with
 Command-1 to Command-5.
 
-**Start call** at the top of the sidebar does what Start does, and brings up the floating
-window, which is where a call is run from: it stays on top of the call app. The menu under
-it picks the call type the next call uses. During a call, Quick, Deep and Recap sit under
-**Stop call**, and the call is at the top of Calls as **Live**, with its answer and
-transcript as they come. Notices about the app, such as a hotkey another app has taken or
-a summary that is ready, show at the bottom of the sidebar.
+The card at the top of the sidebar holds the call type the next call uses and **Start
+call**, which does what Start does and brings up the floating window, where a call is run
+from: it stays on top of the call app. During a call the card holds Quick, Deep and Recap,
+with **Stop call** where Start was, and the call is at the top of Calls as **Live**, with
+its answer and transcript as they come. Notices about the app, such as a hotkey another
+app has taken or a summary that is ready, show near the bottom of the sidebar, and under
+them what calls have cost this month and whether Listener is ready to listen.
 
 - **Calls.** Every saved call, newest first, by day, leaving out calls where nothing was
   said. Each is titled by its summary (older calls by their type and date), with its
   type, time, length and how many of your action items are still to do. Search finds
   words in titles, summaries and transcripts, with every word of the search somewhere in
-  the call, and shows the line that matched. A call's page has three tabs:
+  the call, and shows the line that matched. A call's page starts with its length, how
+  long each side spoke, its turns and its cost, then has three tabs:
   - **Summary**: what the call was about, your action items and, under Waiting on
     others, everyone else's (tick them off; the tick is saved in `summary.md`), what was
     decided and what is still open, and the follow-up email with a Copy button. An item
@@ -228,7 +230,7 @@ a summary that is ready, show at the bottom of the sidebar.
   the floating window, answers and their models, speech, shortcuts (click one and press
   the new keys), storage and privacy, and the API key. Each change is saved to the file at
   once and checked the way loading checks it, so a change that would break it is refused
-  with the reason. The sidebar card adds up what calls have cost on Claude this month.
+  with the reason.
 
 ## Call types
 

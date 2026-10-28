@@ -29,16 +29,14 @@ private struct CallList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionBar {
-                Text("Calls")
-                    .font(.geist(15, .semibold))
-                    .tracking(-0.15)
+                SectionTitle(title: "Calls")
                 Spacer()
                 Text(retention)
-                    .font(.geistMono(11))
+                    .font(.geist(11.5))
                     .foregroundStyle(Theme.tertiaryText)
-                    .help("storage.retentionDays in Settings: older calls are deleted at launch")
+                    .help("Keep calls for, in Settings under Storage and privacy: older calls are deleted at launch")
             }
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 SearchField(prompt: "Search calls and what was said", text: $model.query)
                 if model.callTypes.count > 1 {
                     ScrollView(.horizontal) {
@@ -54,22 +52,19 @@ private struct CallList: View {
                     .scrollIndicators(.never)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 2)
             if model.groups.isEmpty {
                 EmptyList(model: model)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(model.groups) { group in
-                            Text(group.title)
-                                .font(.geist(11, .semibold))
-                                .foregroundStyle(Theme.tertiaryText)
+                            SectionLabel(group.title)
                                 .padding(.horizontal, 10)
-                                .padding(.top, 14)
-                                .padding(.bottom, 4)
-                                .accessibilityAddTraits(.isHeader)
+                                .padding(.top, 16)
+                                .padding(.bottom, 6)
                             ForEach(group.rows) { row in
                                 CallRow(row: row, isOn: model.selection == row.id) {
                                     model.selection = row.id
@@ -77,7 +72,7 @@ private struct CallList: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 10)
                     .padding(.bottom, 12)
                 }
             }
@@ -86,7 +81,7 @@ private struct CallList: View {
 
     private var retention: String {
         let days = model.call.settings.storage.retentionDays
-        return days <= 0 ? "kept forever" : "kept \(days) days"
+        return days <= 0 ? "Kept forever" : "Kept \(days) days"
     }
 }
 
@@ -183,15 +178,7 @@ private struct CallRow: View {
             .padding(.top, 10)
             .padding(.bottom, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                isOn ? Theme.surface : hovering ? Theme.hover : .clear,
-                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-            )
-            .overlay {
-                if isOn {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.border, lineWidth: 1)
-                }
-            }
+            .rowBackground(isOn: isOn, hovering: hovering, radius: 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -422,7 +409,7 @@ private struct LiveCallView: View {
 /// Quick, Deep and Recap, each with its hotkey in the tooltip.
 struct AnswerButtons: View {
     let call: CallModel
-    /// Shares out the width, as under Stop in the sidebar.
+    /// Shares out the width, as over Stop in the sidebar.
     var fills = false
 
     var body: some View {
