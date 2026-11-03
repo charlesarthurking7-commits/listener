@@ -6,7 +6,8 @@ import Foundation
 /// during a call, the transcript blocks come next and carry the cache breakpoints, and
 /// everything that changes on every press (interim text, the time, the instruction)
 /// goes in a final block after them. The call type and its documents sit in the system
-/// prompt, which gets its own breakpoint once there are documents to cache.
+/// prompt, which gets its own breakpoint: early in a call the transcript is one growing
+/// block, and without it nothing from one press is read back by the next.
 public struct PromptBuilder: Sendable {
     public var answers: AnswerSettings
     public var call = CallContext.none
@@ -50,9 +51,7 @@ public struct PromptBuilder: Sendable {
         user.append(PromptBlock(tail))
 
         return ModelRequest(
-            settings: answers.settings(for: tier), system: systemPrompt(for: tier),
-            cacheSystem: !call.documents.isEmpty,
-            user: user)
+            settings: answers.settings(for: tier), system: systemPrompt(for: tier), cacheSystem: true, user: user)
     }
 
     /// A request that only writes a tier's system prompt, with the call's documents, to

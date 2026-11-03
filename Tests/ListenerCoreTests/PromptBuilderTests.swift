@@ -19,7 +19,7 @@ struct PromptBuilderTests {
             now: 300)
         #expect(first.settings == AnswerSettings().quick)
         #expect(first.system == later.system)
-        #expect(!first.cacheSystem)
+        #expect(first.cacheSystem)
         #expect(first.system.contains("British English"))
         #expect(first.system.contains("Never invent details specific to this call"))
         #expect(first.system.contains("answer the most likely reading, then add one short clarifying question"))
@@ -195,7 +195,7 @@ struct PromptBuilderTests {
         #expect(summary.system.contains("<document name=\"runbook.pdf\">"))
 
         let plain = self.builder.answerRequest(tier: .quick, transcript: TranscriptSnapshot(turns: turns), now: 10)
-        #expect(!plain.cacheSystem && !plain.system.contains("This call is"))
+        #expect(plain.cacheSystem && !plain.system.contains("This call is"))
     }
 
     @Test func aWarmUpCachesExactlyTheAnswersSystemPrompt() {

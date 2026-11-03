@@ -125,10 +125,12 @@ adaptive thinking (about 5 s), and its answers are about 140 words. Every answer
 its time to first token, so the choices can be checked against measurements.
 
 ### 2.6 Prompt caching: what it actually buys here
-The system prompt is about 1.5k tokens with a line about the user, and the cache
-breakpoints in the transcript cover it along with everything before them. The
-transcript is where caching pays, so the rolling window is built to keep its prefix
-stable:
+The system prompt is about 1.7k tokens with a line about the user, and it has a cache
+breakpoint of its own. The transcript's breakpoints cover it too, but only once a
+transcript block is complete: for the first few minutes of a call the transcript is one
+growing block, and on a call on 3 November 2026 the first five answers each wrote the
+whole prompt again and read none of it. The transcript is where caching pays later on,
+so the rolling window is built to keep its prefix stable:
 
 - The window start moves in steps (for example, drop the oldest 25% when the budget is
   exceeded) rather than sliding line by line. Between steps every request shares the
@@ -311,7 +313,7 @@ replay mode makes tuning them repeatable.
 ```
 system:   role (make Me the best-informed person on the call), the "no invented
           specifics" rule, answer style (lead with the answer, short, speakable),
-          who "Me" and "Them" are, the call type and its background   [stable]
+          who "Me" and "Them" are, the call type and its background   [cache breakpoint]
 user:     <transcript> window of finalized turns, oldest first     [cache breakpoint]
           current interim text for each channel, marked as in progress
           the last three suggestions from the past five minutes, not to repeat
