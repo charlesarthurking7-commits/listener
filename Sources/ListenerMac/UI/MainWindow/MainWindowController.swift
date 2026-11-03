@@ -31,7 +31,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 980, height: 620)
-        window.backgroundColor = NSColor(Theme.windowBackground)
+        window.backgroundColor = NSColor(Theme.canvas)
         let host = NSHostingView(rootView: MainWindowView(model: model))
         host.safeAreaRegions = []
         window.contentView = host

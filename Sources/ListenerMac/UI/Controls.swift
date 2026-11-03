@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// A row of mutually exclusive choices on a recessed track, the chosen one raised.
-struct SegmentedControl<Value: Hashable>: View {
+/// Round chips that pick one of a few: the picked one filled with ink, the rest soft.
+struct Chips<Value: Hashable>: View {
     struct Option {
         var value: Value
         var title: String
-        var symbol: String?
         /// A count after the title, e.g. the number of answers.
         var count: Int?
     }
@@ -15,175 +14,195 @@ struct SegmentedControl<Value: Hashable>: View {
     var label: String
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 6) {
             ForEach(options, id: \.value) { option in
                 Button {
                     selection = option.value
                 } label: {
-                    HStack(spacing: 6) {
-                        if let symbol = option.symbol {
-                            Image(systemName: symbol)
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .foregroundStyle(option.value == selection ? Theme.accentText : Theme.tertiaryText)
-                        }
+                    HStack(spacing: 5) {
                         Text(option.title)
                         if let count = option.count {
                             Text("\(count)")
-                                .font(.geistMono(11))
-                                .foregroundStyle(Theme.tertiaryText)
+                                .monospacedDigit()
+                                .opacity(0.6)
                         }
                     }
                 }
-                .buttonStyle(SegmentStyle(isOn: option.value == selection))
+                .buttonStyle(ChipStyle(isOn: option.value == selection))
                 .accessibilityAddTraits(option.value == selection ? .isSelected : [])
             }
         }
-        .padding(2)
-        .background(Theme.well, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.border, lineWidth: 1) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
     }
 }
 
-private struct SegmentStyle: ButtonStyle {
-    let isOn: Bool
-    @State private var hovering = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
-        configuration.label
-            .font(.geist(12.5, .medium))
-            .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
-            .padding(.horizontal, 10)
-            .frame(height: 24)
-            .background(isOn ? Theme.raised : .clear, in: shape)
-            .overlay {
-                if isOn {
-                    shape.strokeBorder(Theme.highlight, lineWidth: 1)
-                }
-            }
-            .shadow(color: .black.opacity(isOn ? 0.18 : 0), radius: 1, y: 1)
-            .contentShape(shape)
-            .onHover { hovering = $0 }
-    }
-}
-
-/// A filter that is on or off, e.g. a call type above the list of calls.
-struct FilterChipStyle: ButtonStyle {
+private struct ChipStyle: ButtonStyle {
     let isOn: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        FilterChip(configuration: configuration, isOn: isOn)
+        Chip(configuration: configuration, isOn: isOn)
     }
 }
 
-private struct FilterChip: View {
+private struct Chip: View {
     let configuration: ButtonStyleConfiguration
     let isOn: Bool
     @State private var hovering = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         configuration.label
-            .font(.geist(12, .medium))
-            .foregroundStyle(isOn ? Theme.accentText : hovering ? Theme.text : Theme.secondaryText)
-            .padding(.horizontal, 9)
-            .frame(height: 24)
-            .background(isOn ? Theme.accentTint : hovering ? Theme.hover : .clear, in: shape)
-            .overlay { shape.strokeBorder(isOn ? Theme.accent.opacity(0.22) : Theme.border, lineWidth: 1) }
-            .contentShape(shape)
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .font(.geist(13, .medium))
+            .foregroundStyle(isOn ? Theme.onInk : Theme.text)
+            .padding(.horizontal, 13)
+            .frame(height: 30)
+            .background(isOn ? Theme.ink : Theme.selection, in: Capsule())
+            .overlay {
+                if !isOn && (hovering || configuration.isPressed) {
+                    Capsule().fill(Theme.hover)
+                }
+            }
+            .contentShape(Capsule())
+            .onHover { hovering = $0 }
+    }
+}
+
+/// The main window's buttons: an ink pill for the one thing to do, soft grey pills for
+/// the rest.
+struct PillButtonStyle: ButtonStyle {
+    enum Kind {
+        case ink
+        case soft
+    }
+
+    var kind = Kind.soft
+    var small = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        Pill(configuration: configuration, kind: kind, small: small)
+    }
+}
+
+private struct Pill: View {
+    let configuration: ButtonStyleConfiguration
+    let kind: PillButtonStyle.Kind
+    let small: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+
+    var body: some View {
+        configuration.label
+            .labelStyle(CompactLabelStyle(spacing: small ? 5 : 7))
+            .font(.geist(small ? 12.5 : 13, .medium))
+            .foregroundStyle(kind == .ink ? Theme.onInk : Theme.text)
+            .padding(.horizontal, small ? 12 : 15)
+            .frame(height: small ? 28 : 32)
+            .background(kind == .ink ? Theme.ink : Theme.selection, in: Capsule())
+            .overlay {
+                if hovering && isEnabled || configuration.isPressed {
+                    Capsule().fill(kind == .ink ? Theme.onInk.opacity(0.12) : Theme.hover)
+                }
+            }
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.45)
             .onHover { hovering = $0 }
     }
 }
 
 extension View {
-    /// A list row's ground: raised like a card while it is picked, a soft fill on hover.
-    func rowBackground(isOn: Bool, hovering: Bool, radius: CGFloat = 8) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return background {
-            if isOn {
-                shape.fill(Theme.raised)
-                    .overlay { shape.strokeBorder(Theme.border, lineWidth: 1) }
-                    .shadow(color: .black.opacity(0.05), radius: 1.5, y: 1)
-            } else if hovering {
-                shape.fill(Theme.hover)
-            }
-        }
+    /// A tile on the main window's canvas: white in light mode, a lifted grey in the dark,
+    /// with no edge.
+    func tile(radius: CGFloat = 18) -> some View {
+        background(Theme.tile, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+
+    /// Set as a title or heading: semibold Geist, tighter the larger it is.
+    func heading(_ size: CGFloat) -> some View {
+        font(.geist(size, .semibold)).tracking(-size * 0.022)
     }
 }
 
-/// A card's top line: its small heading, and a note or control on the right.
-struct CardHeader<Accessory: View>: View {
+/// A heading over a tile, with a count or a button on the right.
+struct SectionHeading<Accessory: View>: View {
     let title: String
-    var tint = Theme.tertiaryText
     @ViewBuilder var accessory: () -> Accessory
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            SectionLabel(title, tint: tint)
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .heading(18)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             accessory()
-                .font(.geist(11.5))
+                .font(.geist(13))
                 .foregroundStyle(Theme.tertiaryText)
         }
-        .frame(minHeight: 18)
+        .padding(.horizontal, 4)
+        .padding(.bottom, 10)
     }
 }
 
-extension CardHeader where Accessory == EmptyView {
-    init(_ title: String, tint: Color = Theme.tertiaryText) {
-        self.init(title: title, tint: tint) { EmptyView() }
+extension SectionHeading where Accessory == EmptyView {
+    init(_ title: String) {
+        self.init(title: title) { EmptyView() }
     }
 }
 
-/// A card with a small heading over its content, laid out like the Insights cards.
-struct TitledCard<Accessory: View, Content: View>: View {
-    let title: String
-    var tint = Theme.tertiaryText
-    @ViewBuilder var accessory: () -> Accessory
-    @ViewBuilder var content: () -> Content
+/// An icon or a letter in a soft circle at the start of a row.
+struct RoundGlyph: View {
+    var symbol: String?
+    var letter: String?
+    var size: CGFloat = 36
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            CardHeader(title: title, tint: tint, accessory: accessory)
-            content()
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .card()
-    }
-}
-
-extension TitledCard where Accessory == EmptyView {
-    init(_ title: String, tint: Color = Theme.tertiaryText, @ViewBuilder content: @escaping () -> Content) {
-        self.init(title: title, tint: tint, accessory: { EmptyView() }, content: content)
-    }
-}
-
-/// A tick box drawn in the window's style rather than the system's.
-struct Checkbox: View {
-    let isOn: Bool
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-        shape
-            .fill(isOn ? Theme.accent : Theme.surface)
-            .overlay { shape.strokeBorder(isOn ? .clear : Theme.strongBorder, lineWidth: 1.25) }
+        Circle()
+            .fill(Theme.selection)
             .overlay {
-                if isOn {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: size * 0.39, weight: .medium))
+                } else if let letter {
+                    Text(letter)
+                        .font(.geist(size * 0.42, .semibold))
                 }
             }
-            .frame(width: 16, height: 16)
+            .foregroundStyle(Theme.secondaryText)
+            .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
 
-/// An on and off switch in the accent colour.
+extension View {
+    /// A list row's ground: a soft fill while it is picked, a fainter one on hover.
+    func rowBackground(isOn: Bool, hovering: Bool, radius: CGFloat = 10) -> some View {
+        background(
+            isOn ? Theme.selection : hovering ? Theme.hover : .clear,
+            in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
+/// A round tick box, filled with ink once ticked.
+struct Checkbox: View {
+    let isOn: Bool
+
+    var body: some View {
+        Circle()
+            .fill(isOn ? Theme.ink : .clear)
+            .overlay {
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(Theme.onInk)
+                } else {
+                    Circle().strokeBorder(Theme.tertiaryText.opacity(0.6), lineWidth: 1.5)
+                }
+            }
+            .frame(width: 17, height: 17)
+            .accessibilityHidden(true)
+    }
+}
+
+/// An on and off switch in ink.
 struct SwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Button {
@@ -193,12 +212,12 @@ struct SwitchStyle: ToggleStyle {
                 configuration.label
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Capsule()
-                    .fill(configuration.isOn ? Theme.accent : Theme.strongBorder)
+                    .fill(configuration.isOn ? Theme.ink : Theme.tertiaryText.opacity(0.35))
                     .frame(width: 30, height: 18)
                     .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                         Circle()
                             .fill(.white)
-                            .shadow(color: .black.opacity(0.3), radius: 1, y: 0.5)
+                            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
                             .padding(2)
                     }
                     .animation(.snappy(duration: 0.15), value: configuration.isOn)
@@ -241,21 +260,24 @@ private struct SelectButtonStyle: ButtonStyle {
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         configuration.label
             .font(.geist(12.5, .medium))
             .foregroundStyle(Theme.text)
-            .padding(.leading, 10)
-            .padding(.trailing, 8)
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
             .frame(height: 28)
-            .background(configuration.isPressed || hovering ? Theme.controlPressed : Theme.control, in: shape)
-            .overlay { shape.strokeBorder(Theme.border, lineWidth: 1) }
-            .contentShape(shape)
+            .background(Theme.selection, in: Capsule())
+            .overlay {
+                if configuration.isPressed || hovering {
+                    Capsule().fill(Theme.hover)
+                }
+            }
+            .contentShape(Capsule())
             .onHover { hovering = $0 }
     }
 }
 
-/// A text field with a magnifying glass, a clear button, and a ring while focused.
+/// A text field with a magnifying glass and a clear button, on a round tile.
 struct SearchField: View {
     let prompt: String
     @Binding var text: String
@@ -269,7 +291,7 @@ struct SearchField: View {
                 .foregroundStyle(focused ? Theme.secondaryText : Theme.tertiaryText)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
-                .font(.geist(12.5))
+                .font(.geist(13))
                 .foregroundStyle(Theme.text)
                 .focused($focused)
                 .onExitCommand { text = "" }
@@ -286,36 +308,26 @@ struct SearchField: View {
                 Keycap(label: shortcut)
             }
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 7)
-        .frame(height: 32)
-        .background(Theme.well, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(focused ? Theme.accent.opacity(0.7) : Theme.border, lineWidth: 1)
-        }
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.accent.opacity(focused ? 0.18 : 0))
-                .padding(-3)
-        }
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .frame(height: 36)
+        .background(Theme.tile, in: Capsule())
+        .overlay { Capsule().strokeBorder(focused ? Theme.ink.opacity(0.35) : .clear, lineWidth: 1) }
         .animation(.easeOut(duration: 0.12), value: focused)
     }
 }
 
-/// Multi-line text that saves as it is typed, on the window's surface.
+/// Multi-line text that saves as it is typed, on a tile.
 struct TextArea: View {
     @Binding var text: String
     var label: String
     var prompt: String?
     var minHeight: CGFloat = 96
     var font: Font = .geist(13.5)
-    /// Off inside a card, which draws the edge itself.
-    var framed = true
     @FocusState private var focused: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
         TextEditor(text: $text)
             .font(font)
             .foregroundStyle(Theme.text)
@@ -323,26 +335,22 @@ struct TextArea: View {
             .scrollContentBackground(.hidden)
             .scrollIndicators(.automatic)
             .focused($focused)
-            .padding(.horizontal, framed ? 9 : 11)
-            .padding(.vertical, framed ? 9 : 10)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 14)
             .frame(minHeight: minHeight)
-            .background(framed ? Theme.surface : .clear, in: shape)
+            .background(Theme.tile, in: shape)
             .overlay(alignment: .topLeading) {
                 if let prompt, text.isEmpty {
                     Text(prompt)
                         .font(font)
                         .lineSpacing(3)
                         .foregroundStyle(Theme.tertiaryText)
-                        .padding(.horizontal, framed ? 14 : 16)
-                        .padding(.vertical, framed ? 9 : 10)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
                         .allowsHitTesting(false)
                 }
             }
-            .overlay {
-                if framed {
-                    shape.strokeBorder(focused ? Theme.accent.opacity(0.7) : Theme.border, lineWidth: 1)
-                }
-            }
+            .overlay { shape.strokeBorder(focused ? Theme.ink.opacity(0.35) : .clear, lineWidth: 1) }
             .accessibilityLabel(label)
     }
 }

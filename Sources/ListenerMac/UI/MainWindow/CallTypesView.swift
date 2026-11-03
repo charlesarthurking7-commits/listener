@@ -10,8 +10,7 @@ struct CallTypesView: View {
     var body: some View {
         HStack(spacing: 0) {
             CallTypeList(model: model)
-                .frame(width: 290)
-            VerticalHairline()
+                .frame(width: 300)
             if let name = model.selected {
                 CallTypeEditor(model: model, name: name)
                     .id(name)
@@ -27,9 +26,7 @@ private struct CallTypeList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionBar {
-                SectionTitle(title: "Call types")
-                Spacer()
+            PageHeader(title: "Call types", inset: 24) {
                 Button(action: model.create) {
                     Image(systemName: "plus")
                 }
@@ -37,15 +34,14 @@ private struct CallTypeList: View {
                 .help("New call type")
                 .accessibilityLabel("New call type")
             }
+            Text("How answers go, and what Claude reads first, for each kind of call.")
+                .font(.geist(13))
+                .lineSpacing(3)
+                .foregroundStyle(Theme.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 24)
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("How answers go, and what Claude reads first, for each kind of call.")
-                        .font(.geist(12))
-                        .lineSpacing(2)
-                        .foregroundStyle(Theme.tertiaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 10)
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(model.names, id: \.self) { name in
                         CallTypeRow(
                             name: name, files: model.fileCounts[name] ?? 0, isNext: name == model.call.callType,
@@ -55,8 +51,10 @@ private struct CallTypeList: View {
                         }
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 14)
+                .padding(6)
+                .tile(radius: 20)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
             }
         }
     }
@@ -73,60 +71,28 @@ private struct CallTypeRow: View {
     var body: some View {
         Button(action: select) {
             HStack(spacing: 12) {
-                IconTile(symbol: CallTypeIcon.symbol(for: name))
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 8) {
-                        Text(name)
-                            .font(.geist(13, .medium))
-                            .foregroundStyle(Theme.text)
-                            .lineLimit(1)
-                        if isNext {
-                            Text("Next call")
-                                .font(.geist(10.5, .semibold))
-                                .foregroundStyle(Theme.accentText)
-                                .padding(.horizontal, 6)
-                                .frame(height: 17)
-                                .background(Theme.accentTint, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        }
-                    }
-                    Text(files == 0 ? "No files" : files == 1 ? "1 file" : "\(files) files")
-                        .font(.geist(11.5))
+                RoundGlyph(letter: name.first.map { String($0).uppercased() })
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.geist(14.5, .medium))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    (Text(files == 0 ? "No files" : files == 1 ? "1 file" : "\(files) files")
+                        + Text(isNext ? " · " : "") + Text(isNext ? "next call" : "").foregroundColor(Theme.accentText))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
                 }
-                Spacer(minLength: 0)
             }
-            .padding(10)
-            .rowBackground(isOn: isOn, hovering: hovering, radius: 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .rowBackground(isOn: isOn, hovering: hovering, radius: 14)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// A small square behind an icon, at the start of a row.
-private struct IconTile: View {
-    let symbol: String
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(Theme.secondaryText)
-            .frame(width: 28, height: 28)
-            .background(Theme.selection, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
-enum CallTypeIcon {
-    static func symbol(for name: String) -> String {
-        let name = name.lowercased()
-        if name.contains("meeting") || name.contains("sync") || name.contains("stand") {
-            return "person.2"
-        }
-        return "phone"
     }
 }
 
@@ -139,16 +105,15 @@ private struct CallTypeEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             SectionBar {
-                SectionTitle(title: name)
                 Spacer()
                 if name == model.call.callType {
                     Label("Used for the next call", systemImage: "checkmark")
                         .labelStyle(CompactLabelStyle(spacing: 5))
-                        .font(.geist(12, .medium))
+                        .font(.geist(12.5, .medium))
                         .foregroundStyle(Theme.tertiaryText)
                 } else {
                     Button("Use for the next call", action: model.useForNextCall)
-                        .buttonStyle(SoftButtonStyle())
+                        .buttonStyle(PillButtonStyle())
                         .disabled(model.call.isCallRunning)
                         .help("The call type the next call starts with. A running call keeps its own.")
                 }
@@ -168,16 +133,30 @@ private struct CallTypeEditor: View {
                 .accessibilityLabel("More")
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 0) {
                     if let message = model.message {
                         MessageBanner(text: message) { model.message = nil }
+                            .padding(.bottom, 18)
                     }
+                    Group {
+                        Text("Call type")
+                            .font(.geist(13))
+                            .foregroundStyle(Theme.tertiaryText)
+                        Text(name)
+                            .heading(30)
+                            .padding(.top, 6)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    .padding(.horizontal, 4)
                     instructions
+                        .padding(.top, 28)
                     background
+                        .padding(.top, 32)
                 }
                 .frame(maxWidth: 680, alignment: .leading)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 22)
+                .padding(.horizontal, 32)
+                .padding(.top, 18)
+                .padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .overlay {
@@ -202,67 +181,71 @@ private struct CallTypeEditor: View {
 
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CardHeader(title: "How answers should go") {
-                Text("Added to the general rules, and wins where they differ")
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 2)
+            SectionHeading("How answers should go")
             TextArea(
                 text: Binding(
                     get: { model.texts[.instructions] ?? "" }, set: { model.setText($0, for: .instructions) }),
                 label: "How answers should go on a \(name)",
                 prompt:
                     "For example: a call with a broker's dealing desk. Keep answers short, and suggest confirming anything about client funds in writing.",
-                minHeight: 120, framed: false)
+                minHeight: 140, font: .geist(14.5)
+            )
+            Text("Added to the general rules in Settings, and wins where they differ.")
+                .font(.geist(12.5))
+                .foregroundStyle(Theme.tertiaryText)
+                .padding(.horizontal, 4)
+                .padding(.top, 10)
         }
-        .card()
     }
 
     private var background: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CardHeader(title: "Background Claude reads") {
+            SectionHeading(title: "Background Claude reads") {
                 HStack(spacing: 10) {
                     Text(
                         "\(DisplayFormat.tokens(model.tokens)) of \(DisplayFormat.tokens(CallTypeLibrary.documentBudgetTokens)) tokens"
                     )
-                    .font(.geistMono(11))
+                    .monospacedDigit()
                     BudgetBar(fraction: Double(model.tokens) / Double(CallTypeLibrary.documentBudgetTokens))
                         .frame(width: 56)
                 }
                 .help(CallTypeLibrary.budgetNote)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
-            NoteRow(
-                title: "Brief", detail: noteDetail(.brief, empty: "Your own notes for this kind of call"),
-                symbol: "square.and.pencil", isEmpty: (model.texts[.brief] ?? "").isEmpty
-            ) {
-                editing = .brief
-            }
-            Hairline()
-                .padding(.leading, 56)
-                .padding(.trailing, 16)
-            NoteRow(
-                title: "Stories",
-                detail: noteDetail(.stories, empty: "Your stories for \u{201C}tell me about a time\u{201D} questions"),
-                symbol: "book.closed", isEmpty: (model.texts[.stories] ?? "").isEmpty
-            ) {
-                editing = .stories
-            }
-            ForEach(documents) { file in
+            VStack(spacing: 0) {
+                NoteRow(
+                    title: "Brief", detail: noteDetail(.brief, empty: "Your own notes for this kind of call"),
+                    symbol: "square.and.pencil", isEmpty: (model.texts[.brief] ?? "").isEmpty
+                ) {
+                    editing = .brief
+                }
                 Hairline()
-                    .padding(.leading, 56)
-                    .padding(.trailing, 16)
-                FileRow(file: file, model: model)
+                    .padding(.leading, 48)
+                NoteRow(
+                    title: "Stories",
+                    detail: noteDetail(
+                        .stories, empty: "Your stories for \u{201C}tell me about a time\u{201D} questions"),
+                    symbol: "book.closed", isEmpty: (model.texts[.stories] ?? "").isEmpty
+                ) {
+                    editing = .stories
+                }
+                ForEach(documents) { file in
+                    Hairline()
+                        .padding(.leading, 48)
+                    FileRow(file: file, model: model)
+                }
+                Hairline()
+                    .padding(.leading, 48)
+                DropZone(model: model)
             }
-            DropZone(model: model)
-                .padding(.top, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .tile()
+            Text("Claude reads these with every answer on this kind of call.")
+                .font(.geist(12.5))
+                .foregroundStyle(Theme.tertiaryText)
+                .padding(.horizontal, 4)
+                .padding(.top, 10)
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-        .card()
     }
 
     /// Every background file but the brief and the stories, which have rows of their own.
@@ -322,21 +305,20 @@ private struct NoteRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            IconTile(symbol: symbol)
+            RoundGlyph(symbol: symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.geist(13, .medium))
+                    .font(.geist(14.5, .medium))
                 Text(detail)
-                    .font(isEmpty ? .geist(11.5) : .geistMono(11.5))
+                    .font(.geist(12.5))
+                    .monospacedDigit()
                     .foregroundStyle(Theme.tertiaryText)
             }
             Spacer(minLength: 8)
             Button(isEmpty ? "Write" : "Edit", action: edit)
-                .buttonStyle(SoftButtonStyle(small: true))
+                .buttonStyle(PillButtonStyle(small: true))
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .frame(height: 54)
+        .frame(height: 64)
         .contentShape(Rectangle())
         .onTapGesture(count: 2, perform: edit)
     }
@@ -348,14 +330,15 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            IconTile(symbol: symbol)
+            RoundGlyph(symbol: symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(file.name)
-                    .font(.geist(13, .medium))
+                    .font(.geist(14.5, .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text(file.problem ?? "\(DisplayFormat.tokens(file.tokens)) tokens")
-                    .font(file.problem == nil ? .geistMono(11.5) : .geist(11.5))
+                    .font(.geist(12.5))
+                    .monospacedDigit()
                     .foregroundStyle(file.problem == nil ? Theme.tertiaryText : Theme.amber)
             }
             Spacer(minLength: 8)
@@ -368,9 +351,7 @@ private struct FileRow: View {
             .help("Move to the Bin")
             .accessibilityLabel("Remove \(file.name)")
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .frame(height: 54)
+        .frame(height: 64)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { model.open(file) }
         .contextMenu {
@@ -398,35 +379,28 @@ private struct FileRow: View {
     }
 }
 
-/// The background card's last row: where files and pasted pages come in.
+/// The background list's last row: where files and pasted pages come in.
 private struct DropZone: View {
     let model: CallTypesModel
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.down.doc")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Theme.tertiaryText)
-                .frame(width: 28)
+            RoundGlyph(symbol: "arrow.down.doc")
             Text(model.isImportingPage ? "Reading the page…" : "Drop files here, or paste text or a link")
-                .font(.geist(12.5))
+                .font(.geist(13.5))
                 .foregroundStyle(Theme.secondaryText)
                 .lineLimit(1)
             Spacer(minLength: 8)
             Button(action: model.paste) {
                 Label("Paste", systemImage: "doc.on.clipboard")
             }
-            .buttonStyle(SoftButtonStyle(small: true))
+            .buttonStyle(PillButtonStyle(small: true))
             .disabled(model.isImportingPage)
             .help("Adds the copied text, files or link")
             Button("Add Files…", action: model.chooseFiles)
-                .buttonStyle(SoftButtonStyle(small: true))
+                .buttonStyle(PillButtonStyle(small: true))
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .frame(height: 52)
-        .background(Theme.hover)
-        .overlay(alignment: .top) { Hairline() }
+        .frame(height: 64)
     }
 }
 
@@ -441,8 +415,7 @@ private struct NoteEditor: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(note.title) for \(callType)")
-                    .font(.geist(16, .semibold))
-                    .tracking(-0.2)
+                    .heading(22)
                 Text(hint)
                     .font(.geist(12.5))
                     .lineSpacing(2)
@@ -461,13 +434,13 @@ private struct NoteEditor: View {
                     model.saveNow()
                     dismiss()
                 }
-                .buttonStyle(FilledButtonStyle())
+                .buttonStyle(PillButtonStyle(kind: .ink))
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(22)
         .frame(width: 620)
-        .background(Theme.windowBackground)
+        .background(Theme.canvas)
     }
 
     private var hint: String {

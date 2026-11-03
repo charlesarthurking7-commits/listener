@@ -8,7 +8,6 @@ struct MainWindowView: View {
     var body: some View {
         HStack(spacing: 0) {
             Sidebar(model: model)
-            VerticalHairline()
             Group {
                 switch model.section {
                 case .calls:
@@ -25,7 +24,7 @@ struct MainWindowView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Theme.windowBackground)
+        .background(Theme.canvas)
         .tint(Theme.accent)
         .font(.geist(13))
         .foregroundStyle(Theme.text)
@@ -54,32 +53,49 @@ struct SectionBar<Content: View>: View {
             .frame(height: Theme.headerHeight)
             .frame(maxWidth: .infinity)
             .background(WindowDragArea())
-            .overlay(alignment: .bottom) { Hairline() }
     }
 }
 
-/// A section's name in its bar, and a line on what it holds.
-struct SectionTitle: View {
+/// A section's title, set large at the top of its column, with a line on what it holds
+/// under it and its controls on the right. Dragging it moves the window.
+struct PageHeader<Accessory: View>: View {
     let title: String
     var subtitle: String?
+    var inset: CGFloat = 28
+    @ViewBuilder var accessory: () -> Accessory
 
     var body: some View {
-        Text(title)
-            .font(.geist(15, .semibold))
-            .tracking(-0.15)
-            .lineLimit(1)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .heading(26)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.geist(13))
+                        .foregroundStyle(Theme.tertiaryText)
+                        .lineLimit(1)
+                }
+            }
             .layoutPriority(1)
-        if let subtitle {
-            Text(subtitle)
-                .font(.geist(12))
-                .foregroundStyle(Theme.tertiaryText)
-                .lineLimit(1)
+            Spacer(minLength: 12)
+            accessory()
         }
+        .padding(.horizontal, inset)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(WindowDragArea())
     }
 }
 
-/// The sidebar keeps everything on one edge: 20 points in, the call card's contents and
-/// the rows' icons included.
+extension PageHeader where Accessory == EmptyView {
+    init(title: String, subtitle: String? = nil, inset: CGFloat = 28) {
+        self.init(title: title, subtitle: subtitle, inset: inset) { EmptyView() }
+    }
+}
+
 private struct Sidebar: View {
     let model: MainWindowModel
 
@@ -89,16 +105,23 @@ private struct Sidebar: View {
             Color.clear
                 .frame(height: Theme.headerHeight)
                 .background(WindowDragArea())
-            HStack(spacing: 9) {
-                AppMark()
+            HStack(spacing: 10) {
+                AppMark(size: 24)
                 Text("Listener")
-                    .font(.geist(14, .semibold))
-                    .tracking(-0.15)
+                    .heading(18)
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 14)
-            CallCard(model: model)
-            VStack(spacing: 2) {
+            .padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 6) {
+                CallButton(model: model.call)
+                if model.call.isInCall {
+                    AnswerButtons(call: model.call, fills: true)
+                        .padding(.top, 2)
+                } else {
+                    CallTypePicker(model: model)
+                }
+            }
+            .padding(.top, 24)
+            VStack(spacing: 1) {
                 ForEach(MainWindowModel.Section.allCases) { section in
                     NavRow(
                         title: section.title, symbol: section.symbol, count: model.count(for: section),
@@ -108,26 +131,23 @@ private struct Sidebar: View {
                     }
                 }
             }
-            .padding(.top, 18)
+            .padding(.top, 22)
             Spacer(minLength: 16)
             AppNotices(model: model.call)
-            Hairline()
-                .padding(.horizontal, -10)
-            VStack(alignment: .leading, spacing: 8) {
-                MonthLine(model: model.calls)
-                CallStatusLine(model: model)
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 14)
+            MonthFigure(model: model.calls)
+                .padding(.horizontal, 14)
+            CallStatusLine(model: model)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 18)
         .frame(width: 220)
-        .background(Theme.sidebarBackground)
     }
 }
 
-/// A place to go in a sidebar: the window's sections, or the pages of Settings.
+/// A place to go in a sidebar: the window's sections, or the pages of Settings. The one
+/// that is open sits on a tile.
 struct NavRow: View {
     let title: String
     let symbol: String
@@ -138,25 +158,29 @@ struct NavRow: View {
 
     var body: some View {
         Button(action: select) {
-            HStack(spacing: 10) {
+            HStack(spacing: 11) {
                 Image(systemName: symbol)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13.5, weight: .medium))
                     .foregroundStyle(isOn ? Theme.text : Theme.tertiaryText)
-                    .frame(width: 16)
+                    .frame(width: 18)
                 Text(title)
-                    .lineLimit(1)
+                    .font(.geist(14, isOn ? .semibold : .medium))
                     .foregroundStyle(isOn || hovering ? Theme.text : Theme.secondaryText)
+                    .lineLimit(1)
                 Spacer(minLength: 4)
                 if let count {
                     Text("\(count)")
-                        .font(.geistMono(11))
+                        .font(.geist(12.5, .medium))
+                        .monospacedDigit()
                         .foregroundStyle(Theme.tertiaryText)
                 }
             }
-            .font(.geist(13, .medium))
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .rowBackground(isOn: isOn, hovering: hovering)
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(
+                isOn ? Theme.tile : hovering ? Theme.hover : .clear,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -165,26 +189,8 @@ struct NavRow: View {
     }
 }
 
-/// The next call's type and Start, together on one card. During a call the same card
-/// holds the answer buttons and Stop, with Stop where Start was.
-private struct CallCard: View {
-    let model: MainWindowModel
-
-    var body: some View {
-        VStack(spacing: 4) {
-            if model.call.isInCall {
-                AnswerButtons(call: model.call, fills: true)
-            } else {
-                CallTypePicker(model: model)
-            }
-            CallButton(model: model.call)
-        }
-        .padding(4)
-        .card()
-    }
-}
-
-/// Starts a call from the main window, or shows and stops the one that is running.
+/// Starts a call from the main window, or shows and stops the one that is running, in
+/// the same place.
 private struct CallButton: View {
     let model: CallModel
 
@@ -195,24 +201,29 @@ private struct CallButton: View {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Theme.recording)
                         .frame(width: 9, height: 9)
-                        .frame(width: 16)
                     Text("Stop call")
                     Spacer(minLength: 4)
                     if let since = model.listeningSince {
                         TimelineView(.periodic(from: since, by: 1)) { context in
                             Text(DisplayFormat.clock(context.date.timeIntervalSince(since)))
-                                .font(.geistMono(12, .medium))
+                                .font(.geist(13, .medium))
+                                .monospacedDigit()
                                 .foregroundStyle(Theme.recordingText)
                         }
                     }
                 } else {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 16)
                     Text(model.phase == .starting ? "Starting…" : model.phase == .stopping ? "Saving…" : "Start call")
                     Spacer(minLength: 4)
                     if let hotkey = model.activeHotkeys[.toggleListening] {
-                        HotkeyKeycaps(hotkey: hotkey, onAccent: true)
+                        Text(hotkey.displayString)
+                            .font(.geist(11.5, .medium))
+                            .foregroundStyle(Theme.onInk.opacity(0.7))
+                            .padding(.horizontal, 7)
+                            .frame(height: 20)
+                            .background(Theme.onInk.opacity(0.13), in: Capsule())
+                            .accessibilityLabel(hotkey.spokenName)
                     }
                 }
             }
@@ -228,43 +239,38 @@ private struct CallButtonStyle: ButtonStyle {
     let listening: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
         configuration.label
-            .font(.geist(13, .semibold))
-            .foregroundStyle(listening ? Theme.text : .white)
-            .padding(.leading, 6)
-            .padding(.trailing, listening ? 10 : 6)
-            .frame(height: 32)
-            .background(listening ? Theme.recordingTint : Theme.accent, in: shape)
+            .font(.geist(14, .medium))
+            .foregroundStyle(listening ? Theme.text : Theme.onInk)
+            .padding(.leading, 14)
+            .padding(.trailing, listening ? 14 : 10)
+            .frame(height: 40)
+            .background(listening ? Theme.recordingTint : Theme.ink, in: Capsule())
             .overlay {
-                shape.strokeBorder(
-                    listening
-                        ? AnyShapeStyle(Theme.recording.opacity(0.3))
-                        : AnyShapeStyle(
-                            LinearGradient(colors: [.white.opacity(0.22), .clear], startPoint: .top, endPoint: .center)),
-                    lineWidth: 1)
+                if listening {
+                    Capsule().strokeBorder(Theme.recording.opacity(0.3), lineWidth: 1)
+                }
             }
             .overlay {
                 if configuration.isPressed {
-                    shape.fill(.black.opacity(0.12))
+                    Capsule().fill(.black.opacity(0.15))
                 }
             }
-            .shadow(color: .black.opacity(listening ? 0 : 0.25), radius: 1, y: 1)
-            .contentShape(shape)
+            .contentShape(Capsule())
     }
 }
 
-/// What calls have cost on Claude this month.
-private struct MonthLine: View {
+/// What calls have cost on Claude and speech to text this month.
+private struct MonthFigure: View {
     let model: CallsModel
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(DisplayFormat.cost(model.monthCost))
-                .font(.geistMono(12.5, .medium))
-                .foregroundStyle(Theme.text)
+                .heading(26)
+                .monospacedDigit()
             Text(calls)
-                .font(.geist(11.5))
+                .font(.geist(12))
                 .foregroundStyle(Theme.tertiaryText)
                 .lineLimit(1)
         }
@@ -274,9 +280,9 @@ private struct MonthLine: View {
 
     private var calls: String {
         switch model.monthCalls {
-        case 0: "on calls this month"
-        case 1: "on 1 call this month"
-        default: "on \(model.monthCalls) calls this month"
+        case 0: "no calls this month"
+        case 1: "spent on 1 call this month"
+        default: "spent on \(model.monthCalls) calls this month"
         }
     }
 }
@@ -294,7 +300,7 @@ private struct AppNotices: View {
                     NoticeBanner(notice: notice, perform: model.perform) { model.dismissAppNotice(notice) }
                 }
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 14)
         }
     }
 }
@@ -315,8 +321,8 @@ private struct CallStatusLine: View {
                     .font(.system(size: 8.5, weight: .semibold))
             }
         }
-        .font(.geist(11.5))
-        .foregroundStyle(blocked ? Theme.secondaryText : Theme.tertiaryText)
+        .font(.geist(12))
+        .foregroundStyle(Theme.secondaryText)
         if blocked {
             Button {
                 model.section = .calls
@@ -350,7 +356,7 @@ private struct CallStatusLine: View {
     }
 }
 
-/// The call type the next call starts with, picked right under Start.
+/// The call type the next call starts with, under Start: "as a Work call".
 private struct CallTypePicker: View {
     let model: MainWindowModel
 
@@ -371,47 +377,41 @@ private struct CallTypePicker: View {
             Divider()
             Button("Edit Call Types…") { model.section = .callTypes }
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: CallTypeIcon.symbol(for: call.callType))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.secondaryText)
-                    .frame(width: 16)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(call.callType)
-                        .font(.geist(13, .medium))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
-                    Text("Call type")
-                        .font(.geist(11))
-                        .foregroundStyle(Theme.tertiaryText)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+            HStack(spacing: 5) {
+                Text(article(for: call.callType))
+                    .foregroundStyle(Theme.tertiaryText)
+                Text(call.callType)
+                    .fontWeight(.medium)
+                    .underline(color: Theme.strongBorder)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(Theme.tertiaryText)
             }
-            .frame(maxWidth: .infinity)
+            .font(.geist(13))
+            .foregroundStyle(Theme.text)
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(PickerButtonStyle())
+        .fixedSize()
         .help("The kind of call the next call is: it changes how answers go")
         .accessibilityLabel("Call type")
         .accessibilityValue(call.callType)
     }
+
+    private func article(for name: String) -> String {
+        "aeiouAEIOU".contains(name.first ?? "x") ? "as an" : "as a"
+    }
 }
 
 private struct PickerButtonStyle: ButtonStyle {
-    @State private var hovering = false
-
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
         configuration.label
-            .padding(.leading, 6)
-            .padding(.trailing, 10)
-            .frame(height: 40)
-            .background(configuration.isPressed ? Theme.selection : hovering ? Theme.hover : .clear, in: shape)
-            .contentShape(shape)
-            .onHover { hovering = $0 }
+            .padding(.leading, 14)
+            .padding(.trailing, 8)
+            .frame(height: 28)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }

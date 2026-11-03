@@ -10,7 +10,6 @@ struct CallsView: View {
         HStack(spacing: 0) {
             CallList(model: model)
                 .frame(width: 340)
-            VerticalHairline()
             if let live = model.liveCallID, model.selection == live {
                 LiveCallView(model: model)
             } else if let detail = model.detail {
@@ -28,52 +27,56 @@ private struct CallList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionBar {
-                SectionTitle(title: "Calls")
-                Spacer()
+            PageHeader(title: "Calls", inset: 24) {
                 Text(retention)
-                    .font(.geist(11.5))
+                    .font(.geist(12))
                     .foregroundStyle(Theme.tertiaryText)
                     .help("Keep calls for, in Settings under Storage and privacy: older calls are deleted at launch")
             }
-            VStack(alignment: .leading, spacing: 10) {
-                SearchField(prompt: "Search calls and what was said", text: $model.query)
-                if model.callTypes.count > 1 {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 6) {
-                            Button("All") { model.typeFilter = nil }
-                                .buttonStyle(FilterChipStyle(isOn: model.typeFilter == nil))
-                            ForEach(model.callTypes, id: \.self) { type in
-                                Button(type) { model.typeFilter = model.typeFilter == type ? nil : type }
-                                    .buttonStyle(FilterChipStyle(isOn: model.typeFilter == type))
-                            }
-                        }
-                    }
-                    .scrollIndicators(.never)
+            SearchField(prompt: "Search everything that was said", text: $model.query)
+                .padding(.horizontal, 16)
+            if model.callTypes.count > 1 {
+                ScrollView(.horizontal) {
+                    Chips(
+                        options: [.init(value: nil, title: "All")]
+                            + model.callTypes.map { .init(value: $0, title: $0) },
+                        selection: $model.typeFilter, label: "Call type")
                 }
+                .scrollIndicators(.never)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 12)
-            .padding(.bottom, 2)
             if model.groups.isEmpty {
                 EmptyList(model: model)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(model.groups) { group in
-                            SectionLabel(group.title)
-                                .padding(.horizontal, 10)
-                                .padding(.top, 16)
-                                .padding(.bottom, 6)
-                            ForEach(group.rows) { row in
-                                CallRow(row: row, isOn: model.selection == row.id) {
-                                    model.selection = row.id
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(group.title)
+                                    .font(.geist(14, .semibold))
+                                    .accessibilityAddTraits(.isHeader)
+                                Spacer(minLength: 8)
+                                Text(CallText.days(group.rows.map(\.call.startedAt)))
+                                    .font(.geist(12.5))
+                                    .foregroundStyle(Theme.tertiaryText)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.top, 22)
+                            .padding(.bottom, 8)
+                            VStack(spacing: 0) {
+                                ForEach(group.rows) { row in
+                                    CallRow(row: row, isOn: model.selection == row.id) {
+                                        model.selection = row.id
+                                    }
                                 }
                             }
+                            .padding(6)
+                            .tile(radius: 20)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
             }
         }
@@ -89,22 +92,22 @@ private struct EmptyList: View {
     let model: CallsModel
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Spacer()
             if model.isSearching {
                 ProgressView()
                     .controlSize(.small)
             } else if !model.query.isEmpty {
                 Text("Nothing matches \u{201C}\(model.query)\u{201D}")
-                    .font(.geist(13, .medium))
+                    .heading(17)
                 Text("Search finds words in titles, summaries and transcripts.")
-                    .font(.geist(12))
+                    .font(.geist(13))
                     .foregroundStyle(Theme.tertiaryText)
             } else {
                 Text("No calls yet")
-                    .font(.geist(13, .medium))
+                    .heading(17)
                 Text("Calls appear here once they end.")
-                    .font(.geist(12))
+                    .font(.geist(13))
                     .foregroundStyle(Theme.tertiaryText)
             }
             Spacer()
@@ -116,6 +119,8 @@ private struct EmptyList: View {
     }
 }
 
+/// A call in the list: its initial and title, then its type, length and what is left to
+/// do, with when it was on the right.
 private struct CallRow: View {
     let row: CallsModel.Row
     let isOn: Bool
@@ -124,67 +129,74 @@ private struct CallRow: View {
 
     var body: some View {
         Button(action: select) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(row.isLive ? "This call" : CallText.title(row.call))
-                    .font(.geist(13, .medium))
-                    .lineSpacing(2)
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                if let snippet = row.snippet {
-                    Text(SnippetText.attributed(snippet))
-                        .font(.geist(12))
+            HStack(alignment: .top, spacing: 12) {
+                if row.isLive {
+                    Circle()
+                        .fill(Theme.recordingTint)
+                        .overlay { Circle().fill(Theme.recording).frame(width: 9, height: 9) }
+                        .frame(width: 36, height: 36)
+                } else {
+                    RoundGlyph(letter: initial)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.isLive ? "This call" : CallText.title(row.call))
+                        .font(.geist(14.5, .medium))
                         .lineSpacing(2)
-                        .foregroundStyle(Theme.secondaryText)
+                        .foregroundStyle(Theme.text)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
+                    if let snippet = row.snippet {
+                        Text(SnippetText.attributed(snippet))
+                            .font(.geist(12.5))
+                            .lineSpacing(2)
+                            .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        meta
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Text(CallText.margin(row.call.startedAt))
+                            .monospacedDigit()
+                    }
+                    .font(.geist(12.5))
+                    .foregroundStyle(Theme.tertiaryText)
                 }
-                HStack(spacing: 6) {
-                    if row.isLive {
-                        Text("Live")
-                            .font(.geist(11, .semibold))
-                            .foregroundStyle(Theme.recordingText)
-                            .padding(.horizontal, 6)
-                            .frame(height: 18)
-                            .background(Theme.recordingTint, in: RoundedRectangle(cornerRadius: 5))
-                    }
-                    Text(row.call.callType ?? "Call")
-                    Text("·").foregroundStyle(Theme.tertiaryText.opacity(0.7))
-                    Text(CallText.time(row.call.startedAt))
-                        .font(.geistMono(11.5))
-                    if let duration = row.call.duration {
-                        Text("·").foregroundStyle(Theme.tertiaryText.opacity(0.7))
-                        Text(DisplayFormat.clock(duration))
-                            .font(.geistMono(11.5))
-                    }
-                    Spacer(minLength: 4)
-                    if row.call.summaryDue {
-                        Text("Writing summary")
-                            .font(.geist(11, .medium))
-                            .foregroundStyle(Theme.tertiaryText)
-                    } else if row.call.myOpenActionItems > 0 {
-                        Text("\(row.call.myOpenActionItems) to do")
-                            .font(.geist(11, .medium))
-                            .foregroundStyle(Theme.amber)
-                            .padding(.horizontal, 6)
-                            .frame(height: 18)
-                            .background(Theme.amber.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
-                    }
-                }
-                .font(.geist(11.5))
-                .foregroundStyle(Theme.tertiaryText)
+                .padding(.top, 1)
             }
             .padding(.horizontal, 10)
-            .padding(.top, 10)
-            .padding(.bottom, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .rowBackground(isOn: isOn, hovering: hovering, radius: 10)
+            .padding(.vertical, 10)
+            .rowBackground(isOn: isOn, hovering: hovering, radius: 14)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityLabel(spokenLabel)
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    /// The first letter or digit of the title, like a contact's initial.
+    private var initial: String {
+        CallText.title(row.call).first { $0.isLetter || $0.isNumber }.map { String($0).uppercased() } ?? "·"
+    }
+
+    private var meta: Text {
+        if row.isLive {
+            return Text("Live").foregroundColor(Theme.recordingText).fontWeight(.medium)
+                + Text(", \(row.call.callType ?? "Call")")
+        }
+        var line = Text(row.call.callType ?? "Call")
+        if let duration = row.call.duration {
+            line = line + Text(", \(CallText.minutes(duration))")
+        }
+        if row.call.summaryDue {
+            return line + Text(" · writing the summary")
+        }
+        if row.call.myOpenActionItems > 0 {
+            return line + Text(" · ") + Text("\(row.call.myOpenActionItems) to do").foregroundColor(Theme.amber)
+        }
+        return line
     }
 
     private var spokenLabel: String {
@@ -225,23 +237,19 @@ private struct NoCallView: View {
     @ViewBuilder private var placeholder: some View {
         VStack(spacing: 0) {
             Spacer()
-            Image(systemName: "waveform")
-                .font(.system(size: 26, weight: .medium))
-                .foregroundStyle(Theme.tertiaryText)
             Text(model.calls.isEmpty ? "Your calls will be here" : "Pick a call")
-                .font(.geist(15, .semibold))
-                .padding(.top, 14)
+                .heading(24)
             Text(
                 model.calls.isEmpty
                     ? "After each call: what was said, the answers Listener suggested, and a summary with action items and a follow-up email."
                     : "Its summary, transcript and answers show here."
             )
-            .font(.geist(12.5))
-            .lineSpacing(2)
+            .font(.geist(14))
+            .lineSpacing(4)
             .foregroundStyle(Theme.secondaryText)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: 360)
-            .padding(.top, 6)
+            .frame(maxWidth: 380)
+            .padding(.top, 10)
             Spacer()
             Spacer()
         }
@@ -258,17 +266,42 @@ enum CallText {
         return "\(call.callType ?? "Call") on \(day(call.startedAt))"
     }
 
-    static func time(_ date: Date) -> String {
+    /// The list's margin: the time for calls today and yesterday, whose day is in the
+    /// heading, the weekday this week, and the date before that.
+    static func margin(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_GB")
         if Calendar.current.isDateInToday(date) || Calendar.current.isDateInYesterday(date) {
             formatter.dateFormat = "HH:mm"
         } else if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
-            formatter.dateFormat = "EEE HH:mm"
+            formatter.dateFormat = "EEE"
         } else {
             formatter.dateFormat = "d MMM"
         }
         return formatter.string(from: date)
+    }
+
+    /// The days a group of calls covers, e.g. "Wed 28 Oct" or "22 to 23 Oct".
+    static func days(_ dates: [Date]) -> String {
+        let calendar = Calendar.current
+        guard let first = dates.min(), let last = dates.max() else {
+            return ""
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_GB")
+        if calendar.isDate(first, inSameDayAs: last) {
+            formatter.dateFormat = "EEE d MMM"
+            return formatter.string(from: first)
+        }
+        formatter.dateFormat = "d MMM"
+        let end = formatter.string(from: last)
+        formatter.dateFormat = calendar.isDate(first, equalTo: last, toGranularity: .month) ? "d" : "d MMM"
+        return "\(formatter.string(from: first)) to \(end)"
+    }
+
+    /// "19 min", or "under a minute".
+    static func minutes(_ seconds: Double) -> String {
+        seconds < 60 ? "under a minute" : "\(Int((seconds / 60).rounded())) min"
     }
 
     /// "Monday 27 October", or with the year when it is not this year's.
@@ -345,7 +378,8 @@ private struct LiveCallView: View {
                     if let since = call.listeningSince {
                         TimelineView(.periodic(from: since, by: 1)) { context in
                             Text(DisplayFormat.clock(context.date.timeIntervalSince(since)))
-                                .font(.geistMono(12.5, .medium))
+                                .font(.geist(13, .medium))
+                                .monospacedDigit()
                                 .foregroundStyle(Theme.recordingText)
                         }
                     }
@@ -369,7 +403,7 @@ private struct LiveCallView: View {
                         RoundedRectangle(cornerRadius: 2).fill(Theme.recording).frame(width: 8, height: 8)
                     }
                 }
-                .buttonStyle(SoftButtonStyle())
+                .buttonStyle(PillButtonStyle())
                 .disabled(call.phase != .listening)
                 .accessibilityLabel("Stop listening")
             }
@@ -388,12 +422,12 @@ private struct LiveCallView: View {
                             .frame(maxWidth: 680)
                             .padding(.horizontal, 8)
                     } else {
-                        VStack(spacing: 6) {
+                        VStack(spacing: 8) {
                             Spacer()
                             Text("Listening")
-                                .font(.geist(15, .semibold))
+                                .heading(24)
                             Text("The transcript appears here as people speak.")
-                                .font(.geist(12.5))
+                                .font(.geist(14))
                                 .foregroundStyle(Theme.secondaryText)
                             Spacer()
                             Spacer()
@@ -409,7 +443,7 @@ private struct LiveCallView: View {
 /// Quick, Deep and Recap, each with its hotkey in the tooltip.
 struct AnswerButtons: View {
     let call: CallModel
-    /// Shares out the width, as over Stop in the sidebar.
+    /// Shares out the width, as under Stop in the sidebar.
     var fills = false
 
     var body: some View {
@@ -427,7 +461,7 @@ struct AnswerButtons: View {
                         Label(tier.title, systemImage: tier.symbol)
                     }
                 }
-                .buttonStyle(SoftButtonStyle(small: fills))
+                .buttonStyle(PillButtonStyle(small: fills))
                 .disabled(!call.canAsk)
                 .help(hotkey.map { "\(tier.hotkeyAction.title): \($0.displayString)" } ?? tier.hotkeyAction.title)
                 .accessibilityLabel(tier.hotkeyAction.title)

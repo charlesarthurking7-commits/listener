@@ -8,9 +8,7 @@ struct DictionaryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SectionBar {
-                SectionTitle(title: "Dictionary", subtitle: "Spellings dictation uses, learned from your fixes")
-                Spacer()
+            PageHeader(title: "Dictionary", subtitle: "Spellings dictation uses, learned from your fixes") {
                 SearchField(prompt: "Find a word", text: $model.query)
                     .frame(width: 220)
                 Button {
@@ -18,7 +16,7 @@ struct DictionaryView: View {
                 } label: {
                     Label("Add Word", systemImage: "plus")
                 }
-                .buttonStyle(SoftButtonStyle())
+                .buttonStyle(PillButtonStyle())
                 .popover(isPresented: $adding, arrowEdge: .bottom) {
                     AddWord(model: model, isPresented: $adding)
                 }
@@ -37,10 +35,11 @@ struct DictionaryView: View {
                 HStack(alignment: .top, spacing: 24) {
                     WordList(model: model)
                     DictationOptions(store: model.store)
-                        .frame(width: 300)
+                        .frame(width: 320)
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 22)
+                .padding(.horizontal, 24)
+                .padding(.top, 4)
+                .padding(.bottom, 32)
             }
         }
     }
@@ -50,11 +49,12 @@ private struct WordList: View {
     @Bindable var model: DictionaryModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             if let message = model.message {
                 MessageBanner(text: message) { model.message = nil }
+                    .padding(.bottom, 14)
             }
-            SegmentedControl(
+            Chips(
                 options: [
                     .init(value: DictionaryModel.Filter.all, title: "All", count: model.words.count),
                     .init(value: .learned, title: "Learned", count: model.learnedCount),
@@ -62,26 +62,31 @@ private struct WordList: View {
                 ], selection: $model.filter, label: "Show")
             if model.words.isEmpty {
                 EmptyDictionary()
+                    .padding(.top, 28)
             } else {
-                VStack(spacing: 0) {
-                    HStack(spacing: 14) {
-                        SectionLabel("Word")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        SectionLabel("Was heard as")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Color.clear.frame(width: 24)
-                    }
-                    .padding(.leading, 16)
-                    .padding(.trailing, 10)
-                    .frame(height: 40)
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.shown) { word in
+                HStack(spacing: 14) {
+                    Text("Word")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Was heard as")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(width: 24, height: 0)
+                }
+                .font(.geist(12.5, .medium))
+                .foregroundStyle(Theme.tertiaryText)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(model.shown.enumerated()), id: \.element.id) { index, word in
+                        if index > 0 {
                             Hairline()
-                            WordRow(word: word) { model.remove(word) }
                         }
+                        WordRow(word: word) { model.remove(word) }
                     }
                 }
-                .card()
+                .padding(.horizontal, 20)
+                .padding(.vertical, 4)
+                .tile()
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -96,31 +101,23 @@ private struct WordRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(word.term)
-                .font(word.term.contains(where: \.isNumber) ? .geistMono(13, .medium) : .geist(13.5, .medium))
+                .font(.geist(15, .medium))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Group {
                 switch word.source {
                 case .learned:
-                    HStack(spacing: 6) {
-                        ForEach(word.heardAs, id: \.self) { heard in
-                            Text(heard)
-                                .font(.geist(12))
-                                .foregroundStyle(Theme.secondaryText)
-                                .padding(.horizontal, 7)
-                                .frame(height: 22)
-                                .background(Theme.selection, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .lineLimit(1)
-                        }
-                    }
+                    Text(word.heardAs.joined(separator: ", "))
+                        .foregroundStyle(Theme.secondaryText)
                 case .added:
                     Text("Added by you")
                 case .settings:
                     Text("In settings.json")
                 }
             }
-            .font(.geist(12))
+            .font(.geist(13.5))
             .foregroundStyle(Theme.tertiaryText)
+            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: remove) {
                 Image(systemName: "xmark")
@@ -130,9 +127,7 @@ private struct WordRow: View {
             .help("Forget \(word.term)")
             .accessibilityLabel("Forget \(word.term)")
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 10)
-        .frame(height: 46)
+        .frame(height: 50)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
     }
@@ -142,18 +137,19 @@ private struct EmptyDictionary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No words yet")
-                .font(.geist(14, .semibold))
+                .heading(18)
             Text(
                 "Dictate with fn twice, then fix a name or term it got wrong in the text. A minute later it is here, and dictation spells it your way from then on. You can also add words yourself."
             )
-            .font(.geist(12.5))
-            .lineSpacing(2)
+            .font(.geist(14.5))
+            .lineSpacing(5)
             .foregroundStyle(Theme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
+        .frame(maxWidth: 520, alignment: .leading)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .tile()
     }
 }
 
@@ -177,7 +173,7 @@ private struct AddWord: View {
                     .foregroundStyle(Theme.tertiaryText)
                 Spacer()
                 Button("Add", action: add)
-                    .buttonStyle(FilledButtonStyle(small: true))
+                    .buttonStyle(PillButtonStyle(kind: .ink, small: true))
                     .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
                     .keyboardShortcut(.defaultAction)
             }
@@ -200,19 +196,16 @@ private struct DictationOptions: View {
 
     var body: some View {
         let dictation = store.settings.dictation
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                SectionLabel("Dictation")
-                Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeading(title: "Dictation") {
                 HStack(spacing: 4) {
                     Keycap(label: "fn")
                     Keycap(label: "fn")
                     Text("to start, fn to stop")
-                        .font(.geist(11.5))
-                        .foregroundStyle(Theme.tertiaryText)
+                        .padding(.leading, 2)
                 }
             }
-            .frame(height: 24)
+            .padding(.top, 2)
             VStack(spacing: 0) {
                 OptionSwitch(
                     title: "Tidy up with Claude",
@@ -236,9 +229,7 @@ private struct DictationOptions: View {
                 OptionSwitch(title: "Sounds", detail: "A sound when it starts and stops.", isOn: dictation.sounds) {
                     store.set($0, at: "dictation.sounds")
                 }
-            }
-            .card()
-            VStack(spacing: 0) {
+                Hairline()
                 OptionMenu(
                     title: "Microphone",
                     detail: dictation.microphone == "built-in" ? "AirPods keep playing in full quality" : nil,
@@ -263,12 +254,14 @@ private struct DictationOptions: View {
                     isOn: dictation.enabled
                 ) { store.set($0, at: "dictation.enabled") }
             }
-            .card()
+            .padding(.horizontal, 18)
+            .tile()
             if let message = store.message {
                 Text(message)
-                    .font(.geist(11.5))
+                    .font(.geist(12))
                     .foregroundStyle(Theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
             }
         }
     }
@@ -285,11 +278,11 @@ struct OptionSwitch: View {
         Toggle(isOn: Binding(get: { isOn }, set: { set($0) })) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.geist(13, .medium))
+                    .font(.geist(14, .medium))
                     .foregroundStyle(Theme.text)
                 if let detail {
                     Text(detail)
-                        .font(.geist(11.5))
+                        .font(.geist(12.5))
                         .lineSpacing(2)
                         .foregroundStyle(Theme.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -297,8 +290,7 @@ struct OptionSwitch: View {
             }
         }
         .toggleStyle(SwitchStyle())
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
         .accessibilityLabel(title)
         .accessibilityHint(detail ?? "")
     }
@@ -315,10 +307,10 @@ struct OptionMenu<Content: View>: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.geist(13, .medium))
+                    .font(.geist(14, .medium))
                 if let detail {
                     Text(detail)
-                        .font(.geist(11.5))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -327,7 +319,6 @@ struct OptionMenu<Content: View>: View {
             SelectMenu(title: value, label: title, content: content)
                 .fixedSize()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 12)
     }
 }

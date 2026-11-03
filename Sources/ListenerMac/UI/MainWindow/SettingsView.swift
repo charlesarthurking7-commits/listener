@@ -10,22 +10,17 @@ struct SettingsView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                SectionBar {
-                    SectionTitle(title: "Settings")
-                    Spacer()
-                }
-                .padding(.horizontal, -10)
-                .padding(.bottom, 12)
+                PageHeader(title: "Settings", inset: 14)
                 ForEach(SettingsModel.Page.allCases) { page in
                     NavRow(title: page.title, symbol: page.symbol, isOn: model.page == page) { model.page = page }
                 }
                 Spacer()
                 Button(action: model.openSettingsFile) {
                     Label("Open settings.json", systemImage: "curlybraces")
-                        .labelStyle(CompactLabelStyle(spacing: 10))
-                        .font(.geist(12))
+                        .labelStyle(CompactLabelStyle(spacing: 8))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .frame(height: 30)
                 }
                 .buttonStyle(.plain)
@@ -33,15 +28,11 @@ struct SettingsView: View {
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 12)
-            .frame(width: 210)
-            VerticalHairline()
+            .frame(width: 228)
             VStack(spacing: 0) {
-                SectionBar {
-                    SectionTitle(title: model.page.title, subtitle: model.page.subtitle)
-                    Spacer()
-                }
+                PageHeader(title: model.page.title, subtitle: model.page.subtitle)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 26) {
+                    VStack(alignment: .leading, spacing: 28) {
                         if let problem = model.store.problem {
                             MessageBanner(
                                 text:
@@ -54,8 +45,8 @@ struct SettingsView: View {
                         page
                     }
                     .frame(maxWidth: 680, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.top, 22)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 4)
                     .padding(.bottom, 40)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -90,27 +81,23 @@ extension SettingsModel.Page {
     }
 }
 
-/// A titled group of settings in one card.
+/// A group of settings: a heading over its rows, on a tile.
 private struct SettingsGroup<Content: View>: View {
     let title: String
     var note: String?
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel(title)
-                Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeading(title: title) {
                 if let note {
                     Text(note)
-                        .font(.geist(11.5))
-                        .foregroundStyle(Theme.tertiaryText)
                 }
             }
-            VStack(spacing: 0) {
-                content()
-            }
-            .card()
+            VStack(spacing: 0, content: content)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 2)
+                .tile()
         }
     }
 }
@@ -172,41 +159,36 @@ private struct AnswersSettingsPage: View {
 
     var body: some View {
         let answers = model.settings.answers
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 0) {
-                CardHeader(title: "About you and your calls") {
-                    Text("Sent with every answer and summary")
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 2)
-                TextArea(
-                    text: Binding(get: { model.context }, set: { model.setContext($0) }),
-                    label: "About you and your calls",
-                    prompt:
-                        "For example: I'm an operations engineer at a trading platform. My calls are with brokers about fills, outages and connectivity. Keep answers short enough to say out loud.",
-                    minHeight: 130, font: .geist(13), framed: false)
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeading(title: "About you and your calls") {
+                Text("Sent with every answer and summary")
             }
-            .card()
+            TextArea(
+                text: Binding(get: { model.context }, set: { model.setContext($0) }),
+                label: "About you and your calls",
+                prompt:
+                    "For example: I'm an operations engineer at a trading platform. My calls are with brokers about fills, outages and connectivity. Keep answers short enough to say out loud.",
+                minHeight: 130, font: .geist(14))
             Text(
                 "Who you are, what your calls are about and how you like answers. Each call type can add its own instructions."
             )
-            .font(.geist(11.5))
+            .font(.geist(12.5))
             .foregroundStyle(Theme.tertiaryText)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 4)
+            .padding(.top, 10)
         }
         SettingsGroup(title: "Models") {
             ModelRow(
-                model: model, title: "Quick", detail: "A line to say, fast", symbol: AnswerTier.quick.symbol,
+                model: model, title: "Quick", detail: "A line to say, fast",
                 settings: answers.quick, path: "answers.quick")
             Hairline()
             ModelRow(
-                model: model, title: "Deep", detail: "A fuller answer with detail", symbol: AnswerTier.deep.symbol,
+                model: model, title: "Deep", detail: "A fuller answer with detail",
                 settings: answers.deep, path: "answers.deep")
             Hairline()
             ModelRow(
-                model: model, title: "Recap", detail: "Where the call has got to", symbol: AnswerTier.recap.symbol,
+                model: model, title: "Recap", detail: "Where the call has got to",
                 settings: answers.recap, path: "answers.recap")
         }
         SettingsGroup(title: "During a call") {
@@ -236,7 +218,7 @@ private struct AnswersSettingsPage: View {
             if model.settings.summary.enabled {
                 Hairline()
                 ModelRow(
-                    model: model, title: "Summary", detail: nil, symbol: "doc.text",
+                    model: model, title: "Summary", detail: nil,
                     settings: model.settings.summary.model, path: "summary.model")
             }
         }
@@ -253,23 +235,17 @@ private struct ModelRow: View {
     let model: SettingsModel
     let title: String
     let detail: String?
-    let symbol: String
     let settings: ModelSettings
     let path: String
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(Theme.accentText)
-                .frame(width: 28, height: 28)
-                .background(Theme.accentTint, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.geist(13, .medium))
+                    .font(.geist(14, .medium))
                 if let detail {
                     Text(detail)
-                        .font(.geist(11.5))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
                 }
             }
@@ -292,7 +268,6 @@ private struct ModelRow: View {
             }
             .frame(width: 116)
         }
-        .padding(.horizontal, 14)
         .padding(.vertical, 11)
     }
 
@@ -357,9 +332,9 @@ private struct SpeechPage: View {
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Credentials")
-                            .font(.geist(13, .medium))
+                            .font(.geist(14, .medium))
                         Text(speech.googleCredentialsFile ?? "Application Default Credentials")
-                            .font(.geistMono(11))
+                            .font(.geist(12.5))
                             .foregroundStyle(Theme.tertiaryText)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -367,12 +342,11 @@ private struct SpeechPage: View {
                     Spacer()
                     if speech.googleCredentialsFile != nil {
                         Button("Default") { model.store.set(nil, at: "speech.googleCredentialsFile") }
-                            .buttonStyle(SoftButtonStyle(small: true))
+                            .buttonStyle(PillButtonStyle(small: true))
                     }
                     Button("Choose…", action: model.chooseCredentialsFile)
-                        .buttonStyle(SoftButtonStyle(small: true))
+                        .buttonStyle(PillButtonStyle(small: true))
                 }
-                .padding(.horizontal, 14)
                 .padding(.vertical, 11)
             }
         }
@@ -427,6 +401,16 @@ private struct ShortcutsPage: View {
     let model: SettingsModel
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            shortcuts
+            Text("Click a shortcut, then press the keys you want. Escape cancels.")
+                .font(.geist(12.5))
+                .foregroundStyle(Theme.tertiaryText)
+                .padding(.horizontal, 4)
+        }
+    }
+
+    private var shortcuts: some View {
         SettingsGroup(title: "Shortcuts", note: "Work in any app") {
             ForEach(Array(HotkeyAction.allCases.enumerated()), id: \.element) { index, action in
                 if index > 0 {
@@ -434,11 +418,11 @@ private struct ShortcutsPage: View {
                 }
                 HStack(spacing: 14) {
                     Text(action.title.prefix(1).uppercased() + action.title.dropFirst())
-                        .font(.geist(13, .medium))
+                        .font(.geist(14, .medium))
                     Spacer()
                     if model.call.activeHotkeys[action] == nil, model.recording != action {
                         Text("Taken by another app")
-                            .font(.geist(11.5))
+                            .font(.geist(12.5))
                             .foregroundStyle(Theme.amber)
                             .help(
                                 "macOS wouldn't give Listener this shortcut, usually because another app has it. Pick another."
@@ -446,25 +430,20 @@ private struct ShortcutsPage: View {
                     }
                     ShortcutRecorder(model: model, action: action)
                 }
-                .padding(.horizontal, 14)
                 .frame(height: 50)
             }
             Hairline()
             HStack(spacing: 14) {
                 Text("Dictate")
-                    .font(.geist(13, .medium))
+                    .font(.geist(14, .medium))
                 Spacer()
                 HStack(spacing: 4) {
                     Keycap(label: "fn", large: true)
                     Keycap(label: "fn", large: true)
                 }
             }
-            .padding(.horizontal, 14)
             .frame(height: 50)
         }
-        Text("Click a shortcut, then press the keys you want. Escape cancels.")
-            .font(.geist(12))
-            .foregroundStyle(Theme.tertiaryText)
     }
 }
 
@@ -497,11 +476,12 @@ private struct ShortcutRecorder: View {
                         Text("None").foregroundStyle(Theme.tertiaryText).padding(.horizontal, 10)
                     }
                 }
-                .frame(minWidth: 110, minHeight: 30)
-                .background(Theme.control, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(minWidth: 110, minHeight: 32)
+                .background(Theme.selection, in: Capsule())
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(recording ? Theme.accent : Theme.border, lineWidth: recording ? 1.5 : 1)
+                    if recording {
+                        Capsule().strokeBorder(Theme.accent, lineWidth: 1.5)
+                    }
                 }
                 .contentShape(Rectangle())
             }
@@ -565,9 +545,9 @@ private struct StoragePage: View {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Folder")
-                        .font(.geist(13, .medium))
+                        .font(.geist(14, .medium))
                     Text(model.sessionsFolder)
-                        .font(.geistMono(11))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -576,10 +556,10 @@ private struct StoragePage: View {
                 Spacer()
                 if storage.directory != nil {
                     Button("Default", action: model.resetSessionsFolder)
-                        .buttonStyle(SoftButtonStyle(small: true))
+                        .buttonStyle(PillButtonStyle(small: true))
                 }
                 Button("Change…", action: model.chooseSessionsFolder)
-                    .buttonStyle(SoftButtonStyle(small: true))
+                    .buttonStyle(PillButtonStyle(small: true))
                 Button {
                     model.call.openSessionsFolder()
                 } label: {
@@ -589,7 +569,6 @@ private struct StoragePage: View {
                 .help("Show in Finder")
                 .accessibilityLabel("Show in Finder")
             }
-            .padding(.horizontal, 14)
             .padding(.vertical, 11)
         }
         SettingsGroup(title: "Screen sharing") {
@@ -616,18 +595,17 @@ private struct KeyPage: View {
                     .frame(width: 7, height: 7)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.keySource == nil ? "No API key" : "API key found")
-                        .font(.geist(13, .medium))
+                        .font(.geist(14, .medium))
                     Text(model.keySource.map { "In \($0)" } ?? "Answers, summaries and tidied dictation need one.")
-                        .font(.geist(11.5))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
                 }
                 Spacer()
                 if model.keySource == "Keychain" {
                     Button("Remove…", action: model.removeKey)
-                        .buttonStyle(SoftButtonStyle(small: true))
+                        .buttonStyle(PillButtonStyle(small: true))
                 }
             }
-            .padding(.horizontal, 14)
             .padding(.vertical, 12)
             Hairline()
             HStack(spacing: 8) {
@@ -636,18 +614,14 @@ private struct KeyPage: View {
                 )
                 .textFieldStyle(.plain)
                 .font(.geistMono(12))
-                .padding(.horizontal, 10)
-                .frame(height: 30)
-                .background(Theme.well, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Theme.border, lineWidth: 1)
-                }
+                .padding(.horizontal, 14)
+                .frame(height: 32)
+                .background(Theme.selection, in: Capsule())
                 .onSubmit(save)
                 Button("Save", action: save)
-                    .buttonStyle(FilledButtonStyle(small: true))
+                    .buttonStyle(PillButtonStyle(kind: .ink, small: true))
                     .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            .padding(.horizontal, 14)
             .padding(.vertical, 12)
         }
         VStack(alignment: .leading, spacing: 8) {
@@ -685,7 +659,7 @@ private struct OptionSlider: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(title)
-                .font(.geist(13, .medium))
+                .font(.geist(14, .medium))
             Spacer(minLength: 8)
             Slider(value: binding, in: range) { editing in
                 commit(editing)
@@ -693,11 +667,11 @@ private struct OptionSlider: View {
             .controlSize(.small)
             .frame(width: 200)
             Text(format(dragging ?? value))
-                .font(.geistMono(11.5))
+                .font(.geist(12.5))
+                .monospacedDigit()
                 .foregroundStyle(Theme.secondaryText)
                 .frame(width: 56, alignment: .trailing)
         }
-        .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
 
@@ -726,7 +700,7 @@ private struct OptionField: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(title)
-                .font(.geist(13, .medium))
+                .font(.geist(14, .medium))
             Spacer(minLength: 8)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
@@ -741,7 +715,6 @@ private struct OptionField: View {
                     }
                 }
         }
-        .padding(.horizontal, 14)
         .frame(height: 46)
         .onAppear { text = value }
         .onChange(of: value) { _, new in

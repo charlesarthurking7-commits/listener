@@ -3,14 +3,17 @@ import ListenerCore
 import SwiftUI
 
 /// The design tokens: a 4 pt grid, near-black or near-white grounds with hairline edges,
-/// one indigo accent, red only for recording and amber only for what is meant for the
+/// one dark green, red only for recording and amber only for what is meant for the
 /// user alone. Every colour follows light and dark mode, and text colours pass 4.5:1 on
 /// the surfaces they sit on.
 enum Theme {
     // MARK: Grounds
 
     static let windowBackground = Color.adaptive(light: rgb(0xFBFBFA), dark: rgb(0x0F0F12))
-    static let sidebarBackground = Color.adaptive(light: rgb(0xF3F3F2), dark: rgb(0x0B0B0E))
+    /// The main window's ground, a soft grey under its white tiles.
+    static let canvas = Color.adaptive(light: rgb(0xF3F3F5), dark: rgb(0x111114))
+    /// What sits on the canvas: lists, text and figures grouped on a rounded tile.
+    static let tile = Color.adaptive(light: rgb(0xFFFFFF), dark: rgb(0x1D1D22))
     /// Cards and panels on the window.
     static let surface = Color.adaptive(light: rgb(0xFFFFFF), dark: rgb(0x151519))
     /// What is picked: a list row, the on segment of a switch.
@@ -35,18 +38,26 @@ enum Theme {
 
     // MARK: Text
 
-    static let text = Color.adaptive(light: rgb(0x18181B), dark: rgb(0xEDEDEF))
+    static let text = Color.adaptive(light: rgb(0x1F2025), dark: rgb(0xE6E6EA))
     /// Paragraphs: a touch softer than headings, so long text is easy on the eye.
     static let proseText = Color.adaptive(light: rgb(0x27272A), dark: rgb(0xD4D4D8))
     static let secondaryText = Color.adaptive(light: rgb(0x52525B), dark: rgb(0xA0A0AB))
     static let tertiaryText = Color.adaptive(light: rgb(0x6B6B73), dark: rgb(0x8A8A94))
 
+    /// The main window's primary buttons, picked chips and ticks: a deep green in light
+    /// mode, a brighter one in the dark, with `onInk` for what sits on them.
+    static let ink = Color.adaptive(light: rgb(0x1F4D3B), dark: rgb(0x2F7D58))
+    static let onInk = Color.white
+    /// The other side in a call's timeline, beside the user's ink: lighter, so the two
+    /// differ without colour.
+    static let otherSpeaker = Color.adaptive(light: rgb(0xC3C6CF), dark: rgb(0x52555E))
+
     // MARK: Colour that means something
 
-    static let accent = Color(nsColor: rgb(0x625EF0))
+    static let accent = Color(nsColor: rgb(0x2E7D57))
     /// The accent as text or an icon on the window's ground.
-    static let accentText = Color.adaptive(light: rgb(0x504DC5), dark: rgb(0xA9A7F6))
-    static let accentTint = Color.adaptive(light: rgb(0x625EF0, 0.1), dark: rgb(0x625EF0, 0.16))
+    static let accentText = Color.adaptive(light: rgb(0x226546), dark: rgb(0x8FD1AE))
+    static let accentTint = Color.adaptive(light: rgb(0x2E7D57, 0.1), dark: rgb(0x2E7D57, 0.2))
     static let recording = Color.adaptive(light: rgb(0xDC2626), dark: rgb(0xFF4D4F))
     static let recordingText = Color.adaptive(light: rgb(0xB91C1C), dark: rgb(0xFF8A8C))
     static let recordingTint = Color.adaptive(light: rgb(0xDC2626, 0.07), dark: rgb(0xFF4D4F, 0.1))

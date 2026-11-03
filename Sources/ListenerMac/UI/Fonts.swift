@@ -50,10 +50,6 @@ extension Font {
         .custom(Fonts.sans(weight), fixedSize: size)
     }
 
-    static func geistItalic(_ size: CGFloat) -> Font {
-        .custom("Geist-Italic", fixedSize: size)
-    }
-
     /// Geist Mono, for figures that change or line up: times, costs, counts and keys.
     static func geistMono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .custom(Fonts.mono(weight), fixedSize: size)

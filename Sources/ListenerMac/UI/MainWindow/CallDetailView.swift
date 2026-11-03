@@ -2,7 +2,8 @@ import ListenerCore
 import SwiftUI
 
 /// One call's page: the summary Claude wrote, the transcript with the suggested answers
-/// where they were asked for, and the answers on their own.
+/// where they were asked for, and the answers on their own, under the call's title, its
+/// figures and who spoke when.
 struct CallDetailView: View {
     @Bindable var model: CallsModel
     let detail: CallDetail
@@ -10,12 +11,14 @@ struct CallDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             SectionBar {
-                SegmentedControl(
+                Chips(
                     options: [
                         .init(value: CallsModel.Tab.summary, title: "Summary"),
                         .init(value: .transcript, title: "Transcript"),
                         .init(value: .answers, title: "Answers", count: detail.answers.count),
-                    ], selection: $model.tab, label: "Show")
+                    ], selection: $model.tab, label: "Show"
+                )
+                .padding(.leading, 12)
                 Spacer()
                 switch model.tab {
                 case .summary:
@@ -23,13 +26,13 @@ struct CallDetailView: View {
                         Button(action: model.copyEmail) {
                             Label("Copy follow-up email", systemImage: "envelope")
                         }
-                        .buttonStyle(SoftButtonStyle())
+                        .buttonStyle(PillButtonStyle())
                     }
                 case .transcript:
                     Button(action: model.copyTranscript) {
                         Label("Copy transcript", systemImage: "doc.on.doc")
                     }
-                    .buttonStyle(SoftButtonStyle())
+                    .buttonStyle(PillButtonStyle())
                     .disabled(detail.turns.isEmpty)
                 case .answers:
                     EmptyView()
@@ -80,8 +83,8 @@ struct CallDetailView: View {
                     }
                 }
                 .frame(maxWidth: 680, alignment: .leading)
-                .padding(.horizontal, 28)
-                .padding(.top, 24)
+                .padding(.horizontal, 32)
+                .padding(.top, 18)
                 .padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -89,93 +92,168 @@ struct CallDetailView: View {
     }
 }
 
-/// The call's title, with its type and when over it, and its figures in a strip under
-/// it like the ones on the Insights page.
+/// The call's title, with its type and when over it, and its figures and who spoke when
+/// on a tile under it.
 private struct CallHeading: View {
     let detail: CallDetail
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(kicker)
+            Text(kicker)
+                .font(.geist(13))
+                .foregroundStyle(Theme.tertiaryText)
+                .padding(.horizontal, 4)
             Text(CallText.title(detail.call))
-                .font(.geist(22, .semibold))
-                .tracking(-0.45)
-                .lineSpacing(3)
+                .heading(30)
+                .lineSpacing(2)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-            CallFigures(detail: detail)
-                .padding(.top, 18)
+                .padding(.horizontal, 4)
+                .padding(.top, 6)
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 22) {
+                Figures(detail: detail)
+                if !detail.turns.isEmpty {
+                    CallTimeline(detail: detail)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tile()
+            .padding(.top, 20)
         }
     }
 
-    /// "Work call · Yesterday 14:05", set in capitals over the title.
+    /// "Work call · Today 14:05"
     private var kicker: String {
         [detail.call.callType, CallText.when(detail.call.startedAt)].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
-/// How long the call was, who spoke for how long, its turns and what it cost.
-private struct CallFigures: View {
+/// The call's length, how long each side spoke, its turns and its cost, large.
+private struct Figures: View {
     let detail: CallDetail
 
     var body: some View {
         let call = detail.call
-        HStack(spacing: 0) {
+        let me = detail.talkTime[.me] ?? 0
+        let them = detail.talkTime[.them] ?? 0
+        HStack(alignment: .top, spacing: 12) {
             if let duration = call.duration {
-                Figure(value: DisplayFormat.clock(duration), label: "duration")
-                VerticalHairline()
+                Figure(value: DisplayFormat.clock(duration), label: "Length")
             }
-            ForEach(Speaker.allCases, id: \.self) { speaker in
-                if let seconds = detail.talkTime[speaker], seconds > 0 {
-                    Figure(
-                        value: DisplayFormat.clock(seconds), label: speaker == .me ? "you spoke" : "they spoke",
-                        tint: speaker.tint)
-                    VerticalHairline()
-                }
+            if me > 0 || them > 0 {
+                Figure(value: DisplayFormat.clock(me), label: "You spoke")
+                Figure(value: DisplayFormat.clock(them), label: "They spoke")
             }
-            Figure(value: call.turnCount.formatted(), label: call.turnCount == 1 ? "turn" : "turns")
+            Figure(value: "\(call.turnCount)", label: call.turnCount == 1 ? "Turn" : "Turns")
             if let cost = call.cost {
-                VerticalHairline()
-                Figure(value: DisplayFormat.cost(cost.total), label: "cost")
+                Figure(value: DisplayFormat.cost(cost.total), label: "Cost")
                     .help(
                         "Speech to text \(DisplayFormat.cost(cost.speechCost)), Claude \(DisplayFormat.cost(cost.modelCost))"
                     )
             }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .card()
     }
 }
 
 private struct Figure: View {
     let value: String
     let label: String
-    var tint: Color?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.geistMono(17, .medium))
-                .tracking(-0.3)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            HStack(spacing: 6) {
-                if let tint {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(tint)
-                        .frame(width: 7, height: 7)
-                }
-                Text(label)
-                    .lineLimit(1)
-            }
-            .font(.geist(11.5))
-            .foregroundStyle(Theme.tertiaryText)
+                .heading(22)
+                .monospacedDigit()
+            Text(label)
+                .font(.geist(12.5))
+                .foregroundStyle(Theme.tertiaryText)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Who spoke when, as one bar across the call: you in ink, them in grey, and a dot over
+/// each moment an answer was asked for, named where there is room.
+private struct CallTimeline: View {
+    let detail: CallDetail
+
+    var body: some View {
+        let length = max(detail.call.duration ?? 0, detail.turns.map(\.end).max() ?? 0, 1)
+        VStack(alignment: .leading, spacing: 9) {
+            Canvas { context, size in
+                draw(length: length, in: &context, size: size)
+            }
+            .frame(height: 30)
+            HStack(spacing: 14) {
+                Text("0:00")
+                Spacer(minLength: 8)
+                Key(color: Theme.ink, label: "You")
+                Key(color: Theme.otherSpeaker, label: "Them")
+                Spacer(minLength: 8)
+                Text(DisplayFormat.clock(length))
+            }
+            .font(.geist(12))
+            .monospacedDigit()
+            .foregroundStyle(Theme.tertiaryText)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenLabel(length: length))
+    }
+
+    private func draw(length: Double, in context: inout GraphicsContext, size: CGSize) {
+        let bar = CGRect(x: 0, y: size.height - 6, width: size.width, height: 6)
+        let track = Path(roundedRect: bar, cornerRadius: 3)
+        context.fill(track, with: .color(Theme.selection))
+        var turns = context
+        turns.clip(to: track)
+        for turn in detail.turns {
+            let start = turn.start / length * size.width
+            let end = max(turn.end / length * size.width, start + 1.5)
+            turns.fill(
+                Path(CGRect(x: start, y: bar.minY, width: end - start, height: bar.height)),
+                with: .color(turn.speaker == .me ? Theme.ink : Theme.otherSpeaker))
+        }
+        var labelEnd = -CGFloat.infinity
+        for answer in detail.answers.sorted(by: { $0.askedAt < $1.askedAt }) {
+            let x = min(max(answer.askedAt / length * size.width, 3.5), size.width - 3.5)
+            context.fill(
+                Path(ellipseIn: CGRect(x: x - 3.5, y: 4.5, width: 7, height: 7)), with: .color(Theme.accent))
+            let label = context.resolve(
+                Text("\(answer.tier.title) answer, \(DisplayFormat.clock(answer.askedAt))")
+                    .font(.geist(11.5, .medium))
+                    .foregroundStyle(Theme.accentText))
+            // Right of the dot where it fits, otherwise left of it, and never over the last.
+            let width = label.measure(in: CGSize(width: 400, height: 20)).width
+            if x + 8 + width <= size.width, x + 8 > labelEnd + 12 {
+                context.draw(label, at: CGPoint(x: x + 8, y: 8), anchor: .leading)
+                labelEnd = x + 8 + width
+            } else if x - 8 - width > max(labelEnd + 12, 0) {
+                context.draw(label, at: CGPoint(x: x - 8, y: 8), anchor: .trailing)
+                labelEnd = x
+            }
+        }
+    }
+
+    private func spokenLabel(length: Double) -> String {
+        let answers = detail.answers.map { "\($0.tier.noun) at \(DisplayFormat.clock($0.askedAt))" }
+        return (["Who spoke when, over \(DisplayFormat.clock(length))"] + answers).joined(separator: "; ")
+    }
+}
+
+private struct Key: View {
+    let color: Color
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+        }
     }
 }
 
@@ -187,53 +265,69 @@ private struct SummaryPage: View {
 
     var body: some View {
         if let summary = detail.summary {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 if !summary.summary.isEmpty {
-                    TitledCard("Summary") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(summary.summary.enumerated()), id: \.offset) { _, line in
-                                Bullet(text: line)
+                    SectionHeading("Summary")
+                        .padding(.top, 32)
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(Array(summary.summary.enumerated()), id: \.offset) { index, line in
+                            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                                Text("\(index + 1)")
+                                    .font(.geist(13, .semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Theme.tertiaryText)
+                                    .frame(width: 24, alignment: .leading)
+                                MarkdownText(line)
                             }
                         }
                     }
+                    .padding(20)
+                    .tile()
                 }
                 let mine = summary.actionItems.filter(\.isMine)
                 let others = summary.actionItems.filter { !$0.isMine }
                 if !mine.isEmpty {
                     ActionItemList(title: "Your action items", items: mine) { model.setDone($0, for: $1) }
+                        .padding(.top, 32)
                 }
                 if !others.isEmpty {
                     ActionItemList(title: "Waiting on others", items: others) { model.setDone($0, for: $1) }
+                        .padding(.top, 32)
                 }
                 if !summary.decisions.isEmpty || !summary.openQuestions.isEmpty {
-                    HStack(alignment: .top, spacing: 14) {
+                    HStack(alignment: .top, spacing: 12) {
                         if !summary.decisions.isEmpty {
-                            ListCard(title: "Decided", lines: summary.decisions)
+                            Lines(title: "Decided", lines: summary.decisions)
                         }
                         if !summary.openQuestions.isEmpty {
-                            ListCard(title: "Still open", lines: summary.openQuestions)
+                            Lines(title: "Still open", lines: summary.openQuestions)
                         }
                     }
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 32)
                 }
                 if let email = summary.email {
-                    EmailCard(email: email, copy: model.copyEmail)
+                    EmailSection(email: email, copy: model.copyEmail)
+                        .padding(.top, 32)
                 }
                 ForEach(Array(summary.other.enumerated()), id: \.offset) { _, section in
-                    TitledCard(section.heading) {
-                        MarkdownText(section.text)
-                    }
+                    SectionHeading(section.heading)
+                        .padding(.top, 32)
+                    MarkdownText(section.text)
+                        .padding(20)
+                        .tile()
                 }
                 if summary.cutShort {
                     Text("The summary reached its length limit, so its end is missing.")
-                        .font(.geistItalic(12))
+                        .font(.geist(12.5))
                         .foregroundStyle(Theme.tertiaryText)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 16)
                 }
             }
-            .padding(.top, 14)
         } else {
             NoSummary(model: model, detail: detail)
-                .padding(.top, 14)
+                .padding(.top, 32)
         }
     }
 }
@@ -243,26 +337,27 @@ private struct NoSummary: View {
     let detail: CallDetail
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.geist(14, .semibold))
+                .heading(18)
+                .accessibilityAddTraits(.isHeader)
             Text(reason)
-                .font(.geist(12.5))
-                .lineSpacing(2)
+                .font(.geist(15))
+                .lineSpacing(5)
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if model.canWriteSummary && !detail.turns.isEmpty && !detail.call.summaryDue {
                 Button(action: model.writeSummary) {
                     Label(model.isWritingSummary ? "Writing…" : "Write the Summary", systemImage: "sparkles")
                 }
-                .buttonStyle(FilledButtonStyle())
+                .buttonStyle(PillButtonStyle(kind: .ink))
                 .disabled(model.isWritingSummary)
-                .padding(.top, 4)
+                .padding(.top, 8)
             }
         }
-        .padding(16)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .tile()
     }
 
     private var title: String {
@@ -283,20 +378,6 @@ private struct NoSummary: View {
     }
 }
 
-private struct Bullet: View {
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Circle()
-                .fill(Theme.tertiaryText.opacity(0.6))
-                .frame(width: 4, height: 4)
-                .offset(y: -3.5)
-            MarkdownText(text)
-        }
-    }
-}
-
 /// A line of the summary with its **bold** and *italics*, selectable for copying.
 private struct MarkdownText: View {
     let text: String
@@ -311,8 +392,8 @@ private struct MarkdownText: View {
                 markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
                 ?? AttributedString(text)
         )
-        .font(.geist(13.5))
-        .lineSpacing(4)
+        .font(.geist(15))
+        .lineSpacing(5)
         .foregroundStyle(Theme.proseText)
         .textSelection(.enabled)
         .fixedSize(horizontal: false, vertical: true)
@@ -320,7 +401,7 @@ private struct MarkdownText: View {
     }
 }
 
-/// The user's action items, or everyone else's, with how many are ticked.
+/// The user's action items, or everyone else's, on a tile, with how many are ticked.
 private struct ActionItemList: View {
     let title: String
     let items: [CallSummary.ActionItem]
@@ -328,24 +409,22 @@ private struct ActionItemList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CardHeader(title: title) {
+            SectionHeading(title: title) {
                 Text("\(items.filter(\.done).count) of \(items.count) done")
-                    .font(.geistMono(11))
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                if index > 0 {
-                    Hairline()
-                        .padding(.leading, 44)
-                        .padding(.trailing, 16)
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    if index > 0 {
+                        Hairline()
+                            .padding(.leading, 29)
+                    }
+                    ActionItemRow(item: item) { setDone($0, item) }
                 }
-                ActionItemRow(item: item) { setDone($0, item) }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 4)
+            .tile()
         }
-        .padding(.bottom, 4)
-        .card()
     }
 }
 
@@ -360,19 +439,16 @@ private struct ActionItemRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Checkbox(isOn: item.done)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3.5 }
-                VStack(alignment: .leading, spacing: 0) {
-                    (owner + body(ownerName == nil ? capitalisingFirstLetter(item.text) : item.text))
-                        .font(.geist(13.5))
-                        .lineSpacing(3)
-                        .foregroundStyle(item.done ? Theme.tertiaryText : Theme.proseText)
-                        .strikethrough(item.done, color: Theme.tertiaryText)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                (owner + body(ownerName == nil ? capitalisingFirstLetter(item.text) : item.text))
+                    .font(.geist(15))
+                    .lineSpacing(4)
+                    .foregroundStyle(item.done ? Theme.tertiaryText : Theme.text)
+                    .strikethrough(item.done, color: Theme.tertiaryText)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 13)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -395,7 +471,7 @@ private struct ActionItemRow: View {
             return Text("")
         }
         let tint = item.done ? Theme.tertiaryText : item.isMine ? Theme.accentText : Theme.amber
-        return Text("\(ownerName)  ").font(.geist(12, .semibold)).foregroundColor(tint)
+        return Text("\(ownerName)  ").font(.geist(13.5, .semibold)).foregroundColor(tint)
     }
 
     /// Notes write "**Me**: send it", which reads as "send it" once the owner is not shown.
@@ -413,53 +489,62 @@ private struct ActionItemRow: View {
     }
 }
 
-private struct ListCard: View {
+/// What was decided, or what is still open, on a tile of its own.
+private struct Lines: View {
     let title: String
     let lines: [String]
 
     var body: some View {
-        TitledCard(title) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                    Bullet(text: line)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.geist(15, .semibold))
+                .accessibilityAddTraits(.isHeader)
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                MarkdownText(line)
             }
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .tile()
     }
 }
 
-private struct EmailCard: View {
+private struct EmailSection: View {
     let email: CallSummary.Email
     let copy: () -> Void
     @State private var copied = false
 
     var body: some View {
-        TitledCard(title: "Follow-up email") {
-            Button {
-                copy()
-                copied = true
-                Task {
-                    try? await Task.sleep(for: .seconds(1.6))
-                    copied = false
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeading(title: "Follow-up email") {
+                Button {
+                    copy()
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.6))
+                        copied = false
+                    }
+                } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
-            } label: {
-                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                .buttonStyle(PillButtonStyle(small: true))
             }
-            .buttonStyle(SoftButtonStyle(small: true))
-        } content: {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 if let subject = email.subject {
                     Text(subject)
-                        .font(.geist(13.5, .semibold))
+                        .font(.geist(15, .semibold))
                         .textSelection(.enabled)
                 }
                 Text(email.body)
-                    .font(.geist(13.5))
-                    .lineSpacing(4)
+                    .font(.geist(15))
+                    .lineSpacing(5)
                     .foregroundStyle(Theme.proseText)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tile()
         }
     }
 }
@@ -486,9 +571,10 @@ private struct TranscriptPage: View {
     var body: some View {
         if detail.turns.isEmpty {
             Text("Nothing was transcribed on this call.")
-                .font(.geist(13))
+                .font(.geist(15))
                 .foregroundStyle(Theme.secondaryText)
-                .padding(.top, 20)
+                .padding(.horizontal, 4)
+                .padding(.top, 32)
         } else {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(items) { item in
@@ -500,7 +586,10 @@ private struct TranscriptPage: View {
                     }
                 }
             }
-            .padding(.top, 12)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .tile()
+            .padding(.top, 32)
         }
     }
 
@@ -530,7 +619,8 @@ private struct TranscriptLine: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Text(DisplayFormat.clock(turn.start))
-                .font(.geistMono(11))
+                .font(.geist(12))
+                .monospacedDigit()
                 .foregroundStyle(Theme.tertiaryText)
                 .frame(width: 40, alignment: .leading)
             VStack(alignment: .leading, spacing: 3) {
@@ -571,7 +661,8 @@ private struct InlineAnswer: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             Text(DisplayFormat.clock(answer.askedAt))
-                .font(.geistMono(11))
+                .font(.geist(12))
+                .monospacedDigit()
                 .foregroundStyle(Theme.accentText)
                 .frame(width: 40, alignment: .leading)
                 .padding(.top, 13)
@@ -590,16 +681,17 @@ private struct AnswersPage: View {
     var body: some View {
         if detail.answers.isEmpty {
             Text("No answers were asked for on this call.")
-                .font(.geist(13))
+                .font(.geist(15))
                 .foregroundStyle(Theme.secondaryText)
-                .padding(.top, 20)
+                .padding(.horizontal, 4)
+                .padding(.top, 32)
         } else {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(detail.answers, id: \.id) { answer in
                     AnswerSummaryCard(answer: answer, compact: false) { model.copyAnswer(answer) }
                 }
             }
-            .padding(.top, 14)
+            .padding(.top, 32)
         }
     }
 }
@@ -616,7 +708,8 @@ private struct AnswerSummaryCard: View {
             HStack(spacing: 8) {
                 TierBadge(tier: answer.tier)
                 Text(meta)
-                    .font(.geistMono(11))
+                    .font(.geist(12))
+                    .monospacedDigit()
                     .foregroundStyle(Theme.tertiaryText)
                     .lineLimit(1)
                 Spacer(minLength: 4)
@@ -638,11 +731,13 @@ private struct AnswerSummaryCard: View {
                 AnswerLine(block: block, size: compact ? 14 : 15)
             }
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .padding(.vertical, 12)
+        .padding(.leading, compact ? 16 : 20)
+        .padding(.trailing, compact ? 10 : 14)
+        .padding(.vertical, compact ? 14 : 18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .background(
+            compact ? Theme.accentTint : Theme.tile,
+            in: RoundedRectangle(cornerRadius: compact ? 14 : 18, style: .continuous))
     }
 
     private var meta: String {

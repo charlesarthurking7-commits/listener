@@ -8,16 +8,7 @@ struct InsightsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SectionBar {
-                Text("Insights")
-                    .font(.geist(15, .semibold))
-                    .tracking(-0.15)
-                Text("How you use Listener, counted on this Mac")
-                    .font(.geist(12))
-                    .foregroundStyle(Theme.tertiaryText)
-                    .lineLimit(1)
-                Spacer()
-            }
+            PageHeader(title: "Insights", subtitle: "How you use Listener, counted on this Mac")
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionLabel("Dictation")
