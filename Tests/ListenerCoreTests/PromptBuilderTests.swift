@@ -27,15 +27,16 @@ struct PromptBuilderTests {
         #expect(first.system.contains("\"I\" or \"we\" in a Them line is whoever is speaking, never Me"))
         #expect(first.system.contains("a short line can fall inside a longer one above it"))
         #expect(first.system.contains("never volunteer Me for work nobody asked Me to take on"))
-        #expect(first.system.contains("one to three sentences, or up to five short bullets"))
+        #expect(first.system.contains("one to three short sentences, under about 50 words"))
+        #expect(first.system.contains("If someone has just stated something as fact, check it"))
         #expect(!first.system.contains("About Me"))
     }
 
     @Test func deepAnswerUsesTheDeepModelAndLongerStyle() {
         let request = builder.answerRequest(tier: .deep, transcript: TranscriptSnapshot(turns: turns), now: 10)
         #expect(request.settings == AnswerSettings().deep)
-        #expect(request.system.contains("thorough but easy to scan"))
-        #expect(!request.system.contains("one to three sentences"))
+        #expect(request.system.contains("at most four short bullets"))
+        #expect(!request.system.contains("under about 50 words"))
         #expect(request.user.last?.text.hasSuffix("Take more care over this one: it may be a harder question.") == true)
     }
 
@@ -73,7 +74,7 @@ struct PromptBuilderTests {
                     Still being said, not final yet:
                     Them: and also the
 
-                    It is now [01:15]. Suggest what I should say next. Reply with only the words to say, plus any \
+                    It is now [01:15]. Help me with what is being asked or discussed. Reply with only the words to say, plus any \
                     [notes] for me. If nothing has been asked of me, start with the [Nothing asked of you: …] note.
                     """))
     }
@@ -89,10 +90,45 @@ struct PromptBuilderTests {
 
                     Nothing has been said yet.
 
-                    It is now [00:05]. Suggest what I should say next. Reply with only the words to say, plus any \
+                    It is now [00:05]. Help me with what is being asked or discussed. Reply with only the words to say, plus any \
                     [notes] for me. If nothing has been asked of me, start with the [Nothing asked of you: …] note.
                     """)
             ])
+    }
+
+    @Test func aRepeatPressSeesTheLatestAnswersWithoutTheirNotes() {
+        func answer(_ id: Int, _ tier: AnswerTier, at time: Double, _ text: String) -> AnswerRecord {
+            AnswerRecord(id: id, tier: tier, model: "m", askedAt: time, text: text)
+        }
+        let earlier = [
+            answer(1, .quick, at: 10, "Too long ago to show."),
+            answer(2, .quick, at: 400, "[Nothing asked of you: they're on latency.]\nCan we check the timestamps?"),
+            answer(3, .recap, at: 410, "A recap is not a suggestion."),
+            answer(4, .deep, at: 420, "Are the clocks in sync?"),
+            answer(5, .quick, at: 430, "Is it one server or all of them?"),
+            answer(6, .quick, at: 440, "Is it the busy hour?"),
+        ]
+        let request = builder.answerRequest(
+            tier: .quick, transcript: TranscriptSnapshot(turns: turns), now: 450, earlierAnswers: earlier)
+        let tail = request.user.last!.text
+        #expect(
+            tail.contains(
+                """
+                </transcript>
+
+                Already suggested to me, most recent last. Don't repeat these or anything I have already said; give \
+                the next most useful thing:
+                [07:00] Are the clocks in sync?
+                [07:10] Is it one server or all of them?
+                [07:20] Is it the busy hour?
+
+                It is now [07:30].
+                """))
+        #expect(!tail.contains("timestamps"))
+
+        let recap = builder.answerRequest(
+            tier: .recap, transcript: TranscriptSnapshot(turns: turns), now: 450, earlierAnswers: earlier)
+        #expect(!recap.user.last!.text.contains("Already suggested"))
     }
 
     @Test func interimWithoutFinishedTurnsIsMarkedAsInProgress() {

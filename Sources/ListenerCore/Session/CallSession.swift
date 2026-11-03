@@ -416,7 +416,7 @@ public actor CallSession {
             return
         }
         let request = PromptBuilder(answers: settings.answers, call: call)
-            .answerRequest(tier: tier, transcript: detector.snapshot, now: hotkey)
+            .answerRequest(tier: tier, transcript: detector.snapshot, now: hotkey, earlierAnswers: answers)
         show(startGeneration(request, tier: tier, isDraft: false), hotkey: hotkey, speech: speech)
     }
 
@@ -654,7 +654,8 @@ public actor CallSession {
             cancel(draft)
         }
         let request = PromptBuilder(answers: settings.answers, call: call)
-            .answerRequest(tier: .quick, transcript: detector.snapshot, now: sessionTime(.now))
+            .answerRequest(
+                tier: .quick, transcript: detector.snapshot, now: sessionTime(.now), earlierAnswers: answers)
         draft = startGeneration(request, tier: .quick, isDraft: true)
     }
 

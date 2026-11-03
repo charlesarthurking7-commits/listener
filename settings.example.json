@@ -18,15 +18,15 @@
   },
   "answers": {
     "quick": {
-      "model": "claude-haiku-5-5",
+      "model": "claude-sonnet-5-5",
       "effort": "low",
       "thinking": "off",
       "maxTokens": 600
     },
     "deep": {
-      "model": "claude-sonnet-5-5",
-      "effort": "medium",
-      "thinking": "adaptive",
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "thinking": "off",
       "maxTokens": 4000
     },
     "recap": {

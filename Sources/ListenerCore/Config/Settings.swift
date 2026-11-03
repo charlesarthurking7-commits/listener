@@ -53,21 +53,25 @@ public struct TurnSettings: Sendable, Codable, Equatable {
 }
 
 public struct AnswerSettings: Sendable, Codable, Equatable {
-    public var quick = ModelSettings(model: "claude-haiku-5-5", effort: "low", thinking: .off, maxTokens: 600)
-    public var deep = ModelSettings(model: "claude-sonnet-5-5", effort: "medium", thinking: .adaptive, maxTokens: 4000)
+    /// Sonnet, not Haiku: replayed on real calls, Haiku missed questions aimed at the user,
+    /// volunteered them for work and made up times. Sonnet's first word comes in under a second.
+    public var quick = ModelSettings(model: "claude-sonnet-5-5", effort: "low", thinking: .off, maxTokens: 600)
+    /// Opus at low effort: it knew platform details Sonnet confidently got wrong, and its
+    /// first word, at about 3.5 s, came sooner than Sonnet's with thinking on.
+    public var deep = ModelSettings(model: "claude-opus-5-5", effort: "low", thinking: .off, maxTokens: 4000)
     /// Sonnet, not Haiku: over a long call Haiku mixes up who asked and agreed what, and
     /// hands the user other people's requests.
     public var recap = ModelSettings(model: "claude-sonnet-5-5", effort: "low", thinking: .off, maxTokens: 1000)
     /// Transcript tokens sent with each answer: about 20 minutes of non-stop conversation,
     /// longer for a real call with pauses.
     public var transcriptBudgetTokens = 8_000
-    /// Never send more than this, whatever the budget says. Haiku 5.5 prices rise
-    /// fivefold above 100k prompt tokens.
+    /// Never send more than this, whatever the budget says, so a recap of a long call
+    /// costs cents: at most about 12 on Sonnet.
     public var transcriptHardCapTokens = 60_000
     /// Who you are and what your calls are about. Goes into the system prompt.
     public var context = ""
     /// Start drafting an answer whenever "Them" finishes a turn, so the hotkey shows
-    /// it instantly. Costs a fraction of a cent per turn on Haiku.
+    /// it instantly. Costs under a cent per turn on Sonnet.
     public var draftAhead = false
 
     public init() {}

@@ -68,8 +68,8 @@ enum DemoAnswers {
     }
 
     static let quick = """
-        [Nothing asked of you: they're explaining why copy trades reached followers late after the open.]
-        Thanks, that's clear. Which accounts were hit hardest?
+        [Nothing asked of you: Hannah is describing the late copy trades after the US open.]
+        Thirty-second delays right at the open point to our follower queue backing up under volume, not to their side.
         """
 
     static let deep = """
@@ -117,11 +117,11 @@ enum DemoAnswers {
 
             ## Action items
             - [ ] **Me**: send Hannah the affected accounts, and by how much (due this afternoon)
-            - [ ] **Me**: check with client services whether Pelican will cover the slippage on the late fills
+            - [ ] **Me**: check with client services whether we will cover the slippage on the late fills
             - [ ] **Me**: send the incident report for INC-4471 (due within five working days)
 
             ## Open questions
-            - Will Pelican cover the slippage on the late fills?
+            - Will we cover the slippage on the late fills?
 
             ## Follow-up email
             **Subject:** INC-4471: delayed copy trades after the US open

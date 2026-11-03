@@ -378,9 +378,9 @@ final class CallSessionTests {
         #expect(answers.map(\.id) == [1, 2, 3])
         #expect(answers.map(\.error) == [CallSession.cancelledMessage, nil, CallSession.cancelledMessage])
         #expect(answers[0].text == setup.recorder.answerText(id: 1))
-        #expect(answers[1].text == tradeAnswer && answers[1].model == "claude-sonnet-5-5")
+        #expect(answers[1].text == tradeAnswer && answers[1].model == AnswerSettings().deep.model)
         #expect(setup.recorder.failedAnswers.map(\.id) == [1, 3])
-        #expect(setup.recorder.all.contains(.answerStarted(id: 2, tier: .deep, model: "claude-sonnet-5-5")))
+        #expect(setup.recorder.all.contains(.answerStarted(id: 2, tier: .deep, model: AnswerSettings().deep.model)))
         #expect(await eventually { model.cancelledCount == 2 })
         #expect(try SessionStore.readAnswers(in: try #require(await session.directory)) == answers)
     }
@@ -405,7 +405,7 @@ final class CallSessionTests {
         try await setup.session.start()
         await waitForReplay(setup.sources)
         // The session has taken in the draft's last event once its usage is costed.
-        #expect(await eventually { await setup.session.cost.modelUsage["claude-haiku-5-5"] != nil })
+        #expect(await eventually { await setup.session.cost.modelUsage[AnswerSettings().quick.model] != nil })
 
         await setup.session.requestAnswer(.quick)
         await setup.stop()
@@ -542,7 +542,8 @@ final class CallSessionTests {
         await setup.stop()
 
         let warmUps = model.requests.filter { $0.userText.contains("only loads the prompt cache") }
-        #expect(warmUps.map(\.settings.model).sorted() == ["claude-haiku-5-5", "claude-sonnet-5-5"])
+        let warmedModels = [AnswerSettings().quick.model, AnswerSettings().deep.model]
+        #expect(warmUps.map(\.settings.model).sorted() == warmedModels.sorted())
         #expect(warmUps.allSatisfy { $0.cacheSystem && $0.system.contains("<document name=\"runbook.pdf\">") })
     }
 

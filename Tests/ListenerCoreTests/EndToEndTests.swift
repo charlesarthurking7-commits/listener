@@ -75,13 +75,13 @@ struct EndToEndTests {
         // The answer streamed the scripted reply, built from the transcript so far.
         let request = try #require(model.requests.first)
         let askedWith = try #require(await asked.snapshot)
-        #expect(request.settings.model == "claude-haiku-5-5")
+        #expect(request.settings.model == AnswerSettings().quick.model)
         #expect(request.userText.contains("Them: Hi, thanks for joining the call."))
         #expect(request.userText.contains("Them: Can you confirm the EUR fills from this morning?"))
         for turn in askedWith.turns {
             #expect(request.userText.contains("\(turn.speaker.rawValue): \(turn.text)"))
         }
-        #expect(recorder.all.contains(.answerStarted(id: 1, tier: .quick, model: "claude-haiku-5-5")))
+        #expect(recorder.all.contains(.answerStarted(id: 1, tier: .quick, model: AnswerSettings().quick.model)))
         #expect(recorder.answerText(id: 1) == tradeAnswer)
         let answer = try #require(recorder.finishedAnswers.first)
         // Nothing said after the hotkey is in the prompt. The hotkey reacts to an event,

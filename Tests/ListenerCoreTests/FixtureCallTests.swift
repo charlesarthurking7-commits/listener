@@ -114,6 +114,8 @@ struct FixtureCallTests {
 
         var settings = sessionSettings(directory: root)
         settings.storage.saveAudio = true
+        // On another model from the summary, so each call's price can be checked on its own.
+        settings.answers.quick.model = "claude-haiku-5-5"
         let summarySettings = settings.summary.model
         let summary = "# \(script.title)\n\n## Summary\n\n- Covered in the call."
         let model = ScriptedLanguageModel(firstTokenDelay: .milliseconds(5), tokenInterval: .zero) { request in

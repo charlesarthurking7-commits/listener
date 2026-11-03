@@ -120,7 +120,9 @@ Under the bar during a call:
 - **Answer card.** Appears when you press an answer hotkey: a **Quick**, **Deep** or
   **Recap** badge, the model, the time from the hotkey to the first word, a copy button
   and a close button. When nothing has been asked of you, an answer starts with a note
-  saying so and what is being discussed, then at most one line you could add. A
+  saying so and what is being discussed, then helps with it: it answers the question
+  being worked through, or says whether what was just said is right and corrects it if
+  not. Pressed again, it doesn't repeat what the last few answers suggested. A
   **Recap** reads the whole call so far, not just the recent part, and gives the gist,
   the main points, anything asked of you that is still open, and anything agreed. A
   placeholder shimmers until the first word arrives; words then appear as they stream,
@@ -185,20 +187,21 @@ the Dock and the app switcher; close it and Listener goes back to the menu bar (
 `window.showDockIcon` keeps it there). It has five sections, also under View with
 Command-1 to Command-5.
 
-The card at the top of the sidebar holds the call type the next call uses and **Start
-call**, which does what Start does and brings up the floating window, where a call is run
-from: it stays on top of the call app. During a call the card holds Quick, Deep and Recap,
-with **Stop call** where Start was, and the call is at the top of Calls as **Live**, with
-its answer and transcript as they come. Notices about the app, such as a hotkey another
-app has taken or a summary that is ready, show near the bottom of the sidebar, and under
-them what calls have cost this month and whether Listener is ready to listen.
+**Start call** at the top of the sidebar does what Start does and brings up the floating
+window, where a call is run from: it stays on top of the call app. The line under it
+picks the call type the next call uses. During a call it becomes **Stop call**, with
+Quick, Deep and Recap under it, and the call is at the top of Calls as **Live**, with its
+answer and transcript as they come. Notices about the app, such as a hotkey another app
+has taken or a summary that is ready, show near the bottom of the sidebar, and under them
+what calls have cost this month and whether Listener is ready to listen.
 
 - **Calls.** Every saved call, newest first, by day, leaving out calls where nothing was
   said. Each is titled by its summary (older calls by their type and date), with its
   type, time, length and how many of your action items are still to do. Search finds
   words in titles, summaries and transcripts, with every word of the search somewhere in
-  the call, and shows the line that matched. A call's page starts with its length, how
-  long each side spoke, its turns and its cost, then has three tabs:
+  the call, and shows the line that matched. A call's page starts with how long each side
+  spoke, its turns, length and cost, and a bar of who spoke when with a dot wherever an
+  answer was asked for, then has three tabs:
   - **Summary**: what the call was about, your action items and, under Waiting on
     others, everyone else's (tick them off; the tick is saved in `summary.md`), what was
     decided and what is still open, and the follow-up email with a Copy button. An item
@@ -240,8 +243,9 @@ Everything in it goes with every answer, recap and summary of the call. Pick one
 the menu bar, and set each up on the main window's **Call types** page.
 
 - **Call type.** Work call or Meeting. Each changes how answers go: Work call keeps to
-  the general rules, and Meeting gives only a note when nothing has been asked of you. A
-  call keeps the type it started with.
+  the general rules, and Meeting keeps quick answers to a sentence or two, or one when
+  nothing has been asked of you. Deep answers are full length on both. A call keeps the
+  type it started with.
 - **Files.** Drop files onto the page, or use **Add Files…**: PDF, Word, RTF, HTML and
   text. A scanned PDF has no text and shows "No text found". The x moves a file to the
   Bin.
@@ -263,18 +267,18 @@ Each type is a folder under `~/Library/Application Support/Listener/Call Types/`
 again at every Start, so changes in Finder or TextEdit count from the next call. Up to 20k
 tokens of files go with each request. Listener writes them to Claude's prompt cache when
 the call starts and refreshes it through quiet stretches, so even the first answer reads
-them from there: a few pages of background cost about $0.0001 per quick answer and add
+them from there: a few pages of background cost about $0.0005 per quick answer and add
 no noticeable time. Text in `<!-- comments -->` is left out.
 
-When nothing has been asked of you, an answer opens with a note saying so, and any line
-after it is labelled "If you want to chip in".
+When nothing has been asked of you, an answer opens with a note saying so, and what
+follows it is labelled "If you want to chip in".
 
 ## Hotkeys
 
 | Action | Default |
 | --- | --- |
-| Quick answer (Haiku 5.5) | Control-Option-A (`ctrl+option+a`) |
-| Deep answer (Sonnet 5.5) | Control-Option-Shift-A (`ctrl+option+shift+a`) |
+| Quick answer (Sonnet 5.5) | Control-Option-A (`ctrl+option+a`) |
+| Deep answer (Opus 5.5) | Control-Option-Shift-A (`ctrl+option+shift+a`) |
 | Recap so far (Sonnet 5.5) | Control-Option-S (`ctrl+option+s`) |
 | Start or stop listening | Control-Option-L (`ctrl+option+l`) |
 | Show or hide the window | Control-Option-H (`ctrl+option+h`) |

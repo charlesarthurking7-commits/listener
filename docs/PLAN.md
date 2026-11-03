@@ -96,28 +96,39 @@ Two design choices protect the budget:
   pays for a new connection after a quiet stretch.
 - With documents, the quick and deep system prompts are written to the prompt cache at
   Start and before they expire. A warm-up carries the tier's own thinking and effort,
-  since both are part of the cached prompt. Haiku's is sent with `max_tokens` 0; Sonnet
-  with adaptive thinking caches `max_tokens` too, so its warm-up is the real request,
-  stopped at `message_start`. Checked on the live API: the first answer of each tier
-  read the warm-up's cache.
+  since both are part of the cached prompt. Quick's, on Sonnet with thinking off, is
+  sent with `max_tokens` 0. Opus always thinks, and with thinking on `max_tokens` is
+  cached too, so Deep's warm-up is the real request, stopped at `message_start`.
+  Checked on the live API on 3 November 2026: the first answer of each tier read the
+  whole warm-up from the cache.
 
 Optional, off by default: **draft ahead** (`answers.draftAhead`). When "Them" finishes a
 turn, start generating a suggestion in the background and show it instantly if you press
-the hotkey. On Haiku 5.5 a draft costs about $0.0005, so even 100 turns per call is about
-5 cents.
+the hotkey. On Sonnet 5.5 a draft costs about $0.007, so 100 turns per call is about
+70 cents.
 
-### 2.5 Haiku 5.5: thinking off, low effort
-Haiku 5.5 runs adaptive thinking by default, which adds time before the first visible
-token. For the hotkey answer we turn thinking off (allowed on Haiku 5.5 at effort `high`
-or below) and set effort `low`. Every answer logs its time to first token, so the choice
-can be checked against measurements. The escalation hotkey (Sonnet 5.5) keeps
-adaptive thinking at `low` or `medium` effort, since that path is for hard questions.
+### 2.5 Quick on Sonnet, Deep on Opus, both at low effort
+Quick answers started on Haiku 5.5. Thirteen moments from real calls, replayed twice
+each and scored by hand, showed most presses come when nothing has been asked of the
+user, who wants to know what to add or whether what was just said is right. Haiku gave
+1 good answer in 26 with the old prompt and 11 with the reworked one; Sonnet 5.5 gave
+22 with the reworked one, and none bad. Haiku missed questions aimed at the user,
+volunteered them for work and made up times. Sonnet's first word comes about 0.3 s
+later (0.8 to 0.9 s against 0.55 s), which is worth it. Quick runs with thinking off
+and effort `low`.
+
+Deep runs on Opus 5.5 at effort `low`. Opus always thinks, so for it "off" leaves the
+thinking field out and the effort sets how much. On platform questions it got right
+details that Sonnet stated wrongly and confidently, such as MT4's IP access list and
+per-manager IP filters. Its first word comes in about 4.4 s, sooner than Sonnet with
+adaptive thinking (about 5 s), and its answers are about 140 words. Every answer logs
+its time to first token, so the choices can be checked against measurements.
 
 ### 2.6 Prompt caching: what it actually buys here
-With the tool definitions gone, the system prompt is a few hundred tokens. The minimum
-cacheable prefix on Haiku 5.5 and Sonnet 5.5 is 512 tokens, so caching the system prompt
-alone does nothing. The transcript is where caching pays, so the rolling window is
-built to keep its prefix stable:
+The system prompt is about 1.5k tokens with a line about the user, and the cache
+breakpoints in the transcript cover it along with everything before them. The
+transcript is where caching pays, so the rolling window is built to keep its prefix
+stable:
 
 - The window start moves in steps (for example, drop the oldest 25% when the budget is
   exceeded) rather than sliding line by line. Between steps every request shares the
@@ -126,9 +137,8 @@ built to keep its prefix stable:
 - A cache breakpoint sits at the end of the transcript in each request.
 
 Budget: default 8k transcript tokens (about 20 minutes of non-stop conversation, more
-with real pauses), hard cap 60k,
-well under the 100k point where Haiku 5.5 pricing goes from $0.10/$0.50 to $0.50/$2.50
-per million tokens. Each hotkey request is a fresh single-turn request, not a growing
+with real pauses), hard cap 60k, so even a recap of a long call reads at most about
+12 cents of transcript on Sonnet. Each hotkey request is a fresh single-turn request, not a growing
 conversation, which keeps requests small and avoids any thinking-block bookkeeping.
 
 ### 2.7 Speech-to-text: Google is the weak link for latency
@@ -257,7 +267,7 @@ ListenerApp   the `listener` executable: the app with no arguments, plus the
  System audio (tap) -----/     16 kHz mono Int16  +--> STT session "Them" --/          |                 |
  Replay (WAV files) ----/      100 ms chunks                                         VAD end-of-speech    |
                                                                                                          v
- Hotkey (Haiku) / Hotkey (Sonnet) --> CallSession --> PromptBuilder (system + window + interim) --> Anthropic SSE --> UI
+ Hotkey (Sonnet) / Hotkey (Opus) --> CallSession --> PromptBuilder (system + window + interim) --> Anthropic SSE --> UI
                                             |
                                             +--> AnswerLatency: end of speech, STT final, hotkey, response begins, first token, done
  CostTracker: STT seconds per channel + LLM tokens (input, cache read, cache write, output) per model --> UI footer, session.json
@@ -299,11 +309,13 @@ replay mode makes tuning them repeatable.
 ### 3.6 Answer prompt
 
 ```
-system:   role, the "no invented specifics" rule, answer style (short, speakable,
-          bullets when listing), who "Me" and "Them" are          [stable]
+system:   role (make Me the best-informed person on the call), the "no invented
+          specifics" rule, answer style (lead with the answer, short, speakable),
+          who "Me" and "Them" are, the call type and its background   [stable]
 user:     <transcript> window of finalized turns, oldest first     [cache breakpoint]
           current interim text for each channel, marked as in progress
-          "Suggest what I should say next." (or the escalation variant)
+          the last three suggestions from the past five minutes, not to repeat
+          "Help me with what is being asked or discussed." (Deep: "take more care")
 ```
 
 ### 3.7 Cost tracking
@@ -318,10 +330,10 @@ Rough cost of a one-hour call with Google speech-to-text:
 | Item | Assumption | Cost |
 | --- | --- | --- |
 | Speech-to-text | 2 channels x 60 min x $0.016 | $1.92 (about $1.40 with silence skipping on "Me") |
-| Quick answers, Haiku 5.5 | 20 per call, 6k input + 150 output tokens each | $0.01 |
-| Escalations, Sonnet 5.5 | 5 per call, 6k input + 400 output tokens each | $0.08 |
+| Quick answers, Sonnet 5.5 | 20 per call, about $0.007 each (measured) | $0.13 |
+| Deep answers, Opus 5.5 | 5 per call, about $0.025 each (measured) | $0.13 |
 | Summary, Sonnet 5.5 | 13k input + 1.5k output tokens | $0.04 |
-| **Total** | | **about $2 per hour, over 90% of it speech-to-text** |
+| **Total** | | **about $2.20 per hour, over 85% of it speech-to-text** |
 
 The LLM side is cheap enough that cost should not steer prompt design; latency should.
 

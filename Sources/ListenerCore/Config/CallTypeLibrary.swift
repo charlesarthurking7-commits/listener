@@ -285,8 +285,9 @@ extension CallTypeLibrary {
             """
             A meeting where Me mostly listens.
 
-            - If nothing has been asked of Me, give only the note, with no line to chip in.
+            - If nothing has been asked of Me, keep the answer or check after the note to one sentence.
             - When Me is asked something, keep the answer to one or two sentences.
+            - When Me asks you to take more care, give the full answer: these limits are only for quick answers.
 
             In a recap, put decisions and actions first.
 

@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/main-window.png" width="900" alt="The main window: a list of calls on the left, and a call's summary on the right with its action items, split into yours and those waiting on others">
+  <img src="docs/images/main-window.png" width="900" alt="The main window: calls grouped by day, and a call's summary with its length, who spoke when, and your action items">
 </p>
 
 Listener sits in your menu bar. Start a call and it transcribes you and everyone else
@@ -32,9 +32,11 @@ a follow-up email. Between calls, press fn twice in any app and speak.
 
 - **Both sides, live.** Your microphone is "You" and the Mac's audio is "Them", through
   a Core Audio tap: no virtual audio driver to install.
-- **Answers on a hotkey.** A quick answer from Claude Haiku 5.5 starts in well under a
-  second; a deep one from Claude Sonnet 5.5 takes on harder questions; a recap reads
-  the whole call so far. Notes meant only for you are kept apart from the words to say.
+- **Answers on a hotkey.** A quick answer from Claude Sonnet 5.5 starts in about a
+  second; a deep one from Claude Opus 5.5 takes on harder questions; a recap reads the
+  whole call so far. When nothing has been asked of you, it answers or checks what is
+  being discussed, and pressing again brings something new. Notes meant only for you
+  are kept apart from the words to say.
 - **Grounded.** Answers may use general knowledge but never invent the call's facts:
   amounts, account or ticket numbers, dates or names. They say what to check instead.
 - **Call types.** Work call, Meeting or your own, each with its own instructions and
@@ -77,17 +79,18 @@ flowchart LR
     mic["Your microphone"] --> stt["Speech to text<br/>Apple on-device or Google"]
     tap["The Mac's audio<br/>Core Audio tap"] --> stt
     stt --> transcript["Turns and transcript"]
-    transcript -->|"⌃⌥A"| haiku["Claude Haiku 5.5"]
-    transcript -->|"⌃⌥⇧A · ⌃⌥S"| sonnet["Claude Sonnet 5.5"]
-    haiku --> card["Answer card"]
-    sonnet --> card
+    transcript -->|"⌃⌥A · ⌃⌥S"| sonnet["Claude Sonnet 5.5"]
+    transcript -->|"⌃⌥⇧A"| opus["Claude Opus 5.5"]
+    sonnet --> card["Answer card"]
+    opus --> card
     transcript -->|"Stop"| notes["Summary, action items<br/>and follow-up email"]
 ```
 
 Each answer gets the recent conversation, the call type's instructions and background,
-and a line about you. The background is held in Claude's prompt cache for the call, so
-even long documents add no noticeable time. Every answer logs its timings
-from end of speech to first word, and the costs are tracked per call.
+a line about you, and what it suggested in the last few minutes. The background is held
+in Claude's prompt cache for the call, so even long documents add no noticeable time.
+Every answer logs its timings from end of speech to first word, and the costs are
+tracked per call.
 [docs/PLAN.md](docs/PLAN.md) explains the architecture and the decisions behind it.
 
 ## Privacy
