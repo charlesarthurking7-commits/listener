@@ -4,7 +4,8 @@ import Observation
 
 /// Dictation into any app: fn twice starts it, fn once more stops it, and Escape throws
 /// it away. The words go through on-device speech recognition from the Mac's own
-/// microphone, are tidied by Claude for the app in front, and are pasted at the cursor.
+/// microphone, are tidied by Claude for the app in front, and are pasted at the cursor,
+/// followed by Return when they end with "press enter".
 /// Names and terms the user then corrects are learned for next time. Calls have the
 /// microphone to themselves, so dictation is off during one.
 @MainActor
@@ -49,6 +50,7 @@ final class DictationController {
     @ObservationIgnored private let parakeet = ParakeetSpeechProvider()
     @ObservationIgnored private var model: (any LanguageModelProvider)?
     @ObservationIgnored private let watcher = CorrectionWatcher()
+    @ObservationIgnored private let sounds = DictationSounds()
     /// Read again at each start, so words removed from the file by hand stay forgotten.
     @ObservationIgnored private var dictionary = LearnedDictionary()
     /// When this dictation began listening, for the words-per-minute stats.
@@ -115,6 +117,7 @@ final class DictationController {
         guard !isActive else {
             return
         }
+        let pressedAt = ContinuousClock.now
         if isCallRunning() {
             show("Dictation is off during calls.")
             return
@@ -135,12 +138,11 @@ final class DictationController {
         phase = .listening
         listeningSince = .now
         level = 0
-        play("Tink")
+        play(.start)
 
         let recorder = DictationRecorder(
             source: LiveAudioSources.dictationMicrophone(settings: settings.dictation), speech: speech)
         self.recorder = recorder
-        let pressedAt = ContinuousClock.now
         starting = Task {
             do {
                 let info = try await recorder.start { [weak self] dbfs in
@@ -180,7 +182,7 @@ final class DictationController {
         phase = .working
         level = 0
         lengthLimit?.cancel()
-        play("Pop")
+        play(.stop)
         let stoppedAt = ContinuousClock.now
         let spoken = stoppedAt - listeningSince
         // Read now, where the text will be pasted, not where the cursor was at the start.
@@ -198,10 +200,11 @@ final class DictationController {
             if let problem = heard.problem {
                 Log.dictation.error("Speech recognition stopped early: \(problem, privacy: .public)")
             }
+            let (words, pressesEnter) = PressEnter.split(heard.text)
             let tidier = DictationTidier(
                 model: languageModel(), settings: settings.dictation, aboutMe: settings.answers.context,
                 learned: dictionary.promptTerms)
-            let result = await tidier.tidy(heard.text, for: destination.target)
+            let result = await tidier.tidy(words, for: destination.target)
             guard generation == self.generation else {
                 return
             }
@@ -211,16 +214,21 @@ final class DictationController {
                 Log.dictation.error("Typed the words as heard: \(problem, privacy: .public)")
             }
             log(
-                heard: heard.text, typed: result, settling: settledAt - stoppedAt,
+                heard: words, typed: result, pressesEnter: pressesEnter, settling: settledAt - stoppedAt,
                 total: ContinuousClock.now - stoppedAt)
             guard !result.text.isEmpty else {
-                show(heard.problem == nil ? "No words were heard." : "Speech recognition failed.")
+                if pressesEnter {
+                    TextInserter.pressReturn()
+                    finish(generation)
+                } else {
+                    show(heard.problem == nil ? "No words were heard." : "Speech recognition failed.")
+                }
                 return
             }
             let paste = TextInserter.Paste(
                 result.text, formattingLists: settings.dictation.formattedLists, font: destination.font)
             lastPaste = paste
-            let outcome = TextInserter.insert(paste)
+            let outcome = TextInserter.insert(paste, pressingReturn: pressesEnter)
             recordStats(paste.text, spoken: spoken, in: destination.target)
             switch outcome {
             case .pasted:
@@ -373,12 +381,10 @@ final class DictationController {
         }
     }
 
-    private func play(_ name: String) {
-        guard settings.dictation.sounds, let sound = NSSound(named: name) else {
-            return
+    private func play(_ sound: DictationSounds.Sound) {
+        if settings.dictation.sounds {
+            sounds.play(sound)
         }
-        sound.volume = 0.25
-        sound.play()
     }
 
     /// One provider per language and recognizer, so models load once and stay loaded.
@@ -399,7 +405,9 @@ final class DictationController {
         return model
     }
 
-    private func log(heard: String, typed: DictationTidier.Result, settling: Duration, total: Duration) {
+    private func log(
+        heard: String, typed: DictationTidier.Result, pressesEnter: Bool, settling: Duration, total: Duration
+    ) {
         let words = DictationTidier.wordCount(heard)
         let settlingMs = Int(settling.inSeconds * 1000)
         let totalMs = Int(total.inSeconds * 1000)
@@ -407,8 +415,9 @@ final class DictationController {
             settings.prices.models[settings.dictation.model.model]?.cost(of: usage)
         }
         let dollars = String(format: "%.5f", cost ?? 0)
+        let thenReturn = pressesEnter ? " and pressed Return" : ""
         Log.dictation.info(
-            "Dictated \(words) words: settled \(settlingMs) ms, typed \(totalMs) ms after stop, $\(dollars, privacy: .public)"
+            "Dictated \(words) words\(thenReturn, privacy: .public): settled \(settlingMs) ms, typed \(totalMs) ms after stop, $\(dollars, privacy: .public)"
         )
     }
 }

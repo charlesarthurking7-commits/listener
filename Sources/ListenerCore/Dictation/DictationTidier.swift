@@ -193,6 +193,10 @@ public struct DictationTidier: Sendable {
             - Fix punctuation, capitals and grammar. Recognizers break sentences in the wrong places and \
             mishear short words ("end" for "and", "two" for "to"); put those right wherever the meaning is clear.
             - Write numbers, times, dates, money and percentages the usual way: 3pm, £250, 15%, 2 June.
+            - Where the speaker tags someone the way chat apps do, "at" and a name said to address them, write \
+            @ and the name: "at Ed, can you check this" becomes "@Ed, can you check this", and "thanks for this, \
+            at Sam" becomes "Thanks for this, @Sam". Every other "at" stays a word: "meet at Sam's desk", "look \
+            at the report".
             - Spoken punctuation and layout ("full stop", "comma", "question mark", "new line", "new paragraph", \
             "bullet point") are instructions, not words to type.
             - Your text goes in at the cursor. When the text either side of it is given, make yours fit: carry \

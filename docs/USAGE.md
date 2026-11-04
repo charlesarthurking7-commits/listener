@@ -319,7 +319,9 @@ microphone level while it listens, then ripples while it works.
   and times the usual way, and lays the text out for the app in front: an email gets its
   greeting, paragraphs and sign-off on their own lines, a chat message stays short, and
   things said as a list become one. Spoken "new paragraph", "full stop" and "bullet point"
-  work too, as do "scratch that", "never mind" and "I mean". It keeps your words and never
+  work too, as do "scratch that", "never mind" and "I mean". Say "at Ed" to tag someone
+  and it is written "@Ed"; it goes in as text, so it isn't picked from the app's list of
+  people the way a mention you type is. It keeps your words and never
   answers a question you dictate. Without an API key, or if Claude is slow or fails, the
   words are typed as heard.
 - **Context**: Claude also gets the app's name, its window title and up to 500
@@ -332,6 +334,9 @@ microphone level while it listens, then ripples while it works.
   pastes plain, so it takes on the style at the cursor (`dictation.formattedLists`).
 - **Pasting** goes through the clipboard, which is put back a second later. If the text
   went somewhere unexpected, **Copy Last Dictation** in the menu bar menu has it.
+- **Press enter** at the very end ("see you then, press enter") presses Return once the
+  text is in, which sends a chat message; "press enter" on its own just presses Return.
+  Anywhere else in what you say, it is typed as words.
 - **It learns your words.** For a minute after pasting, Listener reads the field the
   text went into. When you fix a name or term it got wrong ("Shavani" to "Shivani",
   "fix" to "FIX", "Kestrel Moore" to "Kestrelmoor") it learns the spelling, says so in

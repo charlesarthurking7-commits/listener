@@ -51,6 +51,7 @@ struct DictateCommand: AsyncParsableCommand {
             heard = try await record(settings)
         }
         Console.write("Heard:\n\(heard)\n\n")
+        let (words, pressesEnter) = PressEnter.split(heard)
 
         let tidier = DictationTidier(
             model: SessionFactory.languageModel(StandardSecrets.chain()), settings: settings.dictation,
@@ -58,9 +59,12 @@ struct DictateCommand: AsyncParsableCommand {
         let started = ContinuousClock.now
         let target = DictationTarget(
             appName: app, windowTitle: window, textBeforeCursor: before, textAfterCursor: after)
-        let result = await tidier.tidy(heard, for: target)
+        let result = await tidier.tidy(words, for: target)
         let elapsed = (ContinuousClock.now - started).inSeconds * 1000
         Console.write("Typed:\n\(before ?? "")\(result.text)\(after ?? "")\n\n")
+        if pressesEnter {
+            Console.write("Then presses Return.\n\n")
+        }
         if let problem = result.problem {
             Console.error("Typed what was heard: \(problem)")
         }

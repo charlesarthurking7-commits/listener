@@ -5,6 +5,7 @@ import ListenerCore
 /// Types text into the app in front by pasting it: the text goes on the clipboard,
 /// Command-V is posted, and the clipboard is put back as it was. Pasting works in every
 /// app, native or not, where typing key by key is slow and trips over keyboard layouts.
+/// Return can follow, to send a message.
 @MainActor
 enum TextInserter {
     /// The text, and for a list, formatted versions of it: apps take the richest they
@@ -69,9 +70,12 @@ enum TextInserter {
     /// How long the app gets to read the pasted text before the clipboard is restored.
     /// Apps read it as they handle Command-V; some take a few hundred milliseconds.
     private static let restoreDelay: Duration = .seconds(1)
+    /// Web apps such as Teams can put pasted text in a moment after Command-V, and Return
+    /// before then would send the message without it.
+    private static let returnDelay: Duration = .milliseconds(200)
 
-    /// Returns once Command-V is posted; the clipboard is restored a moment later.
-    static func insert(_ paste: Paste) -> Outcome {
+    /// Returns once Command-V is posted; Return and restoring the clipboard follow.
+    static func insert(_ paste: Paste, pressingReturn: Bool = false) -> Outcome {
         let pasteboard = NSPasteboard.general
         guard AXIsProcessTrusted() else {
             put(paste, on: pasteboard)
@@ -81,7 +85,13 @@ enum TextInserter {
         put(paste, on: pasteboard)
         pasteboard.setData(Data(), forType: transientType)
         let ours = pasteboard.changeCount
-        postCommandV()
+        post(kVK_ANSI_V, flags: .maskCommand)
+        if pressingReturn {
+            Task {
+                try? await Task.sleep(for: returnDelay)
+                pressReturn()
+            }
+        }
         Task {
             try? await Task.sleep(for: restoreDelay)
             // Something copied meanwhile is newer than what was there before.
@@ -103,15 +113,19 @@ enum TextInserter {
         }
     }
 
-    private static func postCommandV() {
+    /// Presses Return in the app in front.
+    static func pressReturn() {
+        post(kVK_Return, flags: [])
+    }
+
+    private static func post(_ key: Int, flags: CGEventFlags) {
         let source = CGEventSource(stateID: .combinedSessionState)
-        // Keys the user is still holding must not join the shortcut.
+        // Keys the user is still holding must not join in.
         source?.setLocalEventsFilterDuringSuppressionState(
             [.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
-        let key = CGKeyCode(kVK_ANSI_V)
         for isDown in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: isDown)
-            event?.flags = .maskCommand
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: isDown)
+            event?.flags = flags
             event?.post(tap: .cgAnnotatedSessionEventTap)
         }
     }

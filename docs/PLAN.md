@@ -231,8 +231,9 @@ ListenerCore  (Foundation only, builds and tests on Linux)
   Transcript/     Turn, TranscriptSnapshot, TurnDetector, ConversationScript
   Answering/      LanguageModelProvider protocol, PromptBuilder, TranscriptWindow
   Dictation/      FnTapDetector, DictationRecorder, DictationTidier (the clean-up prompt),
-                  DictationFormatting (lists as HTML), CorrectionFinder and
-                  LearnedDictionary (words learned from corrections), DictationStats
+                  DictationFormatting (lists as HTML), PressEnter (the spoken Return),
+                  CorrectionFinder and LearnedDictionary (words learned from
+                  corrections), DictationStats
   Metrics/        PriceTable, CostTracker, LatencyStats
   Session/        CallSession (the actor that wires everything), SessionStore,
                   SessionSummarizer, SessionEvent
@@ -252,7 +253,7 @@ ListenerMac   (macOS only)
   Network/        URLSessionStreamingTransport for ClaudeAPI
   Hotkeys/        RegisterEventHotKey wrapper
   Dictation/      fn event tap, DictationController, pasting, the capsule on screen,
-                  CorrectionWatcher
+                  sounds played off the main thread, CorrectionWatcher
   Secrets/        Keychain store and the standard secret chain
   UI/             floating NSPanel, SwiftUI views, menu bar item, CallModel
 

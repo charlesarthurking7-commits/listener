@@ -68,7 +68,8 @@ you are waiting on. Search finds any word said on any call. Each call shows what
 Press fn twice, speak, and press fn again. The words are recognised on the Mac by
 Parakeet Ultra on the Neural Engine, then tidied by Claude for the app you are typing
 into: fillers and false starts gone, corrections applied, and lists pasted as real lists
-in Outlook, Teams, Notes and Slack. Fix a name it got wrong and it learns the spelling
+in Outlook, Teams, Notes and Slack. Say "at Ed" to tag someone, and end with "press
+enter" to send the message. Fix a name it got wrong and it learns the spelling
 for next time. **Insights** shows how much you dictate, how fast, the time it saves over
 typing, the apps it goes into and your streak.
 
